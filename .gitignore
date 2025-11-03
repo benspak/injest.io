@@ -1,37 +1,12 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
-# Testing
-coverage/
-*.log
-
-# Production
-dist/
-build/
-.next/
-out/
-
-# Environment variables
+node_modules
+dist
+build
+.next
 .env
 .env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
+*.log
 .DS_Store
-Thumbs.db
-
-# Database
-*.db
-*.sqlite
-
-# Docker
-docker-compose.override.yml
+.vscode
+.idea
+coverage
+*.tsbuildinfo

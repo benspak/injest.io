@@ -1,227 +1,114 @@
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
+import { Router } from 'express';
 import { db } from '../db/index.js';
-import { users, organizations, apiKeys } from '../db/schema.js';
-import { hashPassword, verifyPassword } from '../auth/password.js';
-import { isValidEmail } from '@brain/shared';
+import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { randomBytes } from 'crypto';
+import { generateToken } from '../auth/jwt.js';
 
-const registerSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(1),
-  password: z.string().min(8),
-  organizationName: z.string().min(1).optional(),
+export const authRouter = Router();
+
+// Google OAuth callback (simplified - you'd integrate with Passport or similar)
+authRouter.post('/auth/google', async (req, res) => {
+  try {
+    const { email, name, avatar, googleId } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+
+    // Find or create user
+    let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+    if (!user) {
+      [user] = await db
+        .insert(users)
+        .values({
+          email,
+          name,
+          avatar,
+          googleId,
+        })
+        .returning();
+    } else {
+      // Update existing user
+      [user] = await db
+        .update(users)
+        .set({ name, avatar, googleId })
+        .where(eq(users.id, user.id))
+        .returning();
+    }
+
+    const token = generateToken({ userId: user.id, email: user.email });
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error) {
+    console.error('Auth error:', error);
+    res.status(500).json({ error: 'Authentication failed' });
+  }
 });
 
-const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+// Magic Link login (simplified - send email)
+authRouter.post('/auth/magic-link', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' });
+    }
+
+    // Generate token for magic link
+    const token = generateToken({ userId: email, email }); // Simplified
+    const magicLink = `${process.env.BASE_URL}/auth/verify?token=${token}`;
+
+    // In production, send email here
+    console.log(`Magic link for ${email}: ${magicLink}`);
+
+    res.json({ message: 'Check your email for login link', link: magicLink });
+  } catch (error) {
+    console.error('Magic link error:', error);
+    res.status(500).json({ error: 'Failed to send magic link' });
+  }
 });
 
-const createApiKeySchema = z.object({
-  name: z.string().min(1),
-  expiresInDays: z.number().optional(),
-  permissions: z.array(z.string()).optional(),
+// Verify magic link token
+authRouter.get('/auth/verify', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Invalid token' });
+    }
+
+    // Find or create user
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    const { email } = payload;
+
+    let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+
+    if (!user) {
+      [user] = await db.insert(users).values({ email }).returning();
+    }
+
+    const authToken = generateToken({ userId: user.id, email: user.email });
+
+    res.json({
+      token: authToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        avatar: user.avatar,
+      },
+    });
+  } catch (error) {
+    console.error('Verify error:', error);
+    res.status(500).json({ error: 'Verification failed' });
+  }
 });
-
-export async function authRoutes(app: FastifyInstance) {
-  // Register
-  app.post('/auth/register', async (request, reply) => {
-    const body = registerSchema.parse(request.body);
-
-    // Check if user exists
-    const existingUser = await db.query.users.findFirst({
-      where: eq(users.email, body.email),
-    });
-
-    if (existingUser) {
-      return reply.code(400).send({ error: 'User already exists' });
-    }
-
-    // Create organization
-    const orgSlug = body.organizationName
-      ? body.organizationName.toLowerCase().replace(/\s+/g, '-')
-      : `org-${Date.now()}`;
-
-    const [org] = await db.insert(organizations).values({
-      name: body.organizationName || 'My Organization',
-      slug: orgSlug,
-    }).returning();
-
-    // Create user
-    const passwordHash = await hashPassword(body.password);
-    const [user] = await db.insert(users).values({
-      email: body.email,
-      name: body.name,
-      passwordHash,
-      organizationId: org.id,
-      role: 'admin',
-    }).returning();
-
-    // Generate JWT token
-    const token = app.jwt.sign({
-      userId: user.id,
-      organizationId: org.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    return {
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          organizationId: org.id,
-        },
-        token,
-      },
-    };
-  });
-
-  // Login
-  app.post('/auth/login', async (request, reply) => {
-    const body = loginSchema.parse(request.body);
-
-    const user = await db.query.users.findFirst({
-      where: eq(users.email, body.email),
-    });
-
-    if (!user || !user.passwordHash) {
-      return reply.code(401).send({ error: 'Invalid credentials' });
-    }
-
-    const isValid = await verifyPassword(body.password, user.passwordHash);
-
-    if (!isValid) {
-      return reply.code(401).send({ error: 'Invalid credentials' });
-    }
-
-    const org = await db.query.organizations.findFirst({
-      where: eq(organizations.id, user.organizationId),
-    });
-
-    if (!org) {
-      return reply.code(500).send({ error: 'Organization not found' });
-    }
-
-    const token = app.jwt.sign({
-      userId: user.id,
-      organizationId: org.id,
-      email: user.email,
-      role: user.role,
-    });
-
-    return {
-      success: true,
-      data: {
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          organizationId: org.id,
-        },
-        token,
-      },
-    };
-  });
-
-  // Create API Key
-  app.post('/auth/api-keys', {
-    preHandler: [app.authenticate],
-  }, async (request, reply) => {
-    if (!request.user) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
-
-    const body = createApiKeySchema.parse(request.body);
-
-    // Generate API key (32 bytes, base64 encoded)
-    const apiKeyBytes = randomBytes(32);
-    const apiKey = `brn_${apiKeyBytes.toString('base64url')}`;
-    const keyPrefix = apiKey.substring(0, 8);
-
-    // Hash the key for storage
-    const crypto = await import('crypto');
-    const keyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
-
-    const expiresAt = body.expiresInDays
-      ? new Date(Date.now() + body.expiresInDays * 24 * 60 * 60 * 1000)
-      : undefined;
-
-    const [key] = await db.insert(apiKeys).values({
-      userId: request.user.userId,
-      organizationId: request.user.organizationId,
-      name: body.name,
-      keyHash,
-      keyPrefix,
-      expiresAt,
-      permissions: body.permissions || ['read', 'write'],
-    }).returning();
-
-    // Return the API key only once (it's hashed, so we can't retrieve it later)
-    return {
-      success: true,
-      data: {
-        id: key.id,
-        name: key.name,
-        keyPrefix: key.keyPrefix,
-        apiKey, // Only returned once
-        expiresAt: key.expiresAt,
-        createdAt: key.createdAt,
-      },
-    };
-  });
-
-  // List API Keys
-  app.get('/auth/api-keys', {
-    preHandler: [app.authenticate],
-  }, async (request, reply) => {
-    if (!request.user) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
-
-    const keys = await db.query.apiKeys.findMany({
-      where: eq(apiKeys.userId, request.user.userId),
-    });
-
-    return {
-      success: true,
-      data: keys.map(key => ({
-        id: key.id,
-        name: key.name,
-        keyPrefix: key.keyPrefix,
-        lastUsedAt: key.lastUsedAt,
-        expiresAt: key.expiresAt,
-        createdAt: key.createdAt,
-      })),
-    };
-  });
-
-  // Delete API Key
-  app.delete('/auth/api-keys/:id', {
-    preHandler: [app.authenticate],
-  }, async (request, reply) => {
-    if (!request.user) {
-      return reply.code(401).send({ error: 'Unauthorized' });
-    }
-
-    const { id } = request.params as { id: string };
-
-    const key = await db.query.apiKeys.findFirst({
-      where: eq(apiKeys.id, id),
-    });
-
-    if (!key || key.userId !== request.user.userId) {
-      return reply.code(404).send({ error: 'API key not found' });
-    }
-
-    await db.delete(apiKeys).where(eq(apiKeys.id, id));
-
-    return { success: true };
-  });
-}

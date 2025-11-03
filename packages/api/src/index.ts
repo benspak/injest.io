@@ -1,49 +1,43 @@
-import Fastify from 'fastify';
-import cors from '@fastify/cors';
-import { config } from 'dotenv';
-import { setupJWT } from './auth/jwt.js';
-import { authRoutes } from './routes/auth.js';
-import { connectorRoutes } from './routes/connectors.js';
-import { queryRoutes } from './routes/queries.js';
-import { startSyncWorker } from './jobs/sync.js';
+import express from 'express';
+import cors from 'cors';
+import 'dotenv/config';
+import { authRouter } from './routes/auth.js';
+import { itemsRouter } from './routes/items.js';
+import { emailRouter } from './routes/email.js';
+import { indexingWorker, processingWorker } from './jobs/queue.js';
 
-config();
+const app = express();
+const PORT = process.env.PORT || 3001;
 
-const app = Fastify({
-  logger: true,
-});
-
-// CORS
-await app.register(cors, {
-  origin: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  credentials: true,
-});
-
-// JWT
-await setupJWT(app);
-
-// Routes
-await app.register(authRoutes);
-await app.register(connectorRoutes);
-await app.register(queryRoutes);
+app.use(cors());
+app.use(express.json());
 
 // Health check
-app.get('/health', async () => {
-  return { status: 'ok', timestamp: new Date().toISOString() };
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Start sync worker
-startSyncWorker();
+// Routes
+app.use(authRouter);
+app.use(itemsRouter);
+app.use(emailRouter);
 
-// Start server
-// Render.com uses PORT env var, but we also support API_PORT for local dev
-const PORT = Number(process.env.PORT) || Number(process.env.API_PORT) || 3001;
-const HOST = process.env.API_HOST || '0.0.0.0';
+// Start workers
+console.log('Starting background workers...');
+indexingWorker.on('completed', (job) => {
+  console.log(`Job ${job.id} completed`);
+});
+indexingWorker.on('failed', (job, err) => {
+  console.error(`Job ${job?.id} failed:`, err);
+});
 
-app.listen({ port: PORT, host: HOST }, (err, address) => {
-  if (err) {
-    app.log.error(err);
-    process.exit(1);
-  }
-  app.log.info(`Server listening at ${address}`);
+processingWorker.on('completed', (job) => {
+  console.log(`Processing job ${job.id} completed`);
+});
+processingWorker.on('failed', (job, err) => {
+  console.error(`Processing job ${job?.id} failed:`, err);
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Brain AI API running on http://localhost:${PORT}`);
 });

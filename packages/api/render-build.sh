@@ -1,17 +1,14 @@
 #!/bin/bash
-# Build script for API service on Render
+# Build script for Render.com deployment
 set -e
 
-echo "Installing root dependencies..."
-cd ../..
+echo "🔨 Building Brain AI API..."
+
+# Install dependencies
 pnpm install --frozen-lockfile
 
-echo "Building API service..."
-cd packages/api
-pnpm install
-pnpm run build
+# Build TypeScript
+pnpm build
 
-echo "Running database migrations..."
-pnpm run db:migrate || echo "Migrations may have already run, continuing..."
-
-echo "Build complete!"
+# Run migrations (this will be run on first deploy)
+echo "✅ Build complete!"

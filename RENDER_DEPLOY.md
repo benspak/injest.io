@@ -1,150 +1,89 @@
-# Deploying to Render.com
+# ✅ Render.com Deployment - Quick Start
 
-This guide explains how to deploy the Brain platform to Render.com.
+Your Brain AI MVP is **fully deployable** on Render.com!
 
-## Prerequisites
+## 🚀 One-Click Deploy
 
-1. A Render.com account
-2. GitHub repository with your code pushed
-3. API keys for external services (OpenAI, Anthropic, etc.) if needed
+1. **Push to GitHub/GitLab/Bitbucket**
+2. **In Render Dashboard**: New → Blueprint
+3. **Connect repository** with `render.yaml`
+4. **Set environment variables** (see below)
+5. **Deploy!**
 
-## Deployment Steps
+Render will automatically:
+- ✅ Create PostgreSQL database with pgvector support
+- ✅ Create Redis instance
+- ✅ Deploy API service
+- ✅ Deploy Frontend service
+- ✅ Deploy Worker service
+- ✅ Run migrations
+- ✅ Enable pgvector extension
 
-### Option 1: Using render.yaml (Recommended)
+## 🔑 Required Environment Variables
 
-1. Push your code to GitHub
-2. In Render Dashboard, go to "New" → "Blueprint"
-3. Connect your GitHub repository
-4. Render will automatically detect `render.yaml` and create all services
+Set these in Render Dashboard before first deploy:
 
-### Option 2: Manual Setup
+### For API Service:
+- `OPENAI_API_KEY` - Your OpenAI API key
+- `JWT_SECRET` - Generate random secret (use Render's "Generate Value")
 
-If you prefer manual setup or need to customize:
+### All other variables are auto-configured from `render.yaml`
 
-#### 1. Create PostgreSQL Database
-- Type: PostgreSQL
-- Name: `brain-database`
-- Plan: Starter (free) or upgrade as needed
-- Note the connection string
+## 📋 What Gets Deployed
 
-#### 2. Create Redis Instance
-- Type: Redis
-- Name: `brain-redis`
-- Plan: Starter (free) or upgrade as needed
-- Note the connection string
+- **Backend API** (`packages/api`) - Express server on port 10000
+- **Frontend** (`packages/frontend`) - Next.js app
+- **Background Workers** (`packages/api`) - BullMQ workers for processing
+- **PostgreSQL** - Database with pgvector extension
+- **Redis** - Job queue
 
-#### 3. Deploy API Service
-- Type: Web Service
-- Name: `brain-api`
-- Environment: Node
-- Root Directory: `packages/api`
-- Build Command: `pnpm install --frozen-lockfile && cd ../.. && pnpm install --frozen-lockfile && cd packages/api && pnpm run build`
-- Start Command: `npm start`
-- Health Check Path: `/health`
+## ✅ Verification Checklist
 
-**Environment Variables:**
-- `NODE_ENV`: `production`
-- `DATABASE_URL`: (from PostgreSQL service)
-- `REDIS_URL`: (from Redis service)
-- `API_HOST`: `0.0.0.0`
-- `ML_SERVICE_URL`: (will be set after ML service is deployed)
-- `NEXT_PUBLIC_API_URL`: (will be set after API service is deployed)
-- `NEXT_PUBLIC_APP_URL`: (will be set after Frontend service is deployed)
-- `ENCRYPTION_KEY`: Generate a secure 32+ character string
-- `JWT_SECRET`: Generate a secure random string
-- `OPENAI_API_KEY`: (optional, your OpenAI API key)
-- `ANTHROPIC_API_KEY`: (optional, your Anthropic API key)
+After deployment:
 
-#### 4. Deploy ML Service
-- Type: Web Service
-- Name: `brain-ml-service`
-- Environment: Node
-- Root Directory: `packages/ml-service`
-- Build Command: `pnpm install --frozen-lockfile && cd ../.. && pnpm install --frozen-lockfile && cd packages/ml-service && pnpm run build`
-- Start Command: `npm start`
-- Health Check Path: `/health`
+1. ✅ API health: `https://your-api.onrender.com/health`
+2. ✅ Frontend loads: `https://your-frontend.onrender.com`
+3. ✅ Database: Check API logs for "Migrations complete!"
+4. ✅ pgvector: Check API logs for "pgvector extension enabled"
+5. ✅ Workers: Check worker service logs for "Workers started"
 
-**Environment Variables:**
-- `NODE_ENV`: `production`
-- `ML_HOST`: `0.0.0.0`
-- `OPENAI_API_KEY`: (optional, your OpenAI API key)
-- `ANTHROPIC_API_KEY`: (optional, your Anthropic API key)
+## 💰 Estimated Cost
 
-#### 5. Deploy Frontend Service
-- Type: Web Service
-- Name: `brain-frontend`
-- Environment: Node
-- Root Directory: `packages/frontend`
-- Build Command: `pnpm install --frozen-lockfile && cd ../.. && pnpm install --frozen-lockfile && cd packages/frontend && pnpm run build`
-- Start Command: `npm start`
+**Starter Plans** (MVP/Testing):
+- PostgreSQL: $7/month
+- Redis: $10/month
+- API: $7/month
+- Frontend: $7/month
+- Workers: $7/month
+- **Total: ~$38/month**
 
-**Environment Variables:**
-- `NODE_ENV`: `production`
-- `NEXT_PUBLIC_API_URL`: (from API service URL)
-- `NEXT_PUBLIC_APP_URL`: (from Frontend service URL)
+**Production Plans** (Recommended for scale):
+- Standard plans: ~$100-200/month
 
-## Service Dependencies
+## 🔧 Post-Deployment
 
-The services need to be created in this order:
-1. PostgreSQL Database
-2. Redis Instance
-3. API Service (depends on Database and Redis)
-4. ML Service
-5. Frontend Service (depends on API Service)
+1. **Update Chrome Extension**: Change API URL in `packages/chrome-ext/popup.js`
+2. **Test Authentication**: Try login flow
+3. **Test Capture**: Create an item
+4. **Monitor Logs**: Check all services are running
 
-## Post-Deployment
+## 📚 Full Documentation
 
-After all services are deployed:
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed setup, troubleshooting, and scaling guide.
 
-1. **Update Service URLs**: Update the `ML_SERVICE_URL`, `NEXT_PUBLIC_API_URL`, and `NEXT_PUBLIC_APP_URL` environment variables in each service with the actual URLs.
+## ⚠️ Important Notes
 
-2. **Run Migrations**: The API service will automatically run migrations on build, but you can also run them manually:
-   ```bash
-   cd packages/api
-   npm run db:migrate
-   ```
+- **pgvector**: The postdeploy script enables pgvector automatically on first deploy
+- **Migrations**: Run automatically on API service startup
+- **Workers**: Must be running for background processing (embeddings, auto-structuring)
+- **CORS**: Already configured, but verify frontend URL matches BASE_URL
 
-3. **Verify Health Checks**: Visit:
-   - API: `https://your-api-url.onrender.com/health`
-   - ML Service: `https://your-ml-url.onrender.com/health`
-   - Frontend: `https://your-frontend-url.onrender.com`
+## 🐛 Common Issues
 
-## Troubleshooting
+1. **"pgvector not found"**: Wait for postdeploy to run, or enable manually via Render Shell
+2. **Workers not processing**: Verify Redis URL and worker service is running
+3. **Build fails**: Check for TypeScript errors in build logs
 
-### Build Failures
-- Ensure all environment variables are set
-- Check that pnpm is being used (Render should detect this from `pnpm-lock.yaml`)
-- Verify Node version (should use Node 20 based on `.nvmrc`)
+## ✨ Ready to Deploy!
 
-### Database Connection Issues
-- Verify `DATABASE_URL` is correctly set
-- Check that PostgreSQL service is running
-- Ensure database exists
-
-### Redis Connection Issues
-- Verify `REDIS_URL` is correctly set
-- Check that Redis service is running
-
-### Service Communication Issues
-- Verify service URLs are correctly set in environment variables
-- Check that health endpoints are responding
-- Ensure CORS is properly configured
-
-## Cost Considerations
-
-Free tier limits:
-- 750 hours/month per service
-- Services spin down after 15 minutes of inactivity
-- Upgrade plans available for 24/7 uptime
-
-For production use, consider upgrading to paid plans for:
-- 24/7 uptime (no spin-down)
-- Better performance
-- More resources
-
-## Security Notes
-
-- **Never commit** `.env` files or secrets to Git
-- Use Render's environment variable management
-- Generate strong `ENCRYPTION_KEY` and `JWT_SECRET` values
-- Rotate secrets regularly in production
+Your MVP is production-ready. Just push to your repo and deploy via Render Blueprint!

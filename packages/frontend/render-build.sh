@@ -1,14 +1,13 @@
 #!/bin/bash
-# Build script for Frontend service on Render
+# Build script for Render.com deployment
 set -e
 
-echo "Installing root dependencies..."
-cd ../..
+echo "🔨 Building Brain AI Frontend..."
+
+# Install dependencies
 pnpm install --frozen-lockfile
 
-echo "Building Frontend service..."
-cd packages/frontend
-pnpm install
-pnpm run build
+# Build Next.js
+pnpm build
 
-echo "Build complete!"
+echo "✅ Build complete!"

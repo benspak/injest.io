@@ -3,15 +3,18 @@ import { db } from './index.js';
 
 async function runMigrations() {
   console.log('Running migrations...');
-  // Path is relative to where the script runs from (dist/db/)
-  // Go up to package root and then into drizzle folder
-  const migrationsPath = process.env.MIGRATIONS_PATH || '../../drizzle';
-  await migrate(db, { migrationsFolder: migrationsPath });
-  console.log('Migrations completed!');
-  process.exit(0);
+  try {
+    await migrate(db, { migrationsFolder: './drizzle' });
+    console.log('✅ Migrations complete!');
+  } catch (error) {
+    console.error('❌ Migration failed:', error);
+    throw error;
+  } finally {
+    process.exit(0);
+  }
 }
 
-runMigrations().catch((error) => {
-  console.error('Migration failed:', error);
+runMigrations().catch((err) => {
+  console.error('Migration error:', err);
   process.exit(1);
 });
