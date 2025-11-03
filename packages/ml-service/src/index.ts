@@ -68,7 +68,8 @@ app.get('/health', async () => {
   return { status: 'ok', timestamp: new Date().toISOString() };
 });
 
-const PORT = Number(process.env.ML_PORT) || 3002;
+// Render.com uses PORT env var, but we also support ML_PORT for local dev
+const PORT = Number(process.env.PORT) || Number(process.env.ML_PORT) || 3002;
 const HOST = process.env.ML_HOST || '0.0.0.0';
 
 app.listen({ port: PORT, host: HOST }, (err, address) => {

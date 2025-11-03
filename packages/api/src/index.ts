@@ -36,7 +36,8 @@ app.get('/health', async () => {
 startSyncWorker();
 
 // Start server
-const PORT = Number(process.env.API_PORT) || 3001;
+// Render.com uses PORT env var, but we also support API_PORT for local dev
+const PORT = Number(process.env.PORT) || Number(process.env.API_PORT) || 3001;
 const HOST = process.env.API_HOST || '0.0.0.0';
 
 app.listen({ port: PORT, host: HOST }, (err, address) => {

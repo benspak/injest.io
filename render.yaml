@@ -1,0 +1,104 @@
+services:
+  # PostgreSQL Database
+  - type: pg
+    name: brain-database
+    plan: starter # Free tier, upgrade as needed
+    databaseName: brain
+    user: brain
+
+  # Redis Instance
+  - type: redis
+    name: brain-redis
+    plan: starter # Free tier, upgrade as needed
+    ipAllowList: [] # Allow all IPs
+
+  # API Service
+  - type: web
+    name: brain-api
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: packages/api
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && cd packages/api && pnpm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: brain-database
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: brain-redis
+          property: connectionString
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: ML_SERVICE_URL
+        fromService:
+          type: web
+          name: brain-ml-service
+          property: host
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: brain-api
+          property: host
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: brain-frontend
+          property: host
+      - key: ENCRYPTION_KEY
+        sync: false # Set manually: generate a secure 32+ character string
+      - key: JWT_SECRET
+        sync: false # Set manually: generate a secure random string
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    healthCheckPath: /health
+
+  # Frontend Service
+  - type: web
+    name: brain-frontend
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: packages/frontend
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && cd packages/frontend && pnpm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: brain-api
+          property: host
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: brain-frontend
+          property: host
+
+  # ML Service
+  - type: web
+    name: brain-ml-service
+    runtime: node
+    plan: starter
+    region: oregon
+    rootDir: packages/ml-service
+    buildCommand: cd ../.. && pnpm install --frozen-lockfile && cd packages/ml-service && pnpm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ML_HOST
+        value: 0.0.0.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    healthCheckPath: /health
