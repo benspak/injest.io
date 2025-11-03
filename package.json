@@ -1,0 +1,25 @@
+{
+  "name": "brain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AI/ML Data Aggregation Platform",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter './packages/*' dev --parallel",
+    "build": "pnpm --filter './packages/*' build",
+    "test": "pnpm --filter './packages/*' test",
+    "lint": "pnpm --filter './packages/*' lint",
+    "typecheck": "pnpm --filter './packages/*' typecheck"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}
