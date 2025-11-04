@@ -1,209 +1,186 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { db } from '../db/index.js';
-import { items, interactions } from '../db/schema.js';
-import { eq, desc, sql } from 'drizzle-orm';
-import { AuthRequest, authMiddleware } from '../auth/middleware.js';
-import { processingQueue } from '../jobs/queue.js';
-import { generateCompletion } from '../services/openai.js';
+import { items, embeddings } from '../db/schema.js';
+import { eq, and, sql } from 'drizzle-orm';
+import { authMiddleware, AuthRequest } from '../auth/middleware.js';
+import { getEmbedding } from '../services/openai.js';
+import { queue } from '../jobs/queue.js';
 
-export const itemsRouter = Router();
-itemsRouter.use(authMiddleware);
+const router = Router();
 
-// Capture - create new item
-itemsRouter.post('/items', async (req: AuthRequest, res) => {
+const createItemSchema = z.object({
+  type: z.enum(['note', 'link', 'file', 'email']),
+  raw: z.string().min(1),
+  source: z.object({
+    app: z.string().optional(),
+    url: z.string().optional(),
+  }).optional(),
+});
+
+// Create item
+router.post('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { raw, type, source } = req.body;
-
-    if (!raw) {
-      return res.status(400).json({ error: 'Content required' });
-    }
+    const body = createItemSchema.parse(req.body);
 
     const [item] = await db
       .insert(items)
       .values({
         ownerId: req.userId!,
-        type: type || 'note',
-        raw,
-        source: source || {},
+        type: body.type,
+        raw: body.raw,
+        source: body.source || null,
       })
       .returning();
 
-    // Queue for processing (auto-structuring + indexing)
-    await processingQueue.add('process', { itemId: item.id });
+    // Queue indexing job
+    await queue.add('index-item', { itemId: item.id });
 
-    res.json(item);
-  } catch (error) {
+    res.json({ item });
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
     console.error('Create item error:', error);
     res.status(500).json({ error: 'Failed to create item' });
   }
 });
 
 // List items
-itemsRouter.get('/items', async (req: AuthRequest, res) => {
+router.get('/', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { limit = 50, offset = 0, type, isTask } = req.query;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+    const isTask = req.query.isTask === 'true';
 
-    const conditions = [eq(items.ownerId, req.userId!)];
-
-    if (type) {
-      conditions.push(eq(items.type, type as any));
-    }
-
-    if (isTask === 'true') {
+    const conditions: any[] = [eq(items.ownerId, req.userId!)];
+    if (isTask) {
       conditions.push(eq(items.isTask, true));
     }
 
     const itemsList = await db
       .select()
       .from(items)
-      .where(sql`${items.ownerId} = ${req.userId}`)
-      .orderBy(desc(items.createdAt))
-      .limit(Number(limit))
-      .offset(Number(offset));
+      .where(and(...conditions))
+      .orderBy(sql`${items.createdAt} DESC`)
+      .limit(limit)
+      .offset(offset);
 
-    res.json(itemsList);
+    res.json({ items: itemsList });
   } catch (error) {
     console.error('List items error:', error);
-    res.status(500).json({ error: 'Failed to fetch items' });
+    res.status(500).json({ error: 'Failed to list items' });
+  }
+});
+
+// Get single item
+router.get('/:id', authMiddleware, async (req: AuthRequest, res) => {
+  try {
+    const [item] = await db
+      .select()
+      .from(items)
+      .where(and(eq(items.id, req.params.id), eq(items.ownerId, req.userId!)))
+      .limit(1);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    res.json({ item });
+  } catch (error) {
+    console.error('Get item error:', error);
+    res.status(500).json({ error: 'Failed to get item' });
   }
 });
 
 // Semantic search
-itemsRouter.post('/items/search', async (req: AuthRequest, res) => {
+router.post('/search', authMiddleware, async (req: AuthRequest, res) => {
   try {
     const { query } = req.body;
-
-    if (!query) {
-      return res.status(400).json({ error: 'Query required' });
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ error: 'Query is required' });
     }
 
-    // Generate embedding for query
-    const { generateEmbedding } = await import('../services/openai.js');
-    const queryEmbedding = await generateEmbedding(query);
-    const embeddingArray = `[${queryEmbedding.join(',')}]`;
+    // Get embedding for search query
+    const queryEmbedding = await getEmbedding(query);
 
-    // Vector similarity search using pgvector
-    const results = await db.execute(sql`
+    // Search using pgvector cosine similarity
+    const embeddingArray = queryEmbedding.join(',');
+    const searchResults = await db.execute(sql`
       SELECT
-        id, owner_id, type, raw, clean, title, tags, source,
-        metadata, is_task, task_completed, created_at,
-        1 - (embedding <=> ${embeddingArray}::vector) as similarity
-      FROM items
-      WHERE owner_id = ${req.userId}
-        AND embedding IS NOT NULL
-      ORDER BY embedding <=> ${embeddingArray}::vector
+        i.id,
+        i.type,
+        i.raw,
+        i.clean,
+        i.tags,
+        i.source,
+        i.created_at,
+        1 - (e.embedding <=> ${sql.raw(`'[${embeddingArray}]'`)}::vector) as similarity
+      FROM items i
+      INNER JOIN embeddings e ON i.embedding_id = e.id
+      WHERE i.owner_id = ${req.userId!}
+      ORDER BY similarity DESC
       LIMIT 10
     `);
 
-    // Log interaction
-    await db.insert(interactions).values({
-      userId: req.userId!,
-      type: 'query',
-      query,
-      metadata: { resultCount: results.length },
-    });
+    const results = (searchResults.rows as any[]).map(row => ({
+      id: row.id,
+      type: row.type,
+      raw: row.raw,
+      clean: row.clean,
+      tags: row.tags,
+      source: row.source,
+      createdAt: row.created_at,
+      similarity: parseFloat(row.similarity),
+    }));
 
-    res.json(results);
+    res.json({ results });
   } catch (error) {
     console.error('Search error:', error);
     res.status(500).json({ error: 'Search failed' });
   }
 });
 
-// Taskify - convert item to task
-itemsRouter.post('/items/:id/taskify', async (req: AuthRequest, res) => {
+// Trigger indexing
+router.post('/:id/index', authMiddleware, async (req: AuthRequest, res) => {
   try {
-    const { id } = req.params;
+    const [item] = await db
+      .select()
+      .from(items)
+      .where(and(eq(items.id, req.params.id), eq(items.ownerId, req.userId!)))
+      .limit(1);
 
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    await queue.add('index-item', { itemId: item.id });
+
+    res.json({ message: 'Indexing queued' });
+  } catch (error) {
+    console.error('Index error:', error);
+    res.status(500).json({ error: 'Failed to queue indexing' });
+  }
+});
+
+// Taskify (convert to task)
+router.post('/:id/taskify', authMiddleware, async (req: AuthRequest, res) => {
+  try {
     const [item] = await db
       .update(items)
-      .set({ isTask: true, taskCompleted: false })
-      .where(eq(items.id, id))
+      .set({ isTask: true })
+      .where(and(eq(items.id, req.params.id), eq(items.ownerId, req.userId!)))
       .returning();
 
-    // Log interaction
-    await db.insert(interactions).values({
-      userId: req.userId!,
-      itemId: id,
-      type: 'taskify',
-    });
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
 
-    res.json(item);
+    res.json({ item });
   } catch (error) {
     console.error('Taskify error:', error);
-    res.status(500).json({ error: 'Failed to taskify item' });
+    res.status(500).json({ error: 'Failed to convert to task' });
   }
 });
 
-// Toggle task completion
-itemsRouter.patch('/items/:id/task', async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-    const { completed } = req.body;
-
-    const [item] = await db
-      .update(items)
-      .set({ taskCompleted: completed ?? false })
-      .where(eq(items.id, id))
-      .returning();
-
-    res.json(item);
-  } catch (error) {
-    console.error('Update task error:', error);
-    res.status(500).json({ error: 'Failed to update task' });
-  }
-});
-
-// Generate - contextual AI responses
-itemsRouter.post('/items/generate', async (req: AuthRequest, res) => {
-  try {
-    const { prompt, contextItemIds } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt required' });
-    }
-
-    // Fetch context items
-    let context = '';
-    if (contextItemIds && contextItemIds.length > 0) {
-      const contextItems = await db
-        .select()
-        .from(items)
-        .where(sql`${items.id} = ANY(${contextItemIds}) AND ${items.ownerId} = ${req.userId}`);
-
-      context = contextItems.map(item =>
-        `${item.title || 'Item'}: ${item.clean || item.raw}`
-      ).join('\n\n');
-    }
-
-    const response = await generateCompletion(prompt, context);
-
-    // Log interaction
-    await db.insert(interactions).values({
-      userId: req.userId!,
-      type: 'generate',
-      query: prompt,
-      response,
-      metadata: { contextItemIds },
-    });
-
-    res.json({ response });
-  } catch (error) {
-    console.error('Generate error:', error);
-    res.status(500).json({ error: 'Generation failed' });
-  }
-});
-
-// Delete item
-itemsRouter.delete('/items/:id', async (req: AuthRequest, res) => {
-  try {
-    const { id } = req.params;
-
-    await db.delete(items).where(eq(items.id, id));
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete error:', error);
-    res.status(500).json({ error: 'Failed to delete item' });
-  }
-});
+export default router;

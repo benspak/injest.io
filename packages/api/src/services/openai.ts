@@ -1,83 +1,71 @@
 import OpenAI from 'openai';
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY is not set');
-}
-
-export const openai = new OpenAI({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const EMBEDDING_MODEL = 'text-embedding-ada-002';
-const GPT_MODEL = 'gpt-4-turbo-preview';
-
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function getEmbedding(text: string): Promise<number[]> {
   const response = await openai.embeddings.create({
-    model: EMBEDDING_MODEL,
+    model: 'text-embedding-3-large',
     input: text,
   });
 
   return response.data[0].embedding;
 }
 
-export async function generateCompletion(
+export async function classifyAndStructure(content: string): Promise<{
+  type: 'note' | 'link' | 'file' | 'email';
+  tags: string[];
+  summary: string;
+}> {
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4',
+    messages: [
+      {
+        role: 'system',
+        content: `Classify and structure the following content. Return JSON with:
+- type: one of "note", "link", "file", "email"
+- tags: array of 3-5 relevant tags
+- summary: concise summary (max 200 chars)
+
+Content:`,
+      },
+      {
+        role: 'user',
+        content: content.substring(0, 4000), // Limit input length
+      },
+    ],
+    response_format: { type: 'json_object' },
+  });
+
+  const result = JSON.parse(response.choices[0].message.content || '{}');
+
+  return {
+    type: result.type || 'note',
+    tags: result.tags || [],
+    summary: result.summary || content.substring(0, 200),
+  };
+}
+
+export async function generateContextualResponse(
   prompt: string,
-  context?: string
+  context: string[]
 ): Promise<string> {
-  const messages = [
-    {
-      role: 'system' as const,
-      content: context
-        ? `You are a helpful AI assistant. Use the following context to answer questions:\n\n${context}`
-        : 'You are a helpful AI assistant.',
-    },
-    {
-      role: 'user' as const,
-      content: prompt,
-    },
-  ];
+  const contextText = context.join('\n\n');
 
   const response = await openai.chat.completions.create({
-    model: GPT_MODEL,
-    messages,
-    temperature: 0.7,
-    max_tokens: 1000,
+    model: 'gpt-4',
+    messages: [
+      {
+        role: 'system',
+        content: `You are a helpful assistant that generates responses based on the user's knowledge base. Use the following context to inform your response:\n\n${contextText}`,
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
   });
 
   return response.choices[0].message.content || '';
-}
-
-export async function classifyAndExtract(text: string): Promise<{
-  type: string;
-  tags: string[];
-  summary: string;
-  title: string;
-}> {
-  const prompt = `Analyze this content and return JSON with:
-- type: one of "note", "link", "file", "email", "task", "chat"
-- tags: array of relevant tags (max 5)
-- summary: 1-2 sentence summary
-- title: short title (max 60 chars)
-
-Content: ${text.substring(0, 2000)}`;
-
-  const response = await generateCompletion(prompt);
-
-  try {
-    const parsed = JSON.parse(response);
-    return {
-      type: parsed.type || 'note',
-      tags: parsed.tags || [],
-      summary: parsed.summary || text.substring(0, 200),
-      title: parsed.title || text.substring(0, 60),
-    };
-  } catch {
-    // Fallback if JSON parsing fails
-    return {
-      type: 'note',
-      tags: [],
-      summary: text.substring(0, 200),
-      title: text.substring(0, 60),
-    };
-  }
 }

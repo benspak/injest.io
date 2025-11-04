@@ -2,109 +2,132 @@
 
 ## Prerequisites
 
-- Node.js 18+
-- pnpm 8+
+- Node.js 18+ and pnpm
 - PostgreSQL 14+ with pgvector extension
 - Redis (for BullMQ job queue)
 - OpenAI API key
+- Resend API key (for email)
+- Google OAuth credentials (optional, for OAuth login)
 
-## Database Setup
+## Installation
 
-1. Install PostgreSQL and pgvector extension:
-
+1. Install dependencies:
 ```bash
-# macOS
-brew install postgresql@14
+pnpm install
+```
+
+2. Set up PostgreSQL with pgvector:
+
+**On macOS (Homebrew):**
+```bash
+# First, try installing pgvector directly
 brew install pgvector
 
-# Ubuntu
-sudo apt install postgresql-14 postgresql-14-pgvector
+# If that doesn't work or you have a specific PostgreSQL version,
+# you'll need to build from source (see below)
 ```
 
-2. Create database and enable extension:
-
+**Install from source (recommended for PostgreSQL 15 via Homebrew):**
 ```bash
-createdb brain_ai
-psql brain_ai -c "CREATE EXTENSION vector;"
+# Clone pgvector repository
+cd /tmp
+git clone --branch v0.5.1 https://github.com/pgvector/pgvector.git
+cd pgvector
+
+# Build with your PostgreSQL version (Homebrew PostgreSQL 15)
+# Set PG_CONFIG to point to your PostgreSQL installation
+export PG_CONFIG=/opt/homebrew/opt/postgresql@15/bin/pg_config
+
+# Build and install
+make
+make install # may need sudo
+
+# Verify installation - check if files are in the right place
+ls $(pg_config --sharedir)/extension/vector*
+
+# Create database if not exists
+createdb injest
+
+# Enable extension
+psql injest -c "CREATE EXTENSION vector;"
 ```
 
-3. Generate and run migrations:
+**Troubleshooting:**
+- If you get "extension not available" error, make sure pgvector is installed in the same location as your PostgreSQL installation
+- Check PostgreSQL version: `psql --version`
+- Find PostgreSQL share directory: `pg_config --sharedir`
+- Ensure pgvector files are in: `$(pg_config --sharedir)/extension/`
 
-```bash
-cd packages/api
+3. Set up environment variables:
 
-# Generate migration from schema
-pnpm db:generate
-
-# Run migrations
-pnpm db:migrate
+### Backend (`packages/api/.env`):
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/injest
+JWT_SECRET=your-secret-key-change-in-production
+SESSION_SECRET=your-session-secret-change-in-production
+OPENAI_API_KEY=sk-...
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=onboarding@resend.dev
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+FRONTEND_URL=http://localhost:3000
+REDIS_URL=redis://localhost:6379
+PORT=3001
 ```
 
-## Redis Setup
-
-```bash
-# macOS
-brew install redis
-brew services start redis
-
-# Ubuntu
-sudo apt install redis-server
-sudo systemctl start redis
-```
-
-## Environment Variables
-
-### Backend (`packages/api/.env`)
-
-Copy `packages/api/.env.example` to `packages/api/.env` and fill in:
-
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_SECRET` - Random secret for JWT tokens
-- `OPENAI_API_KEY` - Your OpenAI API key
-- `REDIS_URL` - Redis connection (default: redis://localhost:6379)
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` - For Google OAuth (optional for MVP)
-
-### Frontend (`packages/frontend/.env.local`)
-
+### Frontend (`packages/frontend/.env.local`):
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-## Installation
-
+4. Run database migrations:
 ```bash
-# Install all dependencies
-pnpm install
-
-# Run database migrations
 cd packages/api
-pnpm db:migrate
+pnpm db:generate  # Generate migration from schema
+pnpm db:migrate   # Run migrations
 ```
 
-## Running
-
+5. Start Redis:
 ```bash
-# Terminal 1: Start API server
-cd packages/api
-pnpm dev
-
-# Terminal 2: Start frontend
-cd packages/frontend
-pnpm dev
+redis-server
 ```
 
-Visit http://localhost:3000
+6. Start development servers:
+```bash
+# Terminal 1 - Backend
+pnpm dev:api
 
-## Chrome Extension
+# Terminal 2 - Frontend
+pnpm dev:frontend
+```
+
+## Chrome Extension Setup
 
 1. Open Chrome and go to `chrome://extensions/`
 2. Enable "Developer mode"
 3. Click "Load unpacked"
-4. Select `packages/chrome-ext` directory
+4. Select the `packages/chrome-ext` directory
+5. Create icon files (or use placeholders):
+   - `packages/chrome-ext/icons/icon16.png`
+   - `packages/chrome-ext/icons/icon48.png`
+   - `packages/chrome-ext/icons/icon128.png`
 
-## Development Tips
+## Email Setup (Resend)
 
-- The auto-structuring pipeline runs in the background via BullMQ
-- Embeddings are generated asynchronously after items are created
-- Check Redis dashboard for job queue status
-- Use `pnpm db:studio` in packages/api to view database with Drizzle Studio
+1. Sign up at https://resend.com
+2. Get your API key
+3. Set up inbound webhook:
+   - Go to Resend dashboard → Webhooks
+   - Add webhook: `http://your-api-url/api/email/inbound`
+   - Forward emails to your Resend domain
+
+## Usage
+
+1. Sign up via magic link or Google OAuth
+2. Capture items via:
+   - Web dashboard
+   - Chrome extension (highlight text → Save)
+   - Email forwarding
+3. Search with Cmd+K (or Ctrl+K)
+4. Convert items to tasks
+5. Generate AI responses based on your knowledge

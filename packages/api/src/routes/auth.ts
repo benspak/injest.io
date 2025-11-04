@@ -1,114 +1,170 @@
 import { Router } from 'express';
+import passport from 'passport';
+import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
+import { Resend } from 'resend';
 import { db } from '../db/index.js';
 import { users } from '../db/schema.js';
 import { eq } from 'drizzle-orm';
-import { generateToken } from '../auth/jwt.js';
+import { signToken } from '../auth/jwt.js';
+import { nanoid } from 'nanoid';
 
-export const authRouter = Router();
+const router = Router();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Google OAuth callback (simplified - you'd integrate with Passport or similar)
-authRouter.post('/auth/google', async (req, res) => {
+// Google OAuth Strategy
+passport.use(
+  new GoogleStrategy(
+    {
+      clientID: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      callbackURL: `${process.env.API_URL || 'http://localhost:3001'}/api/auth/google/callback`,
+    },
+    async (accessToken, refreshToken, profile, done) => {
+      try {
+        let user = await db
+          .select()
+          .from(users)
+          .where(eq(users.googleId, profile.id))
+          .limit(1)
+          .then((rows) => rows[0]);
+
+        if (!user) {
+          // Check if user exists by email
+          const existingUser = await db
+            .select()
+            .from(users)
+            .where(eq(users.email, profile.emails?.[0]?.value || ''))
+            .limit(1)
+            .then((rows) => rows[0]);
+
+          if (existingUser) {
+            // Update existing user with Google ID
+            [user] = await db
+              .update(users)
+              .set({ googleId: profile.id })
+              .where(eq(users.id, existingUser.id))
+              .returning();
+          } else {
+            // Create new user
+            [user] = await db
+              .insert(users)
+              .values({
+                email: profile.emails?.[0]?.value || '',
+                name: profile.displayName,
+                googleId: profile.id,
+              })
+              .returning();
+          }
+        }
+
+        done(null, user);
+      } catch (error) {
+        done(error, null);
+      }
+    }
+  )
+);
+
+passport.serializeUser((user: any, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id: string, done) => {
   try {
-    const { email, name, avatar, googleId } = req.body;
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    done(null, user);
+  } catch (error) {
+    done(error, null);
+  }
+});
 
+// Google OAuth routes
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+router.get(
+  '/google/callback',
+  passport.authenticate('google', { session: false }),
+  (req, res) => {
+    const user = req.user as typeof users.$inferSelect;
+    const token = signToken({ userId: user.id, email: user.email });
+    res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${token}`);
+  }
+);
+
+// Magic Link
+router.post('/magic-link', async (req, res) => {
+  try {
+    const { email } = req.body;
     if (!email) {
-      return res.status(400).json({ error: 'Email required' });
+      return res.status(400).json({ error: 'Email is required' });
     }
 
     // Find or create user
-    let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    let user = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1)
+      .then((rows) => rows[0]);
 
     if (!user) {
       [user] = await db
         .insert(users)
-        .values({
-          email,
-          name,
-          avatar,
-          googleId,
-        })
-        .returning();
-    } else {
-      // Update existing user
-      [user] = await db
-        .update(users)
-        .set({ name, avatar, googleId })
-        .where(eq(users.id, user.id))
+        .values({ email })
         .returning();
     }
 
-    const token = generateToken({ userId: user.id, email: user.email });
+    // Generate magic link token
+    const magicToken = nanoid(32);
+    const token = signToken({ userId: user.id, email: user.email });
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-      },
+    // Store magic token temporarily (in production, use Redis)
+    // For MVP, we'll send the token directly in the email
+
+    const magicLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/callback?token=${token}`;
+
+    // Send email via Resend
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+      to: email,
+      subject: 'Sign in to Injest.io',
+      html: `
+        <h2>Sign in to Injest.io</h2>
+        <p>Click the link below to sign in:</p>
+        <a href="${magicLink}">Sign In</a>
+        <p>This link expires in 1 hour.</p>
+      `,
     });
-  } catch (error) {
-    console.error('Auth error:', error);
-    res.status(500).json({ error: 'Authentication failed' });
-  }
-});
 
-// Magic Link login (simplified - send email)
-authRouter.post('/auth/magic-link', async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ error: 'Email required' });
-    }
-
-    // Generate token for magic link
-    const token = generateToken({ userId: email, email }); // Simplified
-    const magicLink = `${process.env.BASE_URL}/auth/verify?token=${token}`;
-
-    // In production, send email here
-    console.log(`Magic link for ${email}: ${magicLink}`);
-
-    res.json({ message: 'Check your email for login link', link: magicLink });
-  } catch (error) {
+    res.json({ message: 'Magic link sent to your email' });
+  } catch (error: any) {
     console.error('Magic link error:', error);
     res.status(500).json({ error: 'Failed to send magic link' });
   }
 });
 
-// Verify magic link token
-authRouter.get('/auth/verify', async (req, res) => {
+// Verify token endpoint
+router.get('/me', async (req, res) => {
   try {
-    const { token } = req.query;
-
-    if (!token || typeof token !== 'string') {
-      return res.status(400).json({ error: 'Invalid token' });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Find or create user
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const { email } = payload;
+    const token = authHeader.substring(7);
+    const { verifyToken } = await import('../auth/jwt.js');
+    const payload = verifyToken(token);
 
-    let [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    const [user] = await db.select().from(users).where(eq(users.id, payload.userId)).limit(1);
 
     if (!user) {
-      [user] = await db.insert(users).values({ email }).returning();
+      return res.status(401).json({ error: 'User not found' });
     }
 
-    const authToken = generateToken({ userId: user.id, email: user.email });
-
-    res.json({
-      token: authToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatar: user.avatar,
-      },
-    });
+    res.json({ user: { id: user.id, email: user.email, name: user.name } });
   } catch (error) {
-    console.error('Verify error:', error);
-    res.status(500).json({ error: 'Verification failed' });
+    res.status(401).json({ error: 'Invalid token' });
   }
 });
+
+export default router;

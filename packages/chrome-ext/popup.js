@@ -1,93 +1,135 @@
 const API_URL = 'http://localhost:3001';
 
 async function getToken() {
-  const result = await chrome.storage.sync.get(['brain_token']);
-  return result.brain_token;
-}
-
-async function saveToBrain(content, note, url, title) {
-  const token = await getToken();
-
-  if (!token) {
-    throw new Error('Please login at http://localhost:3000');
-  }
-
-  const fullContent = note ? `${content}\n\nNote: ${note}` : content;
-
-  const response = await fetch(`${API_URL}/items`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      raw: fullContent,
-      type: url ? 'link' : 'note',
-      source: {
-        app: 'chrome',
-        url: url,
-        metadata: {
-          title: title,
-        },
-      },
-    }),
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['auth_token'], (result) => {
+      resolve(result.auth_token || null);
+    });
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to save');
-  }
-
-  return response.json();
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const contentTextarea = document.getElementById('content');
-  const noteInput = document.getElementById('note');
-  const saveButton = document.getElementById('save');
+async function setToken(token) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set({ auth_token: token }, resolve);
+  });
+}
+
+function showStatus(message, type) {
   const statusDiv = document.getElementById('status');
+  statusDiv.textContent = message;
+  statusDiv.className = `status ${type}`;
+  setTimeout(() => {
+    statusDiv.textContent = '';
+    statusDiv.className = '';
+  }, 3000);
+}
 
-  // Get current page info
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  const url = tab.url;
-  const title = tab.title;
+async function checkAuth() {
+  const token = await getToken();
+  if (token) {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        document.getElementById('auth-section').style.display = 'none';
+        document.getElementById('capture-section').style.display = 'block';
+        return true;
+      } else {
+        await setToken(null);
+      }
+    } catch (error) {
+      await setToken(null);
+    }
+  }
+  document.getElementById('auth-section').style.display = 'block';
+  document.getElementById('capture-section').style.display = 'none';
+  return false;
+}
 
-  // Pre-fill with page info if no content
-  if (!contentTextarea.value) {
-    contentTextarea.value = `${title}\n${url}`;
+async function saveItem(type, raw, source = {}) {
+  const token = await getToken();
+  if (!token) {
+    showStatus('Please sign in first', 'error');
+    return;
   }
 
-  saveButton.addEventListener('click', async () => {
-    const content = contentTextarea.value.trim();
-    const note = noteInput.value.trim();
+  try {
+    const response = await fetch(`${API_URL}/api/items`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        type,
+        raw,
+        source: {
+          app: 'chrome',
+          ...source,
+        },
+      }),
+    });
 
-    if (!content) {
-      showStatus('Please add content or save the current page', 'error');
-      return;
+    if (response.ok) {
+      showStatus('Saved to brain!', 'success');
+      document.getElementById('url-input').value = '';
+      document.getElementById('note-input').value = '';
+    } else {
+      throw new Error('Failed to save');
     }
+  } catch (error) {
+    console.error('Save error:', error);
+    showStatus('Failed to save', 'error');
+  }
+}
 
-    saveButton.disabled = true;
-    saveButton.textContent = 'Saving...';
-    statusDiv.className = 'status';
+document.getElementById('signin-btn').addEventListener('click', () => {
+  chrome.tabs.create({ url: `${API_URL}/api/auth/google` });
+});
 
-    try {
-      await saveToBrain(content, note, url, title);
-      showStatus('Saved to Brain! 🎉', 'success');
-      contentTextarea.value = '';
-      noteInput.value = '';
-      setTimeout(() => {
-        window.close();
-      }, 1000);
-    } catch (error) {
-      showStatus(error.message, 'error');
-    } finally {
-      saveButton.disabled = false;
-      saveButton.textContent = 'Save to Brain';
-    }
+document.getElementById('save-url-btn').addEventListener('click', async () => {
+  const url = document.getElementById('url-input').value.trim();
+  if (!url) {
+    showStatus('Please enter a URL or text', 'error');
+    return;
+  }
+  await saveItem('link', url, { url });
+});
+
+document.getElementById('save-note-btn').addEventListener('click', async () => {
+  const note = document.getElementById('note-input').value.trim();
+  if (!note) {
+    showStatus('Please enter a note', 'error');
+    return;
+  }
+  await saveItem('note', note);
+});
+
+document.getElementById('save-page-btn').addEventListener('click', async () => {
+  chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+    const tab = tabs[0];
+    await saveItem('link', tab.title || tab.url, { url: tab.url });
   });
+});
 
-  function showStatus(message, type) {
-    statusDiv.textContent = message;
-    statusDiv.className = `status ${type}`;
+document.getElementById('logout-btn').addEventListener('click', async () => {
+  await setToken(null);
+  await checkAuth();
+  showStatus('Signed out', 'success');
+});
+
+// Handle OAuth callback
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'auth-callback' && request.token) {
+    setToken(request.token).then(() => {
+      checkAuth();
+      showStatus('Signed in!', 'success');
+    });
   }
 });
+
+// Initialize
+checkAuth();

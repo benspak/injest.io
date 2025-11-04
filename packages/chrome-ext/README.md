@@ -1,21 +1,32 @@
-# Brain AI Chrome Extension
+# Injest.io Chrome Extension
 
-Chrome extension for capturing content to your Brain AI.
+Browser extension for quick capture to your knowledge brain.
 
-## Installation
+## Setup
 
-1. Open Chrome and navigate to `chrome://extensions/`
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select the `packages/chrome-ext` directory
+1. Load the extension:
+   - Open Chrome and go to `chrome://extensions/`
+   - Enable "Developer mode"
+   - Click "Load unpacked"
+   - Select the `packages/chrome-ext` directory
 
-## Usage
+2. Sign in:
+   - Click the extension icon
+   - Click "Sign in with Google"
+   - Complete authentication
 
-1. Click the extension icon to open the popup
-2. The current page URL and title are automatically captured
-3. Add a note (optional) and click "Save to Brain"
-4. Or use keyboard shortcut: Select text and press `Ctrl+Shift+B` (coming soon)
+## Features
 
-## Configuration
+- **Save Selection**: Highlight text and click "Save to Brain" button
+- **Context Menu**: Right-click selected text → "Save to Brain"
+- **Quick Capture**: Use popup to save URLs, notes, or current page
+- **Auto-sync**: Items are automatically indexed and searchable
 
-Make sure your API URL is set correctly in `popup.js` (defaults to `http://localhost:3001`).
+## Icons
+
+Create icon files:
+- `icons/icon16.png` (16x16)
+- `icons/icon48.png` (48x48)
+- `icons/icon128.png` (128x128)
+
+Or use placeholder images for development.

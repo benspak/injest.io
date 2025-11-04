@@ -1,11 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "Brain AI - Save to Brain",
-  "version": "1.0.0",
-  "description": "Capture anything to your second brain",
+  "name": "Injest.io - Save to Brain",
+  "version": "0.1.0",
+  "description": "Capture anything to your knowledge brain",
   "permissions": [
     "activeTab",
-    "storage"
+    "storage",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://localhost:3001/*",
@@ -19,10 +20,16 @@
       "128": "icons/icon128.png"
     }
   },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["content.css"]
     }
   ],
   "background": {

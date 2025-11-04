@@ -1,54 +1,52 @@
-import { pgTable, uuid, text, timestamp, jsonb, pgEnum, boolean } from 'drizzle-orm/pg-core';
-import { vector } from 'pgvector/drizzle-orm';
+import { pgTable, uuid, text, jsonb, timestamp, boolean, pgEnum, customType } from 'drizzle-orm/pg-core';
 
-export const itemTypeEnum = pgEnum('item_type', [
-  'note',
-  'link',
-  'file',
-  'email',
-  'task',
-  'chat'
-]);
+// Define vector type for pgvector
+const vector = customType<{ data: number[]; driverData: string }>({
+  dataType() {
+    return 'vector(3072)';
+  },
+  toDriver(value: number[]): string {
+    // Convert array to PostgreSQL vector format: [1,2,3]
+    return `[${value.join(',')}]`;
+  },
+  fromDriver(value: string | number[]): number[] {
+    // Handle both string and array formats from database
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'string') {
+      // Remove brackets and parse
+      const cleaned = value.replace(/[\[\]]/g, '');
+      return cleaned.split(',').map(Number);
+    }
+    return [];
+  },
+});
+
+export const itemTypeEnum = pgEnum('item_type', ['note', 'link', 'file', 'email']);
 
 export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
+  id: uuid('id').defaultRandom().primaryKey(),
   email: text('email').notNull().unique(),
   name: text('name'),
-  avatar: text('avatar'),
-  googleId: text('google_id'),
+  googleId: text('google_id').unique(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 export const items = pgTable('items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  ownerId: uuid('owner_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  id: uuid('id').defaultRandom().primaryKey(),
+  ownerId: uuid('owner_id').references(() => users.id).notNull(),
   type: itemTypeEnum('type').notNull(),
-  raw: text('raw').notNull(), // Original content
-  clean: text('clean'), // Summarized/cleaned content
-  title: text('title'),
-  tags: jsonb('tags').$type<string[]>().default([]),
-  source: jsonb('source').$type<{
-    app?: string;
-    url?: string;
-    metadata?: Record<string, unknown>;
-  }>(),
-  embeddingId: text('embedding_id'),
-  embedding: vector('embedding', { dimensions: 1536 }), // OpenAI ada-002
-  metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
-  isTask: boolean('is_task').default(false),
-  taskCompleted: boolean('task_completed').default(false),
+  raw: text('raw').notNull(),
+  clean: text('clean'),
+  tags: text('tags').array(),
+  source: jsonb('source'),
+  embeddingId: uuid('embedding_id').references(() => embeddings.id),
+  isTask: boolean('is_task').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-  updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
-export const interactions = pgTable('interactions', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  itemId: uuid('item_id').references(() => items.id, { onDelete: 'cascade' }),
-  type: text('type').notNull(), // 'query', 'capture', 'taskify', 'generate'
-  query: text('query'),
-  response: text('response'),
-  metadata: jsonb('metadata').$type<Record<string, unknown>>().default({}),
+export const embeddings = pgTable('embeddings', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  itemId: uuid('item_id').references(() => items.id).notNull(),
+  embedding: vector('embedding', { dimensions: 3072 }), // text-embedding-3-large dimensions
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

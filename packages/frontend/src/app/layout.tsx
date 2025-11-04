@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Brain AI - Your Second Brain',
-  description: 'Capture, remember, and act on everything',
+  title: 'Injest.io - Your Knowledge Brain',
+  description: 'Capture, recall, and act on your knowledge in under 3 steps',
 }
 
 export default function RootLayout({

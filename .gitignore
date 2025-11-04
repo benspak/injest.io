@@ -1,12 +1,42 @@
-node_modules
-dist
-build
-.next
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+coverage/
+
+# Production
+build/
+dist/
+*.local
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
 .env
 .env.local
-*.log
-.DS_Store
-.vscode
-.idea
-coverage
-*.tsbuildinfo
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database
+*.db
+*.sqlite
+
+# Chrome Extension
+packages/chrome-ext/*.zip
+packages/chrome-ext/*.pem

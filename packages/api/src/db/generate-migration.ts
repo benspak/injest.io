@@ -1,19 +1,19 @@
-/**
- * Generate a new migration after schema changes
- * Run: pnpm db:generate
- */
+import { drizzle } from 'drizzle-kit';
+import * as dotenv from 'dotenv';
 
-import { migrate } from 'drizzle-orm/postgres-js/migrator';
-import { db } from './index.js';
+dotenv.config();
 
-async function generate() {
-  console.log('Generating migration...');
-  // This is typically done via drizzle-kit CLI, but we can trigger it programmatically
-  console.log('Run: pnpm db:generate (drizzle-kit generate)');
+async function generateMigration() {
+  const { generate } = await import('drizzle-kit');
+
+  await generate({
+    schema: './src/db/schema.ts',
+    out: './drizzle',
+    dialect: 'postgresql',
+    dbCredentials: {
+      url: process.env.DATABASE_URL || '',
+    },
+  });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  generate().catch(console.error);
-}
-
-export { generate };
+generateMigration().catch(console.error);

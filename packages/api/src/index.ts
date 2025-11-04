@@ -1,43 +1,54 @@
 import express from 'express';
 import cors from 'cors';
-import 'dotenv/config';
-import { authRouter } from './routes/auth.js';
-import { itemsRouter } from './routes/items.js';
-import { emailRouter } from './routes/email.js';
-import { indexingWorker, processingWorker } from './jobs/queue.js';
+import dotenv from 'dotenv';
+import passport from 'passport';
+import session from 'express-session';
+import authRoutes from './routes/auth.js';
+import itemsRoutes from './routes/items.js';
+import emailRoutes from './routes/email.js';
+import generateRoutes from './routes/generate.js';
+import tasksRoutes from './routes/tasks.js';
+import worker from './jobs/worker.js';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+}));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Session for OAuth
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+  })
+);
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/items', itemsRoutes);
+app.use('/api/email', emailRoutes);
+app.use('/api/generate', generateRoutes);
+app.use('/api/tasks', tasksRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-// Routes
-app.use(authRouter);
-app.use(itemsRouter);
-app.use(emailRouter);
-
-// Start workers
-console.log('Starting background workers...');
-indexingWorker.on('completed', (job) => {
-  console.log(`Job ${job.id} completed`);
-});
-indexingWorker.on('failed', (job, err) => {
-  console.error(`Job ${job?.id} failed:`, err);
-});
-
-processingWorker.on('completed', (job) => {
-  console.log(`Processing job ${job.id} completed`);
-});
-processingWorker.on('failed', (job, err) => {
-  console.error(`Processing job ${job?.id} failed:`, err);
+  res.json({ status: 'ok' });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Brain AI API running on http://localhost:${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
+
+// Start worker
+console.log('Starting indexing worker...');

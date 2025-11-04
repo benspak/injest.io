@@ -1,16 +1,16 @@
 {
-  "name": "brain-ai-mvp",
-  "version": "1.0.0",
+  "name": "injest.io",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "pnpm --filter '*' dev",
-    "build": "pnpm --filter '*' build"
+    "dev:api": "pnpm --filter api dev",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build:api": "pnpm --filter api build",
+    "build:frontend": "pnpm --filter frontend build",
+    "db:generate": "pnpm --filter api db:generate",
+    "db:migrate": "pnpm --filter api db:migrate"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
-  },
-  "engines": {
-    "node": ">=18.0.0",
-    "pnpm": ">=8.0.0"
   }
 }
