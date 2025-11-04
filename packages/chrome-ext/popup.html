@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <style>
+      body {
+        width: 350px;
+        padding: 16px;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      .header {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 16px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 100px;
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 14px;
+        resize: vertical;
+        box-sizing: border-box;
+      }
+      button {
+        width: 100%;
+        padding: 10px;
+        background-color: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-top: 12px;
+      }
+      button:hover {
+        background-color: #2563eb;
+      }
+      button:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 12px;
+        padding: 8px;
+        border-radius: 4px;
+        font-size: 14px;
+        text-align: center;
+      }
+      .status.success {
+        background-color: #d1fae5;
+        color: #065f46;
+      }
+      .status.error {
+        background-color: #fee2e2;
+        color: #991b1b;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">Save to Brain</div>
+    <textarea id="textInput" placeholder="Enter text or paste content..."></textarea>
+    <button id="saveButton">Save</button>
+    <div id="status" class="status" style="display: none;"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>

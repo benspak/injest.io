@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: injest-api
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build -w packages/api
+    startCommand: npm start -w packages/api
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CALLBACK_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+
+  - type: web
+    name: injest-frontend
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build -w packages/frontend
+    startCommand: npm start -w packages/frontend
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+databases:
+  - name: injest-db
+    plan: starter
+    databaseName: injest
+    user: injest
