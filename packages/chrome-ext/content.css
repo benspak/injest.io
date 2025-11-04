@@ -1,9 +1,0 @@
-.injest-save-button {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-}
-
-.injest-save-button:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-  transition: all 0.2s;
-}
