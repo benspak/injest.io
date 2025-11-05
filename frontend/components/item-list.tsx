@@ -12,14 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiClient, Item } from '@/lib/api';
-
-interface LinkMetadata {
-  title?: string;
-  description?: string;
-  image?: string;
-  url: string;
-}
+import { apiClient, Item, LinkMetadata } from '@/lib/api';
 
 interface ItemListProps {
   items: Item[];

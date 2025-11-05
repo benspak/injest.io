@@ -1,13 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
-interface LinkMetadata {
-  title?: string;
-  description?: string;
-  image?: string;
-  url: string;
-}
+import { LinkMetadata } from '@/lib/api';
 
 interface SearchResult {
   item: {

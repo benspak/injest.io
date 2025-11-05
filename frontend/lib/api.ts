@@ -5,6 +5,13 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface LinkMetadata {
+  title?: string;
+  description?: string;
+  image?: string;
+  url: string;
+}
+
 export interface Item {
   id: string;
   owner_id: string;
@@ -121,8 +128,8 @@ class ApiClient {
     return this.request(`/api/items/${id}`);
   }
 
-  async getItemMetadata(id: string) {
-    return this.request(`/api/items/${id}/metadata`);
+  async getItemMetadata(id: string): Promise<LinkMetadata> {
+    return this.request<LinkMetadata>(`/api/items/${id}/metadata`);
   }
 
   async indexItem(id: string) {
