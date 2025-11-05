@@ -124,8 +124,8 @@ class ApiClient {
     return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
-  async getItem(id: string) {
-    return this.request(`/api/items/${id}`);
+  async getItem(id: string): Promise<Item> {
+    return this.request<Item>(`/api/items/${id}`);
   }
 
   async getItemMetadata(id: string): Promise<LinkMetadata> {
@@ -136,15 +136,15 @@ class ApiClient {
     return this.request(`/api/items/${id}/index`, { method: 'POST' });
   }
 
-  async updateItem(id: string, updates: { title?: string; description?: string; tags?: string[]; notes?: string }) {
-    return this.request(`/api/items/${id}`, {
+  async updateItem(id: string, updates: { title?: string; description?: string; tags?: string[]; notes?: string }): Promise<Item> {
+    return this.request<Item>(`/api/items/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   }
 
-  async updateItemNotes(id: string, notes: string) {
-    return this.request(`/api/items/${id}/notes`, {
+  async updateItemNotes(id: string, notes: string): Promise<Item> {
+    return this.request<Item>(`/api/items/${id}/notes`, {
       method: 'PATCH',
       body: JSON.stringify({ notes }),
     });
