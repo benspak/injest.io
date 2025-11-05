@@ -9,6 +9,7 @@ import fs from 'fs';
 import { fileStorageService } from '../services/storage.js';
 import { fileParserService } from '../services/fileParser.js';
 import { openAIService } from '../services/openai.js';
+import { bookmarkParserService } from '../services/bookmarkParser.js';
 import pool from '../config/database.js';
 
 const router = express.Router();
@@ -257,6 +258,207 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
       error: 'Failed to create item',
       details: process.env.NODE_ENV === 'development' ? error?.message : undefined
     });
+  }
+});
+
+// Background function to process bookmarks
+async function processBookmarksInBackground(
+  userId: string,
+  bookmarks: any[],
+  filePath: string
+): Promise<void> {
+  const results = {
+    imported: 0,
+    failed: 0,
+    skipped: 0,
+    errors: [] as string[],
+  };
+
+    console.log(`Starting bookmark import for user ${userId}: ${bookmarks.length} bookmarks to process`);
+    if (bookmarks.length > 0) {
+      console.log(`Sample bookmark structure:`, JSON.stringify(bookmarks[0], null, 2));
+    }
+
+  // Get existing items once to check for duplicates
+  let existingItems: Item[] = [];
+  try {
+    existingItems = await ItemModel.findByOwner(userId, 1000, 0);
+    console.log(`Found ${existingItems.length} existing items for duplicate check`);
+  } catch (error) {
+    console.error('Error fetching existing items for duplicate check:', error);
+  }
+
+  const existingUrls = new Set(existingItems.map(item => item.url).filter(Boolean));
+  console.log(`Existing URLs set size: ${existingUrls.size}`);
+
+  // Process bookmarks sequentially to avoid overwhelming the system
+  for (let i = 0; i < bookmarks.length; i++) {
+    const bookmark = bookmarks[i];
+    try {
+      // Validate URL
+      try {
+        new URL(bookmark.url);
+      } catch {
+        results.failed++;
+        results.errors.push(`Invalid URL: ${bookmark.url}`);
+        if (i < 5) console.log(`Invalid URL skipped: ${bookmark.url}`);
+        continue;
+      }
+
+      // Skip if duplicate
+      if (existingUrls.has(bookmark.url)) {
+        results.skipped++;
+        if (i < 5) console.log(`Duplicate URL skipped: ${bookmark.url}`);
+        continue;
+      }
+
+      // Fetch metadata for the URL
+      let linkMetadata: any = null;
+      try {
+        linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url);
+        if (i < 5) console.log(`Fetched metadata for: ${bookmark.url}`);
+      } catch (error) {
+        // Log but don't fail - we'll use bookmark title if metadata fails
+        if (i < 5) console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error);
+      }
+
+      // Use metadata title/description if available, otherwise use bookmark title
+      const title = linkMetadata?.title || bookmark.title || bookmark.url;
+      const description = linkMetadata?.description || undefined;
+
+      // Create item
+      const item = await ItemModel.create({
+        owner_id: userId,
+        title: title,
+        description: description,
+        url: bookmark.url,
+        source: 'bookmark',
+        link_metadata: linkMetadata || undefined,
+        tags: bookmark.folder ? [bookmark.folder] : undefined,
+      });
+
+      if (i < 5) console.log(`Created item ${item.id} for bookmark: ${bookmark.url}`);
+
+      // Add to existing URLs set to avoid duplicates within this batch
+      existingUrls.add(bookmark.url);
+
+      // Trigger indexing in background (don't await - let it run async)
+      indexingService.indexItem(item.id).catch((indexError) => {
+        console.error(`Background indexing failed for bookmark item ${item.id}:`, indexError);
+      });
+
+      results.imported++;
+
+      // Log progress every 50 items
+      if (results.imported % 50 === 0) {
+        console.log(`Progress: ${results.imported} imported, ${results.failed} failed, ${results.skipped} skipped out of ${i + 1} processed`);
+      }
+    } catch (error: any) {
+      results.failed++;
+      results.errors.push(`Failed to import ${bookmark.url}: ${error.message}`);
+      console.error(`Error importing bookmark ${bookmark.url}:`, error);
+      if (i < 5) console.error(`Error details:`, error.stack);
+      // Continue processing other bookmarks
+    }
+  }
+
+  // Clean up uploaded file after processing
+  try {
+    fs.unlinkSync(filePath);
+  } catch (cleanupError) {
+    console.warn('Failed to clean up bookmark file:', cleanupError);
+  }
+
+  console.log(`Bookmark import completed: ${results.imported} imported, ${results.failed} failed, ${results.skipped} skipped out of ${bookmarks.length} total`);
+  if (results.errors.length > 0) {
+    console.error('Bookmark import errors (first 10):', results.errors.slice(0, 10));
+  }
+}
+
+// Import bookmarks from HTML file
+router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No bookmark file provided' });
+    }
+
+    // Validate user ID
+    if (!req.user.id || typeof req.user.id !== 'string') {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Parse bookmark file
+    const bookmarkFile = req.file;
+    const filePath = fileStorageService.getFilePath(bookmarkFile.filename);
+
+    let bookmarks;
+    try {
+      bookmarks = await bookmarkParserService.parseBookmarkFile(filePath);
+    } catch (parseError: any) {
+      console.error('Error parsing bookmark file:', parseError);
+      // Clean up file on parse error
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return res.status(400).json({
+        error: 'Failed to parse bookmark file',
+        details: parseError.message
+      });
+    }
+
+    if (bookmarks.length === 0) {
+      // Clean up file if no bookmarks found
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return res.status(400).json({ error: 'No bookmarks found in file' });
+    }
+
+    // Start processing in background (don't await)
+    console.log(`Starting background processing for ${bookmarks.length} bookmarks`);
+    processBookmarksInBackground(req.user.id, bookmarks, filePath).catch((error) => {
+      console.error('Background bookmark processing error:', error);
+      console.error('Error stack:', error.stack);
+    });
+
+    // Return immediately
+    res.status(202).json({
+      message: 'Bookmark import started',
+      total: bookmarks.length,
+      note: 'Processing will happen in the background. Bookmarks will appear in your list as they are imported.',
+    });
+  } catch (error: any) {
+    console.error('Error importing bookmarks:', error);
+    res.status(500).json({
+      error: 'Failed to import bookmarks',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Get total indexed item count
+router.get('/count', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const result = await pool.query(
+      'SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL',
+      [req.user.id]
+    );
+    res.json({ count: parseInt(result.rows[0].total, 10) });
+  } catch (error) {
+    console.error('Error getting item count:', error);
+    res.status(500).json({ error: 'Failed to get item count' });
   }
 });
 
@@ -536,6 +738,77 @@ router.delete('/:id', async (req: AuthRequest, res: express.Response) => {
   } catch (error) {
     console.error('Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
+  }
+});
+
+// Generate email summary for an item (by item ID)
+router.post('/:id/email-summary', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const item = await ItemModel.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    if (item.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Check if this is an email item
+    if (item.type !== 'email') {
+      return res.status(400).json({ error: 'Item is not an email' });
+    }
+
+    // Check if summary already exists in clean field
+    if (item.clean) {
+      try {
+        const existingSummary = JSON.parse(item.clean);
+        if (Array.isArray(existingSummary) && existingSummary.length > 0) {
+          return res.json({ summary: existingSummary });
+        }
+      } catch {
+        // If clean field exists but isn't valid JSON, continue to generate new summary
+      }
+    }
+
+    // Get email body from description or raw field
+    let emailBody = item.description || '';
+
+    // Try to extract from raw field if description is empty
+    if (!emailBody && item.raw) {
+      try {
+        const rawData = JSON.parse(item.raw);
+        emailBody = rawData.text || rawData.body || rawData.html || '';
+      } catch {
+        // If parsing fails, use raw as-is
+        emailBody = item.raw;
+      }
+    }
+
+    if (!emailBody || emailBody.trim().length === 0) {
+      return res.status(400).json({ error: 'Email body is empty' });
+    }
+
+    // Generate summary using OpenAI
+    const { openAIService } = await import('../services/openai.js');
+    const summary = await openAIService.generateEmailSummary(emailBody);
+
+    if (summary.length === 0) {
+      return res.status(500).json({ error: 'Failed to generate summary' });
+    }
+
+    // Save summary to database in clean field as JSON string
+    const summaryJson = JSON.stringify(summary);
+    await ItemModel.update(item.id, { clean: summaryJson });
+
+    res.json({ summary });
+  } catch (error) {
+    console.error('Error generating email summary:', error);
+    res.status(500).json({ error: 'Failed to generate email summary' });
   }
 });
 

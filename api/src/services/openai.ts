@@ -195,6 +195,58 @@ Respond with only a JSON array of tag strings, no other text:
       return [];
     }
   }
+
+  /**
+   * Generate email summary as 3 bullet points
+   */
+  async generateEmailSummary(emailBody: string): Promise<string[]> {
+    if (!emailBody || emailBody.trim().length === 0) {
+      return [];
+    }
+
+    // Strip HTML tags if present and limit content length
+    const textContent = emailBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const contentPreview = textContent.substring(0, 4000);
+
+    const prompt = `Summarize the following email body into exactly 3 concise bullet points. Each bullet point should be a single sentence that captures a key point or action item from the email.
+
+Email body:
+${contentPreview}
+
+Respond with only a JSON array of exactly 3 strings, no other text:
+["bullet point 1", "bullet point 2", "bullet point 3"]`;
+
+    try {
+      const response = await this.client.chat.completions.create({
+        model: 'gpt-4-turbo-preview',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an email summarization assistant. Always respond with only a valid JSON array of exactly 3 summary bullet points, nothing else.'
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.5,
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        return [];
+      }
+
+      // Try to parse JSON array
+      const bullets = JSON.parse(content.trim());
+      if (Array.isArray(bullets) && bullets.length === 3) {
+        return bullets.filter((bullet: any) => typeof bullet === 'string' && bullet.trim().length > 0);
+      }
+
+      return [];
+    } catch (error) {
+      console.error('Error generating email summary:', error);
+      // Return empty array on error - don't fail the request
+      return [];
+    }
+  }
 }
 
 export const openAIService = new OpenAIService();

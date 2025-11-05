@@ -236,11 +236,26 @@ class ApiClient {
     });
   }
 
+  async importBookmarks(file: File): Promise<{ message: string; total: number; note: string }> {
+    const formData = new FormData();
+    formData.append('bookmarkFile', file);
+
+    // Don't set Content-Type header - browser will set it automatically with boundary for FormData
+    return this.request<{ message: string; total: number; note: string }>('/api/items/import-bookmarks', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
   async getItems(limit?: number, offset?: number): Promise<Item[]> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (offset) params.append('offset', offset.toString());
     return this.request<Item[]>(`/api/items?${params.toString()}`);
+  }
+
+  async getIndexedItemCount(): Promise<{ count: number }> {
+    return this.request<{ count: number }>('/api/items/count');
   }
 
   async getItem(id: string): Promise<Item> {
@@ -381,6 +396,18 @@ class ApiClient {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  async generateEmailSummary(emailId: string): Promise<{ summary: string[] }> {
+    return this.request<{ summary: string[] }>(`/api/email/received/${emailId}/summary`, {
+      method: 'POST',
+    });
+  }
+
+  async generateItemEmailSummary(itemId: string): Promise<{ summary: string[] }> {
+    return this.request<{ summary: string[] }>(`/api/items/${itemId}/email-summary`, {
+      method: 'POST',
+    });
   }
 }
 

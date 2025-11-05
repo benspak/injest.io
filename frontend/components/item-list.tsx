@@ -33,6 +33,9 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [savingItem, setSavingItem] = useState(false);
+  const [emailSummary, setEmailSummary] = useState<string[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -125,6 +128,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     setLoadingDetails(true);
     setEditingNotes(false);
     setEditingItem(false);
+    setEmailBodyExpanded(false);
 
     try {
       // If this is a Resend email, fetch full email details
@@ -149,6 +153,18 @@ export function ItemList({ items, onDelete }: ItemListProps) {
         setNotesValue('');
         setEditTitle(emailDetails.subject);
         setEditDescription(emailDetails.text || emailDetails.html || '');
+
+        // Fetch email summary
+        setLoadingSummary(true);
+        try {
+          const summaryResponse = await apiClient.generateEmailSummary(item.resendEmailId);
+          setEmailSummary(summaryResponse.summary || []);
+        } catch (error) {
+          console.error('Error fetching email summary:', error);
+          setEmailSummary([]);
+        } finally {
+          setLoadingSummary(false);
+        }
       } else {
         // Regular item
         const details = await apiClient.getItem(item.id);
@@ -159,6 +175,55 @@ export function ItemList({ items, onDelete }: ItemListProps) {
         const display = getItemDisplay(details);
         setEditTitle(details.title || display.title || '');
         setEditDescription(details.description || display.description || '');
+
+        // Check if this is an email item stored in database
+        if (details.type === 'email') {
+          // Extract HTML and text from raw field for database-stored emails
+          if (details.raw) {
+            try {
+              const rawData = JSON.parse(details.raw);
+              if (rawData.body || rawData.html || rawData.text) {
+                // Add HTML and text to itemDetails for proper display
+                (details as any).html = rawData.html || rawData.body || '';
+                (details as any).text = rawData.text || rawData.body || '';
+              }
+            } catch {
+              // Ignore parsing errors
+            }
+          }
+
+          // Check for summary in clean field
+          if (details.clean) {
+            try {
+              const parsedSummary = JSON.parse(details.clean);
+              if (Array.isArray(parsedSummary) && parsedSummary.length > 0) {
+                setEmailSummary(parsedSummary);
+              }
+            } catch {
+              // If clean field isn't valid JSON, try to fetch summary from API
+              // Find resend_email_id from raw field
+              try {
+                if (details.raw) {
+                  const rawData = JSON.parse(details.raw);
+                  if (rawData.resend_email_id) {
+                    setLoadingSummary(true);
+                    try {
+                      const summaryResponse = await apiClient.generateEmailSummary(rawData.resend_email_id);
+                      setEmailSummary(summaryResponse.summary || []);
+                    } catch (error) {
+                      console.error('Error fetching email summary:', error);
+                      setEmailSummary([]);
+                    } finally {
+                      setLoadingSummary(false);
+                    }
+                  }
+                }
+              } catch {
+                // Ignore parsing errors
+              }
+            }
+          }
+        }
 
         // Use saved metadata from details, or fetch if missing
         if (details.url) {
@@ -203,6 +268,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     setNotesValue('');
     setEditTitle('');
     setEditDescription('');
+    setEmailSummary([]);
+    setEmailBodyExpanded(false);
   };
 
   const handleSaveNotes = async () => {
@@ -336,7 +403,16 @@ export function ItemList({ items, onDelete }: ItemListProps) {
       );
     }
 
-    // Truncated preview
+    // Truncated preview - for email items, show first 200 characters
+    const isEmail = item.type === 'email' || item.isResendEmail;
+    if (isEmail && display.description && display.description.length > 200) {
+      return (
+        <p className="text-sm text-muted-foreground">
+          {display.description.substring(0, 200)}...
+        </p>
+      );
+    }
+
     return (
       <p className={`text-sm text-muted-foreground ${fullDetails ? '' : 'line-clamp-3'}`}>
         {display.description}
@@ -463,22 +539,28 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
       <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <div>
+              <DialogTitle>
+                {loadingDetails
+                  ? 'Loading...'
+                  : selectedItem && itemDetails
+                    ? getItemDisplay(itemDetails).title || itemDetails.title || 'Item Details'
+                    : 'Item Details'}
+              </DialogTitle>
+              <DialogDescription>
+                {loadingDetails
+                  ? 'Please wait while we load the item details.'
+                  : selectedItem && itemDetails
+                    ? `${formatDate(itemDetails.created_at)}${itemDetails.type ? ` • ${itemDetails.type}` : ''}${itemDetails.source ? ` • ${itemDetails.source}` : ''}`
+                    : ''}
+              </DialogDescription>
+            </div>
+          </DialogHeader>
           {loadingDetails ? (
             <div className="py-8 text-center">Loading item details...</div>
           ) : selectedItem && itemDetails ? (
             <>
-              <DialogHeader>
-                <div>
-                  <DialogTitle>
-                    {getItemDisplay(itemDetails).title || itemDetails.title || 'Item Details'}
-                  </DialogTitle>
-                  <DialogDescription>
-                    {formatDate(itemDetails.created_at)}
-                    {itemDetails.type && ` • ${itemDetails.type}`}
-                    {itemDetails.source && ` • ${itemDetails.source}`}
-                  </DialogDescription>
-                </div>
-              </DialogHeader>
 
               <div className="space-y-4 mt-4">
                 {/* Show URL metadata in dialog if available */}
@@ -615,17 +697,68 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       const descriptionDifferent = display.description && metadata?.description !== display.description;
 
                       // Show description if no metadata OR if descriptions are different
-                      // Skip showing description for Resend emails here as we'll show it in email content section
-                      if (itemDetails.isResendEmail) {
-                        return null;
-                      }
                       if (!hasMetadata || descriptionDifferent) {
-                        if (display.description) {
-                          return (
-                            <div>
-                              <p className="text-sm whitespace-pre-wrap">{display.description}</p>
-                            </div>
-                          );
+                        // Get the full email body - prioritize html/text from itemDetails, fallback to display.description
+                        const fullBody = (itemDetails as any).html || (itemDetails as any).text || display.description;
+                        if (fullBody) {
+                          const isEmail = itemDetails.type === 'email' || itemDetails.isResendEmail;
+                          const fullHtml = (itemDetails as any).html;
+                          const fullText = (itemDetails as any).text || (fullHtml ? fullHtml.replace(/<[^>]*>/g, '') : fullBody);
+                          const hasHtml = !!fullHtml;
+
+                          // For HTML emails, strip tags to get length
+                          const plainText = hasHtml ? fullHtml.replace(/<[^>]*>/g, '') : fullText;
+                          const shouldTruncate = isEmail && plainText.length > 200;
+                          const truncatedText = shouldTruncate && !emailBodyExpanded
+                            ? plainText.substring(0, 200)
+                            : plainText;
+
+                          // For emails with HTML
+                          if (hasHtml) {
+                            return (
+                              <div>
+                                {emailBodyExpanded ? (
+                                  // Show full HTML when expanded
+                                  <div
+                                    className="text-sm prose prose-sm max-w-none"
+                                    dangerouslySetInnerHTML={{ __html: fullHtml }}
+                                  />
+                                ) : (
+                                  // Show truncated plain text when collapsed
+                                  <p className="text-sm whitespace-pre-wrap">{truncatedText}</p>
+                                )}
+                                {shouldTruncate && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEmailBodyExpanded(!emailBodyExpanded);
+                                    }}
+                                    className="text-sm text-blue-600 hover:underline mt-2"
+                                  >
+                                    {emailBodyExpanded ? 'Show less' : 'View all'}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            // For plain text emails
+                            return (
+                              <div>
+                                <p className="text-sm whitespace-pre-wrap">{truncatedText}</p>
+                                {shouldTruncate && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEmailBodyExpanded(!emailBodyExpanded);
+                                    }}
+                                    className="text-sm text-blue-600 hover:underline mt-2"
+                                  >
+                                    {emailBodyExpanded ? 'Show less' : 'View all'}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          }
                         }
                       }
                       return null;
@@ -672,22 +805,22 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       </div>
                     )}
 
-                    {/* Email content (HTML or text) */}
-                    {itemDetails.isResendEmail && (itemDetails.html || itemDetails.text) && (
+                    {/* Email Summary */}
+                    {((itemDetails.isResendEmail || itemDetails.type === 'email') && (emailSummary.length > 0 || loadingSummary)) && (
                       <div className="border-t pt-4">
-                        <h4 className="text-sm font-semibold mb-2">Email Content</h4>
-                        {itemDetails.html ? (
-                          <div
-                            className="text-sm prose prose-sm max-w-none"
-                            dangerouslySetInnerHTML={{ __html: itemDetails.html }}
-                          />
-                        ) : (
-                          <div className="text-sm whitespace-pre-wrap">
-                            {itemDetails.text}
-                          </div>
-                        )}
+                        <h4 className="text-sm font-semibold mb-2">Summary</h4>
+                        {loadingSummary ? (
+                          <div className="text-sm text-muted-foreground">Generating summary...</div>
+                        ) : emailSummary.length > 0 ? (
+                          <ul className="list-disc list-inside space-y-1 text-sm">
+                            {emailSummary.map((bullet, idx) => (
+                              <li key={idx} className="text-muted-foreground">{bullet}</li>
+                            ))}
+                          </ul>
+                        ) : null}
                       </div>
                     )}
+
 
                     {/* Attachments */}
                     {itemDetails.attachments && Array.isArray(itemDetails.attachments) && itemDetails.attachments.length > 0 && (
