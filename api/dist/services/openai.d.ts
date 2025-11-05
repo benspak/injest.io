@@ -17,16 +17,9 @@ export declare class OpenAIService {
         description: string;
     }>;
     /**
-     * Process a task prompt to update item and task details
-     * @param userPrompt The user's instruction (e.g., "Parse the document and leave a more comprehensive description")
-     * @param item The item associated with the task
-     * @param task The task to update
-     * @param fileContent Optional parsed file content if item has attachments
+     * Generate tags from item content (title, description, notes, etc.)
      */
-    processTaskPrompt(userPrompt: string, item: any, task: any, fileContent?: string): Promise<{
-        itemUpdates: Partial<any>;
-        taskUpdates: Partial<any>;
-    }>;
+    generateTags(content: string): Promise<string[]>;
 }
 export declare const openAIService: OpenAIService;
 //# sourceMappingURL=openai.d.ts.map

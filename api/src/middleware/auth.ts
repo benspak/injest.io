@@ -8,6 +8,10 @@ export interface AuthRequest extends Request {
     id: string;
     email: string;
   };
+  body: any;
+  query: any;
+  params: any;
+  files?: Express.Multer.File[] | { [fieldname: string]: Express.Multer.File[] } | Express.Multer.File[];
 }
 
 export const authMiddleware = async (

@@ -19,12 +19,13 @@ export class SearchService {
         const similarEmbeddings = await embeddingService.findSimilar(query, limit);
         // Get items for these embeddings and filter by owner
         const results = [];
-        for (const { embedding, similarity } of similarEmbeddings) {
-            const item = await ItemModel.findById(embedding.item_id);
+        for (const result of similarEmbeddings) {
+            const item = await ItemModel.findById(result.embedding.item_id);
+            const similarity = result.similarity;
             if (item && item.owner_id === ownerId) {
                 results.push({
                     item,
-                    similarity,
+                    similarity: similarity,
                 });
             }
         }

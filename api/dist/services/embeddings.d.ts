@@ -1,8 +1,7 @@
-import { EmbeddingModel } from '../models/Embedding.js';
 export declare class EmbeddingService {
     createEmbedding(itemId: string, text: string): Promise<string>;
     findSimilar(queryText: string, limit?: number): Promise<Array<{
-        embedding: EmbeddingModel;
+        embedding: import('../models/Embedding.js').Embedding;
         similarity: number;
     }>>;
 }

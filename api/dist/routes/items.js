@@ -111,14 +111,56 @@ router.post('/', upload.array('attachments', 10), async (req, res, next) => {
                 }
             }
         }
-        // Parse tags if provided as string
+        // Auto-generate tags using ChatGPT if not provided
         let parsedTags = undefined;
         if (tags) {
+            // If tags are manually provided, use them
             if (typeof tags === 'string') {
                 parsedTags = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
             }
             else if (Array.isArray(tags)) {
                 parsedTags = tags;
+            }
+        }
+        else {
+            // Auto-generate tags from content
+            try {
+                // Collect all available content for tag generation
+                const contentForTagging = [];
+                if (finalTitle)
+                    contentForTagging.push(finalTitle);
+                if (finalDescription)
+                    contentForTagging.push(finalDescription);
+                if (notes)
+                    contentForTagging.push(notes);
+                if (linkMetadata?.title)
+                    contentForTagging.push(linkMetadata.title);
+                if (linkMetadata?.description)
+                    contentForTagging.push(linkMetadata.description);
+                // If we have files, try to extract text content
+                if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+                    try {
+                        const firstFile = req.files[0];
+                        const parsedContent = await fileParserService.parseFile(firstFile.filename, firstFile.mimetype);
+                        if (parsedContent.text && parsedContent.text.trim().length > 0) {
+                            // Add first 500 chars of file content for tagging
+                            contentForTagging.push(parsedContent.text.substring(0, 500));
+                        }
+                    }
+                    catch (error) {
+                        // Ignore file parsing errors for tagging
+                        console.error('Error parsing file for tagging:', error);
+                    }
+                }
+                // Generate tags if we have content
+                if (contentForTagging.length > 0) {
+                    const combinedContent = contentForTagging.join(' ');
+                    parsedTags = await openAIService.generateTags(combinedContent);
+                }
+            }
+            catch (error) {
+                // Log error but don't fail the request - tags are optional
+                console.error('Error auto-generating tags:', error);
             }
         }
         // Create item in database with unified structure
@@ -355,10 +397,10 @@ router.patch('/:id', async (req, res) => {
             updates.url = url || null;
         }
         if (tags !== undefined) {
-            updates.tags = Array.isArray(tags) ? tags : null;
+            updates.tags = Array.isArray(tags) ? tags : undefined;
         }
         if (notes !== undefined) {
-            updates.notes = typeof notes === 'string' ? notes : null;
+            updates.notes = typeof notes === 'string' ? notes : undefined;
         }
         if (Object.keys(updates).length === 0) {
             return res.json(item);

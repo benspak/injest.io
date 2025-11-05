@@ -5,6 +5,7 @@ export interface Embedding {
   item_id: string;
   embedding: number[];
   created_at: Date;
+  similarity?: number | string;
 }
 
 export class EmbeddingModel {
@@ -25,7 +26,7 @@ export class EmbeddingModel {
     return result.rows[0] || null;
   }
 
-  static async findSimilar(queryEmbedding: number[], limit: number = 10): Promise<Embedding[]> {
+  static async findSimilar(queryEmbedding: number[], limit: number = 10): Promise<Array<Embedding & { similarity: number | string }>> {
     const embeddingStr = `[${queryEmbedding.join(',')}]`;
     const result = await pool.query(
       `SELECT *, 1 - (embedding <=> $1::vector) as similarity

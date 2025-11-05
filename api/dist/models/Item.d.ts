@@ -1,7 +1,7 @@
 export interface Item {
     id: string;
     owner_id: string;
-    type?: 'note' | 'link' | 'file' | 'email' | 'task';
+    type?: 'note' | 'link' | 'file' | 'email';
     raw?: string;
     title?: string;
     description?: string;
@@ -26,7 +26,7 @@ export interface CreateItemInput {
     tags?: string[];
     source?: string;
     clean?: string;
-    type?: 'note' | 'link' | 'file' | 'email' | 'task';
+    type?: 'note' | 'link' | 'file' | 'email';
     raw?: string;
     link_metadata?: any;
 }

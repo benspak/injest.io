@@ -451,10 +451,10 @@ router.patch('/:id', async (req: AuthRequest, res) => {
       updates.url = url || null;
     }
     if (tags !== undefined) {
-      updates.tags = Array.isArray(tags) ? tags : null;
+      updates.tags = Array.isArray(tags) ? tags as string[] : undefined;
     }
     if (notes !== undefined) {
-      updates.notes = typeof notes === 'string' ? notes : null;
+      updates.notes = typeof notes === 'string' ? notes : undefined;
     }
 
     if (Object.keys(updates).length === 0) {

@@ -12,7 +12,7 @@ export class EmbeddingService {
     return embeddingRecord.id;
   }
 
-  async findSimilar(queryText: string, limit: number = 10): Promise<Array<{ embedding: EmbeddingModel; similarity: number }>> {
+  async findSimilar(queryText: string, limit: number = 10): Promise<Array<{ embedding: import('../models/Embedding.js').Embedding; similarity: number }>> {
     // Generate embedding for query
     const queryEmbedding = await openAIService.createEmbedding(queryText);
 
@@ -21,7 +21,7 @@ export class EmbeddingService {
 
     return similar.map((emb) => ({
       embedding: emb,
-      similarity: parseFloat(emb.similarity as any),
+      similarity: parseFloat(String(emb.similarity || '0')) || 0,
     }));
   }
 }

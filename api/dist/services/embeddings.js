@@ -15,7 +15,7 @@ export class EmbeddingService {
         const similar = await EmbeddingModel.findSimilar(queryEmbedding, limit);
         return similar.map((emb) => ({
             embedding: emb,
-            similarity: parseFloat(emb.similarity),
+            similarity: parseFloat(String(emb.similarity || '0')) || 0,
         }));
     }
 }

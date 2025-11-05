@@ -11,7 +11,7 @@ const pool = new Pool({
 });
 
 // Test connection
-pool.query('SELECT NOW()', (err, res) => {
+pool.query('SELECT NOW()', (err: Error | null, res: any) => {
   if (err) {
     console.error('Database connection error:', err);
   } else {
@@ -20,7 +20,7 @@ pool.query('SELECT NOW()', (err, res) => {
 });
 
 // Enable pgvector extension on connection
-pool.query('CREATE EXTENSION IF NOT EXISTS vector', (err) => {
+pool.query('CREATE EXTENSION IF NOT EXISTS vector', (err: Error | null) => {
   if (err && !err.message.includes('already exists')) {
     console.error('Error enabling pgvector extension:', err);
   }

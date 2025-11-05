@@ -124,109 +124,52 @@ Respond in JSON format:
         }
     }
     /**
-     * Process a task prompt to update item and task details
-     * @param userPrompt The user's instruction (e.g., "Parse the document and leave a more comprehensive description")
-     * @param item The item associated with the task
-     * @param task The task to update
-     * @param fileContent Optional parsed file content if item has attachments
+     * Generate tags from item content (title, description, notes, etc.)
      */
-    async processTaskPrompt(userPrompt, item, task, fileContent) {
-        // Build context from item and task
-        let context = `Task Title: ${task.title || 'Untitled'}
-Task Description: ${task.description || 'None'}
-Task Status: ${task.status}
-
-Item Type: ${item.type || 'unknown'}
-Item Title: ${item.title || 'None'}
-Item Description: ${item.description || 'None'}
-Item URL: ${item.url || 'None'}
-Item Notes: ${item.notes || 'None'}
-`;
-        // Add file content if available
-        if (fileContent) {
-            // Limit file content to avoid token limits
-            const contentPreview = fileContent.substring(0, 8000);
-            context += `\n\nFile Content:\n${contentPreview}`;
+    async generateTags(content) {
+        if (!content || content.trim().length === 0) {
+            return [];
         }
-        else if (item.raw) {
-            try {
-                const parsed = JSON.parse(item.raw);
-                context += `\n\nRaw Item Data:\n${JSON.stringify(parsed, null, 2).substring(0, 4000)}`;
-            }
-            catch {
-                context += `\n\nRaw Item Content:\n${item.raw.substring(0, 4000)}`;
-            }
-        }
-        const systemPrompt = `You are an intelligent assistant that helps manage tasks and their associated items. 
-When given a user instruction about a task, you should:
-1. Analyze the item content (which may include file content, URLs, notes, etc.)
-2. Understand what the user wants you to do based on their prompt
-3. Return JSON with updated fields for both the item and the task
+        // Limit content length to avoid token limits (keep first 2000 chars)
+        const contentPreview = content.substring(0, 2000);
+        const prompt = `Analyze the following content and generate 3-5 relevant tags that best describe it.
+Tags should be concise (1-3 words each), lowercase, and descriptive of the content's topic or category.
 
-Always respond with valid JSON in this exact format:
-{
-  "itemUpdates": {
-    "title": "updated title or null if no change",
-    "description": "updated description or null if no change",
-    "notes": "updated notes or null if no change"
-  },
-  "taskUpdates": {
-    "title": "updated title or null if no change",
-    "description": "updated description or null if no change"
-  }
-}
+Content: ${contentPreview}
 
-Important:
-- Only include fields that should be updated (omit fields that shouldn't change)
-- If a field shouldn't change, set it to null or omit it
-- Be thorough and comprehensive when the user asks for improvements
-- Preserve important information from the original content
-- Make descriptions more detailed when requested`;
-        const userMessage = `User instruction: ${userPrompt}
-
-Current context:
-${context}
-
-Based on the user's instruction, provide updated fields for the item and task in JSON format.`;
-        const response = await this.client.chat.completions.create({
-            model: 'gpt-4-turbo-preview',
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: userMessage },
-            ],
-            temperature: 0.5,
-        });
-        const content = response.choices[0].message.content;
-        if (!content) {
-            throw new Error('No response from OpenAI');
-        }
+Respond with only a JSON array of tag strings, no other text:
+["tag1", "tag2", "tag3"]`;
         try {
-            // Try to extract JSON from markdown code blocks if present
-            let jsonContent = content.trim();
-            const jsonMatch = jsonContent.match(/```(?:json)?\s*(\{[\s\S]*\})\s*```/);
-            if (jsonMatch) {
-                jsonContent = jsonMatch[1];
+            const response = await this.client.chat.completions.create({
+                model: 'gpt-4-turbo-preview',
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are a content tagging assistant. Always respond with only a valid JSON array of tag strings, nothing else.'
+                    },
+                    { role: 'user', content: prompt },
+                ],
+                temperature: 0.3,
+            });
+            const content = response.choices[0].message.content;
+            if (!content) {
+                return [];
             }
-            const result = JSON.parse(jsonContent);
-            // Clean up null values - convert to undefined so fields can be omitted
-            const cleanUpdates = (updates) => {
-                const cleaned = {};
-                for (const [key, value] of Object.entries(updates || {})) {
-                    if (value !== null && value !== undefined) {
-                        cleaned[key] = value;
-                    }
-                }
-                return cleaned;
-            };
-            return {
-                itemUpdates: cleanUpdates(result.itemUpdates || {}),
-                taskUpdates: cleanUpdates(result.taskUpdates || {}),
-            };
+            // Try to parse JSON array
+            const tags = JSON.parse(content.trim());
+            if (Array.isArray(tags)) {
+                // Filter and clean tags
+                return tags
+                    .filter((tag) => typeof tag === 'string' && tag.trim().length > 0)
+                    .map((tag) => tag.trim().toLowerCase())
+                    .slice(0, 5); // Limit to 5 tags max
+            }
+            return [];
         }
         catch (error) {
-            console.error('Error parsing OpenAI response:', error);
-            console.error('Response content:', content);
-            throw new Error(`Failed to parse AI response: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error('Error generating tags:', error);
+            // Return empty array on error - don't fail the request
+            return [];
         }
     }
 }

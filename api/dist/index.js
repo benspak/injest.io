@@ -4,7 +4,6 @@ import dotenv from 'dotenv';
 import authRoutes from './routes/auth.js';
 import itemsRoutes from './routes/items.js';
 import searchRoutes from './routes/search.js';
-import tasksRoutes from './routes/tasks.js';
 import generateRoutes from './routes/generate.js';
 import emailRoutes from './routes/email.js';
 import './config/database.js';
@@ -55,7 +54,6 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/tasks', tasksRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/email', emailRoutes);
 // Health check

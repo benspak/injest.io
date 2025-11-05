@@ -1,7 +1,7 @@
 import express from 'express';
 import { UserModel } from '../models/User.js';
 import { emailService } from '../services/email.js';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES_IN, FRONTEND_URL } from '../config/auth.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 
@@ -26,7 +26,7 @@ router.post('/magic-link', async (req, res) => {
     const token = jwt.sign(
       { userId: user.id, email: user.email },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: JWT_EXPIRES_IN } as SignOptions
     );
 
     // Send magic link email
@@ -66,7 +66,7 @@ router.get('/verify', async (req, res) => {
     const sessionToken = jwt.sign(
       { userId: user.id, email: user.email },
       JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
+      { expiresIn: JWT_EXPIRES_IN } as SignOptions
     );
 
     res.json({
