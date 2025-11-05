@@ -345,7 +345,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                               const target = e.target as HTMLImageElement;
                               target.style.display = 'none';
                               // Hide parent container if image fails
-                              const parent = target.closest('.aspect-video');
+                              const parent = target.closest('.aspect-video') as HTMLElement | null;
                               if (parent) {
                                 parent.style.display = 'none';
                               }
@@ -449,7 +449,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
                                   // Hide parent container if image fails
-                                  const parent = target.closest('.aspect-video');
+                                  const parent = target.closest('.aspect-video') as HTMLElement | null;
                                   if (parent) {
                                     parent.style.display = 'none';
                                   }
