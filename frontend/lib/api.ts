@@ -31,6 +31,17 @@ export interface Item {
   updated_at: string;
 }
 
+export interface SearchResult {
+  item: Item;
+  similarity: number;
+  source?: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+}
+
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
@@ -60,7 +71,23 @@ class ApiClient {
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const headers: HeadersInit = { ...options.headers };
+    // Normalize headers to a Record type for safe access
+    const headers: Record<string, string> = {};
+
+    // Convert existing headers to Record format
+    if (options.headers) {
+      if (options.headers instanceof Headers) {
+        options.headers.forEach((value, key) => {
+          headers[key] = value;
+        });
+      } else if (Array.isArray(options.headers)) {
+        options.headers.forEach(([key, value]) => {
+          headers[key] = value;
+        });
+      } else {
+        Object.assign(headers, options.headers);
+      }
+    }
 
     // Only set Content-Type if not already set and body is not FormData
     // FormData needs browser to set Content-Type with boundary
@@ -197,8 +224,8 @@ class ApiClient {
   }
 
   // Search
-  async search(query: string) {
-    return this.request(`/api/search?q=${encodeURIComponent(query)}`);
+  async search(query: string): Promise<SearchResponse> {
+    return this.request<SearchResponse>(`/api/search?q=${encodeURIComponent(query)}`);
   }
 
   // Generate
