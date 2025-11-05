@@ -1,4 +1,41 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
+// Normalize API URL to ensure it has a protocol and is properly formatted
+function normalizeApiUrl(url: string): string {
+  if (!url || url.trim() === '') {
+    return 'http://localhost:5555';
+  }
+
+  // Remove trailing slashes
+  url = url.trim().replace(/\/+$/, '');
+
+  // If URL doesn't start with http:// or https://, add protocol
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    // Determine protocol based on context
+    let protocol = 'https://';
+
+    if (typeof window !== 'undefined') {
+      // Browser context: use same protocol as current page
+      protocol = window.location.protocol === 'https:' ? 'https://' : 'http://';
+    } else {
+      // Server-side: use HTTPS for production domains, HTTP for localhost
+      if (url.includes('localhost') || url.startsWith('127.0.0.1') || url.includes('.local')) {
+        protocol = 'http://';
+      }
+    }
+
+    // Handle Render service names (e.g., "injest-api" -> "injest-api.onrender.com")
+    // If it's just a service name without a domain, we can't construct the full URL
+    // This case should be handled by proper environment variable configuration
+    if (!url.includes('.') && !url.includes('localhost') && !url.startsWith('127.0.0.1')) {
+      console.warn(`[API] Warning: API URL appears to be incomplete: "${url}". Please ensure NEXT_PUBLIC_API_URL includes the full domain.`);
+    }
+
+    return `${protocol}${url}`;
+  }
+
+  return url;
+}
+
+const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555');
 
 export interface ApiResponse<T> {
   data?: T;
@@ -99,14 +136,33 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+    const url = `${this.baseUrl}${endpoint}`;
+
+    // Log the URL in development for debugging
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[API] ${options.method || 'GET'} ${url}`);
+    }
+
+    const response = await fetch(url, {
       ...options,
       headers,
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      const errorText = await response.text();
+      let error: any;
+      try {
+        error = JSON.parse(errorText);
+      } catch {
+        error = { error: `Request failed: ${response.status} ${response.statusText}` };
+      }
+
+      // Log error details in development
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[API Error] ${url}:`, error);
+      }
+
+      throw new Error(error.error || `Request failed: ${response.status} ${response.statusText}`);
     }
 
     return response.json();
