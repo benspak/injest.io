@@ -29,6 +29,22 @@ export class UserModel {
             fields.push(`verified = $${paramCount++}`);
             values.push(updates.verified);
         }
+        if (updates.is_premium !== undefined) {
+            fields.push(`is_premium = $${paramCount++}`);
+            values.push(updates.is_premium);
+        }
+        if (updates.stripe_customer_id !== undefined) {
+            fields.push(`stripe_customer_id = $${paramCount++}`);
+            values.push(updates.stripe_customer_id);
+        }
+        if (updates.bookmark_import_count !== undefined) {
+            fields.push(`bookmark_import_count = $${paramCount++}`);
+            values.push(updates.bookmark_import_count);
+        }
+        if (updates.last_bookmark_import_payment !== undefined) {
+            fields.push(`last_bookmark_import_payment = $${paramCount++}`);
+            values.push(updates.last_bookmark_import_payment);
+        }
         if (fields.length === 0) {
             return await this.findById(id);
         }

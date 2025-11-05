@@ -2,6 +2,10 @@ export interface User {
     id: string;
     email: string;
     verified: boolean;
+    is_premium?: boolean;
+    stripe_customer_id?: string;
+    bookmark_import_count?: number;
+    last_bookmark_import_payment?: Date;
     created_at: Date;
     updated_at: Date;
 }

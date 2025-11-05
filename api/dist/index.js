@@ -6,6 +6,7 @@ import itemsRoutes from './routes/items.js';
 import searchRoutes from './routes/search.js';
 import generateRoutes from './routes/generate.js';
 import emailRoutes from './routes/email.js';
+import paymentRoutes from './routes/payment.js';
 import './config/database.js';
 dotenv.config();
 const app = express();
@@ -56,6 +57,7 @@ app.use('/api/items', itemsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/generate', generateRoutes);
 app.use('/api/email', emailRoutes);
+app.use('/api/payment', paymentRoutes);
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

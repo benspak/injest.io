@@ -10,6 +10,7 @@ import { fileStorageService } from '../services/storage.js';
 import { fileParserService } from '../services/fileParser.js';
 import { openAIService } from '../services/openai.js';
 import { bookmarkParserService } from '../services/bookmarkParser.js';
+import { UserModel } from '../models/User.js';
 import pool from '../config/database.js';
 const router = express.Router();
 router.use(authMiddleware);
@@ -357,6 +358,11 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
         if (!req.user.id || typeof req.user.id !== 'string') {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
+        // Get user to check premium status
+        const user = await UserModel.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
         // Parse bookmark file
         const bookmarkFile = req.file;
         const filePath = fileStorageService.getFilePath(bookmarkFile.filename);
@@ -388,8 +394,71 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
             }
             return res.status(400).json({ error: 'No bookmarks found in file' });
         }
+        // Check premium status and payment requirements
+        const isPremium = user.is_premium || false;
+        const bookmarkCount = bookmarks.length;
+        // paymentIntentId comes from FormData, access it from body
+        const paymentIntentId = req.body?.paymentIntentId || undefined;
+        // Premium users can import for free
+        if (!isPremium) {
+            // Check bookmark count limit
+            if (bookmarkCount > 555) {
+                // Clean up file
+                try {
+                    fs.unlinkSync(filePath);
+                }
+                catch {
+                    // Ignore cleanup errors
+                }
+                return res.status(403).json({
+                    error: 'Bookmark import limit exceeded',
+                    message: 'You can import up to 555 bookmarks per payment. Please split your bookmarks into smaller files.',
+                    limit: 555,
+                    requested: bookmarkCount,
+                });
+            }
+            // Require payment verification for non-premium users
+            if (!paymentIntentId) {
+                // Clean up file
+                try {
+                    fs.unlinkSync(filePath);
+                }
+                catch {
+                    // Ignore cleanup errors
+                }
+                return res.status(402).json({
+                    error: 'Payment required',
+                    message: 'Bookmark import requires payment for non-premium users',
+                    requiresPayment: true,
+                    bookmarkCount,
+                    amount: 1000, // $10 in cents
+                    currency: 'usd',
+                });
+            }
+            // Verify payment
+            const { stripeService } = await import('../services/stripe.js');
+            const isPaymentVerified = await stripeService.verifyPaymentIntent(paymentIntentId);
+            if (!isPaymentVerified) {
+                // Clean up file
+                try {
+                    fs.unlinkSync(filePath);
+                }
+                catch {
+                    // Ignore cleanup errors
+                }
+                return res.status(402).json({
+                    error: 'Payment verification failed',
+                    message: 'Please complete payment before importing bookmarks',
+                });
+            }
+            // Update user's bookmark import count after successful payment verification
+            await UserModel.update(req.user.id, {
+                bookmark_import_count: (user.bookmark_import_count || 0) + 1,
+                last_bookmark_import_payment: new Date(),
+            });
+        }
         // Start processing in background (don't await)
-        console.log(`Starting background processing for ${bookmarks.length} bookmarks`);
+        console.log(`Starting background processing for ${bookmarks.length} bookmarks (premium: ${isPremium})`);
         processBookmarksInBackground(req.user.id, bookmarks, filePath).catch((error) => {
             console.error('Background bookmark processing error:', error);
             console.error('Error stack:', error.stack);
@@ -399,6 +468,7 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
             message: 'Bookmark import started',
             total: bookmarks.length,
             note: 'Processing will happen in the background. Bookmarks will appear in your list as they are imported.',
+            premium: isPremium,
         });
     }
     catch (error) {

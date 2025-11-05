@@ -236,14 +236,41 @@ class ApiClient {
     });
   }
 
-  async importBookmarks(file: File): Promise<{ message: string; total: number; note: string }> {
+  async importBookmarks(file: File, paymentIntentId?: string): Promise<{ message: string; total: number; note: string; premium?: boolean }> {
     const formData = new FormData();
     formData.append('bookmarkFile', file);
+    if (paymentIntentId) {
+      formData.append('paymentIntentId', paymentIntentId);
+    }
 
     // Don't set Content-Type header - browser will set it automatically with boundary for FormData
-    return this.request<{ message: string; total: number; note: string }>('/api/items/import-bookmarks', {
+    return this.request<{ message: string; total: number; note: string; premium?: boolean }>('/api/items/import-bookmarks', {
       method: 'POST',
       body: formData,
+    });
+  }
+
+  async createBookmarkImportPaymentIntent(bookmarkCount: number): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    amount: number;
+    currency: string;
+  }> {
+    return this.request<{
+      clientSecret: string;
+      paymentIntentId: string;
+      amount: number;
+      currency: string;
+    }>('/api/payment/bookmark-import', {
+      method: 'POST',
+      body: JSON.stringify({ bookmarkCount }),
+    });
+  }
+
+  async verifyPayment(paymentIntentId: string): Promise<{ verified: boolean; message: string }> {
+    return this.request<{ verified: boolean; message: string }>('/api/payment/verify', {
+      method: 'POST',
+      body: JSON.stringify({ paymentIntentId }),
     });
   }
 

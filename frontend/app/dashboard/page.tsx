@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { SearchBar } from '@/components/search-bar';
 import { CaptureForm } from '@/components/capture-form';
 import { ItemList } from '@/components/item-list';
+import { BookmarkPaymentDialog } from '@/components/bookmark-payment-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
@@ -21,6 +22,9 @@ export default function DashboardPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [importingBookmarks, setImportingBookmarks] = useState(false);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
+  const [pendingBookmarkFile, setPendingBookmarkFile] = useState<File | null>(null);
+  const [pendingBookmarkCount, setPendingBookmarkCount] = useState(0);
   const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -263,62 +267,138 @@ export default function DashboardPage() {
       return;
     }
 
+    // First, parse the file to count bookmarks (we'll need to do this on the client side)
+    // For now, we'll let the server handle it and show payment dialog if needed
+    setPendingBookmarkFile(file);
+
+    // Try to import - server will tell us if payment is needed
     setImportingBookmarks(true);
     try {
       const result = await apiClient.importBookmarks(file);
 
-      // Show success message with note about background processing
-      toast.success(
-        `Import started! Processing ${result.total} bookmark${result.total !== 1 ? 's' : ''} in the background. They will appear in your list as they are imported.`,
-        { duration: 6000 }
-      );
-
-      // Clear any existing polling interval
-      if (bookmarkPollIntervalRef.current) {
-        clearInterval(bookmarkPollIntervalRef.current);
-      }
-
-      // Start polling for new items periodically to show them as they appear
-      bookmarkPollIntervalRef.current = setInterval(() => {
-        // Reset and reload from beginning to show new items
-        setOffset(0);
-        setItems([]);
-        setHasMore(true);
-        loadItems(0, true);
-        loadIndexedCount();
-      }, 3000); // Poll every 3 seconds
-
-      // Stop polling after 2 minutes (bookmarks should be processed by then)
-      setTimeout(() => {
-        if (bookmarkPollIntervalRef.current) {
-          clearInterval(bookmarkPollIntervalRef.current);
-          bookmarkPollIntervalRef.current = null;
-        }
-        // Final refresh
-        setOffset(0);
-        setItems([]);
-        setHasMore(true);
-        loadItems(0, true);
-        loadIndexedCount();
-      }, 120000);
-
-      // Initial refresh after a short delay
-      setTimeout(() => {
-        setOffset(0);
-        setItems([]);
-        setHasMore(true);
-        loadItems(0, true);
-        loadIndexedCount();
-      }, 2000);
+      // Success - no payment needed (premium user)
+      handleImportSuccess(result.total);
     } catch (error: any) {
       console.error('Error importing bookmarks:', error);
-      toast.error(error.message || 'Failed to start bookmark import');
-    } finally {
-      setImportingBookmarks(false);
-      // Reset file input
-      if (bookmarkFileInputRef.current) {
-        bookmarkFileInputRef.current.value = '';
+
+      // Check if payment is required
+      if (error.message && error.message.includes('Payment required')) {
+        // Parse bookmark count from file (rough estimate or ask server)
+        // For now, we'll show the dialog and let the server tell us the count
+        // We need to parse the file client-side to get the count
+        parseBookmarkCount(file).then((count) => {
+          if (count > 555) {
+            toast.error(`You can import up to 555 bookmarks per payment. Your file has ${count} bookmarks.`);
+            setImportingBookmarks(false);
+            return;
+          }
+          setPendingBookmarkCount(count);
+          setShowPaymentDialog(true);
+        });
+      } else {
+        toast.error(error.message || 'Failed to start bookmark import');
+        setImportingBookmarks(false);
       }
+    }
+  };
+
+  const parseBookmarkCount = async (file: File): Promise<number> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const html = e.target?.result as string;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const links = doc.querySelectorAll('a[href]');
+        // Count unique URLs
+        const urls = new Set<string>();
+        links.forEach((link) => {
+          const href = link.getAttribute('href');
+          if (href && href.startsWith('http')) {
+            urls.add(href);
+          }
+        });
+        resolve(urls.size);
+      };
+      reader.readAsText(file);
+    });
+  };
+
+  const handlePaymentComplete = async (paymentIntentId: string) => {
+    if (!pendingBookmarkFile) return;
+
+    setImportingBookmarks(true);
+    try {
+      const result = await apiClient.importBookmarks(pendingBookmarkFile, paymentIntentId);
+      handleImportSuccess(result.total);
+    } catch (error: any) {
+      console.error('Error importing bookmarks after payment:', error);
+      toast.error(error.message || 'Failed to start bookmark import');
+      setImportingBookmarks(false);
+    } finally {
+      setPendingBookmarkFile(null);
+      setPendingBookmarkCount(0);
+    }
+  };
+
+  const handleImportSuccess = (total: number) => {
+    // Show success message with note about background processing
+    toast.success(
+      `Import started! Processing ${total} bookmark${total !== 1 ? 's' : ''} in the background. They will appear in your list as they are imported.`,
+      { duration: 6000 }
+    );
+
+    // Clear any existing polling interval
+    if (bookmarkPollIntervalRef.current) {
+      clearInterval(bookmarkPollIntervalRef.current);
+    }
+
+    // Start polling for new items periodically to show them as they appear
+    bookmarkPollIntervalRef.current = setInterval(() => {
+      // Reset and reload from beginning to show new items
+      setOffset(0);
+      setItems([]);
+      setHasMore(true);
+      loadItems(0, true);
+      loadIndexedCount();
+    }, 3000); // Poll every 3 seconds
+
+    // Stop polling after 2 minutes (bookmarks should be processed by then)
+    setTimeout(() => {
+      if (bookmarkPollIntervalRef.current) {
+        clearInterval(bookmarkPollIntervalRef.current);
+        bookmarkPollIntervalRef.current = null;
+      }
+      // Final refresh
+      setOffset(0);
+      setItems([]);
+      setHasMore(true);
+      loadItems(0, true);
+      loadIndexedCount();
+    }, 120000);
+
+    // Initial refresh after a short delay
+    setTimeout(() => {
+      setOffset(0);
+      setItems([]);
+      setHasMore(true);
+      loadItems(0, true);
+      loadIndexedCount();
+    }, 2000);
+
+    setImportingBookmarks(false);
+    // Reset file input
+    if (bookmarkFileInputRef.current) {
+      bookmarkFileInputRef.current.value = '';
+    }
+  };
+
+  const handlePaymentCancel = () => {
+    setPendingBookmarkFile(null);
+    setPendingBookmarkCount(0);
+    setImportingBookmarks(false);
+    if (bookmarkFileInputRef.current) {
+      bookmarkFileInputRef.current.value = '';
     }
   };
 
@@ -426,6 +506,14 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+
+      <BookmarkPaymentDialog
+        open={showPaymentDialog}
+        onOpenChange={setShowPaymentDialog}
+        bookmarkCount={pendingBookmarkCount}
+        onPaymentComplete={handlePaymentComplete}
+        onCancel={handlePaymentCancel}
+      />
     </div>
   );
 }
