@@ -20,6 +20,10 @@ export declare class OpenAIService {
      * Generate tags from item content (title, description, notes, etc.)
      */
     generateTags(content: string): Promise<string[]>;
+    /**
+     * Generate email summary as 3 bullet points
+     */
+    generateEmailSummary(emailBody: string): Promise<string[]>;
 }
 export declare const openAIService: OpenAIService;
 //# sourceMappingURL=openai.d.ts.map

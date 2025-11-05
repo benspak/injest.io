@@ -4,6 +4,7 @@ import { ItemModel } from '../models/Item.js';
 import { indexingService } from '../services/indexing.js';
 import { emailService } from '../services/email.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { openAIService } from '../services/openai.js';
 const router = express.Router();
 // Helper function to save email from Resend format to database
 async function saveEmailFromResend(email, userId) {
@@ -359,6 +360,99 @@ router.get('/received/:emailId/attachments/:attachmentId', authMiddleware, async
     catch (error) {
         console.error('Error fetching email attachment:', error);
         res.status(500).json({ error: 'Failed to fetch email attachment' });
+    }
+});
+// Generate and save email summary (3 bullet points)
+router.post('/received/:emailId/summary', authMiddleware, async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'User not authenticated' });
+        }
+        const emailId = req.params.emailId;
+        // Find the item in database by Resend email ID
+        let item = await ItemModel.findByResendEmailId(emailId);
+        if (!item) {
+            // If not in database, fetch from Resend and save it
+            const email = await emailService.getReceivedEmail(emailId);
+            // Verify ownership
+            const userEmail = req.user.email.toLowerCase();
+            let fromEmail = email.from;
+            if (fromEmail.includes('<')) {
+                fromEmail = fromEmail.match(/<(.+)>/)?.[1] || fromEmail;
+            }
+            const normalizedFromEmail = fromEmail.toLowerCase().trim();
+            if (normalizedFromEmail !== userEmail) {
+                return res.status(403).json({ error: 'Email not found or access denied' });
+            }
+            // Save email to database
+            item = await saveEmailFromResend(email, req.user.id);
+            if (!item) {
+                return res.status(500).json({ error: 'Failed to save email' });
+            }
+        }
+        // Verify ownership
+        if (item.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Email not found or access denied' });
+        }
+        // Check if summary already exists in clean field
+        if (item.clean) {
+            try {
+                const existingSummary = JSON.parse(item.clean);
+                if (Array.isArray(existingSummary) && existingSummary.length > 0) {
+                    return res.json({ summary: existingSummary });
+                }
+            }
+            catch {
+                // If clean field exists but isn't valid JSON, continue to generate new summary
+            }
+        }
+        // Get email body (prefer text, fallback to HTML)
+        let emailBody = item.description || '';
+        // If description is empty, try to extract from raw field
+        if (!emailBody || emailBody.trim().length === 0) {
+            try {
+                if (item.raw) {
+                    const rawData = JSON.parse(item.raw);
+                    emailBody = rawData.body || rawData.text || rawData.html || '';
+                }
+            }
+            catch {
+                // If raw parsing fails, continue
+            }
+        }
+        // If still empty, try to fetch from Resend again
+        if (!emailBody || emailBody.trim().length === 0) {
+            try {
+                const email = await emailService.getReceivedEmail(emailId);
+                emailBody = email.text || email.html || '';
+                // Update the item with the email body if we found it
+                if (emailBody && emailBody.trim().length > 0) {
+                    await ItemModel.update(item.id, { description: emailBody });
+                }
+            }
+            catch (error) {
+                console.error('Error fetching email from Resend:', error);
+            }
+        }
+        // If email body is still empty after all attempts, return error
+        if (!emailBody || emailBody.trim().length === 0) {
+            return res.status(400).json({
+                error: 'Email body is empty. Cannot generate summary for an email without content.'
+            });
+        }
+        // Generate summary
+        const summary = await openAIService.generateEmailSummary(emailBody);
+        if (summary.length === 0) {
+            return res.status(500).json({ error: 'Failed to generate summary' });
+        }
+        // Save summary to database in clean field as JSON string
+        const summaryJson = JSON.stringify(summary);
+        await ItemModel.update(item.id, { clean: summaryJson });
+        res.json({ summary });
+    }
+    catch (error) {
+        console.error('Error generating email summary:', error);
+        res.status(500).json({ error: 'Failed to generate email summary' });
     }
 });
 export default router;

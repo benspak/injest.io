@@ -31,7 +31,7 @@ export class BookmarkParserService {
     // Find all bookmark links - they can be in various formats
     // Standard: <DT><A HREF="url" ADD_DATE="timestamp">Title</A></DT>
     // Chrome: <DT><A HREF="url" ADD_DATE="timestamp" ICON="...">Title</A></DT>
-    $('DT > A').each((index, element) => {
+    $('DT > A').each((index: number, element: cheerio.Element) => {
       const $link = $(element);
       const href = $link.attr('HREF') || $link.attr('href');
       const title = $link.text().trim();
@@ -72,7 +72,7 @@ export class BookmarkParserService {
 
     // Alternative parsing: handle nested structure more accurately
     // Some browsers export with nested DL/DH3/DT structures
-    this.parseNestedBookmarks($, bookmarks);
+    this.parseNestedBookmarks($ as any, bookmarks);
 
     // Remove duplicates (same URL)
     const uniqueBookmarks = this.removeDuplicates(bookmarks);
@@ -83,9 +83,9 @@ export class BookmarkParserService {
   /**
    * Parse nested bookmark structure (folders with subfolders)
    */
-  private parseNestedBookmarks($: cheerio.CheerioAPI, bookmarks: Bookmark[]): void {
-    const processDL = ($dl: cheerio.Cheerio<cheerio.Element>, folderPath: string[] = []) => {
-      $dl.children().each((index, child) => {
+  private parseNestedBookmarks($: ReturnType<typeof cheerio.load>, bookmarks: Bookmark[]): void {
+    const processDL = ($dl: cheerio.Cheerio, folderPath: string[] = []) => {
+      $dl.children().each((index: number, child: cheerio.Element) => {
         const $child = $(child);
 
         // If it's a folder header (H3)
@@ -126,7 +126,7 @@ export class BookmarkParserService {
     };
 
     // Start from root DL elements
-    $('DL').each((index, element) => {
+    $('DL').each((index: number, element: cheerio.Element) => {
       const $dl = $(element);
       // Check if this is a root DL (not nested)
       const isRoot = $dl.parent().is('body') || $dl.parent().is('html') || !$dl.parent().is('DL');
