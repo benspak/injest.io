@@ -308,7 +308,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
             const hasUrl = !!item.url;
 
             // Only fetch metadata if URL exists and metadata isn't already loaded
-            if (hasUrl && !item.link_metadata && !itemMetadata && !loadingMetadata.has(item.id)) {
+            if (hasUrl && item.url && !item.link_metadata && !itemMetadata && !loadingMetadata.has(item.id)) {
               fetchLinkMetadata(item.id, item.url);
             }
 
