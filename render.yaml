@@ -1,0 +1,45 @@
+services:
+  - type: web
+    name: injest-api
+    env: node
+    buildCommand: cd api && npm install && npm run build
+    startCommand: cd api && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: injest-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: UPLOAD_DIR
+        value: ./uploads
+
+  - type: web
+    name: injest-frontend
+    env: node
+    buildCommand: cd frontend && npm install && npm run build
+    startCommand: cd frontend && npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          name: injest-api
+          type: web
+          property: host
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+
+databases:
+  - name: injest-db
+    databaseName: injest
+    user: injest_user
+    plan: starter
