@@ -8,6 +8,58 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 
 const router = express.Router();
 
+// Helper function to save email from Resend format to database
+async function saveEmailFromResend(email: any, userId: string): Promise<any> {
+  // Extract email address from "from" field
+  let fromEmail = email.from;
+  if (fromEmail.includes('<')) {
+    fromEmail = fromEmail.match(/<(.+)>/)?.[1] || fromEmail;
+  }
+  const normalizedFromEmail = fromEmail.toLowerCase().trim();
+
+  // Normalize the "to" field
+  const toAddresses = Array.isArray(email.to) ? email.to : [email.to];
+
+  // Process attachments
+  const attachmentsData = (email.attachments || []).map((att: any) => ({
+    filename: att.filename,
+    originalname: att.filename,
+    mimetype: att.content_type,
+    size: att.size,
+    url: att.download_url || att.url,
+    id: att.id,
+  }));
+
+  // Create raw content with Resend email ID
+  const rawContent = JSON.stringify({
+    resend_email_id: email.id,
+    subject: email.subject,
+    body: email.html || email.text || '',
+    from: fromEmail,
+    to: toAddresses,
+    created_at: email.created_at,
+    attachments: attachmentsData,
+    headers: email.headers,
+    message_id: email.message_id,
+  });
+
+  // Create item
+  const item = await ItemModel.create({
+    owner_id: userId,
+    type: 'email',
+    title: email.subject,
+    description: email.html || email.text || '',
+    attachments: attachmentsData.length > 0 ? attachmentsData : undefined,
+    raw: rawContent,
+    source: `email:${normalizedFromEmail}`,
+  });
+
+  // Trigger indexing in background for auto-tagging and categorization
+  indexingService.indexItem(item.id).catch(console.error);
+
+  return item;
+}
+
 // Resend inbound webhook
 router.post('/inbound', async (req: express.Request, res: express.Response) => {
   try {
@@ -80,12 +132,17 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
 
     // Create item from email using unified structure
     // Also keep raw for backward compatibility
+    // Include any email ID from webhook if available
     const rawContent = JSON.stringify({
+      resend_email_id: req.body.id || req.body.message_id || null,
       subject,
       body: html || text || '',
       from: fromEmail,
       to,
       attachments: attachmentsData,
+      created_at: req.body.created_at || new Date().toISOString(),
+      headers: req.body.headers,
+      message_id: req.body.message_id,
     });
 
     const item = await ItemModel.create({
@@ -122,8 +179,9 @@ router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Re
     const after = req.query.after as string | undefined;
     const before = req.query.before as string | undefined;
 
-    // Fetch all emails from Resend
-    const response = await emailService.listReceivedEmails(limit, after, before);
+    // Always fetch from Resend to sync any new emails (with reasonable limit)
+    const syncLimit = limit || 50; // Sync up to 50 emails at a time
+    const response = await emailService.listReceivedEmails(syncLimit, after, before);
 
     // Filter emails to only show those sent FROM the authenticated user's email
     const userEmail = req.user.email.toLowerCase();
@@ -139,11 +197,61 @@ router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Re
       return normalizedFromEmail === userEmail;
     });
 
-    // Return filtered response
+    // Save each email to database and index them (if not already saved)
+    for (const email of filteredEmails) {
+      // Check if email already exists in database
+      const existingItem = await ItemModel.findByResendEmailId(email.id);
+      if (!existingItem) {
+        // Save new email to database (indexing happens automatically)
+        await saveEmailFromResend(email, req.user.id);
+      }
+    }
+
+    // Get all emails from database (including newly saved ones)
+    const allDbItems = await ItemModel.findByOwnerAndType(req.user.id, 'email', limit || 100, 0);
+
+    // Convert all DB items to Resend-like format
+    const allEmailItems = allDbItems.map((item) => {
+      let rawData: any = {};
+      try {
+        rawData = item.raw ? JSON.parse(item.raw) : {};
+      } catch {
+        // If raw is not JSON, use defaults
+      }
+
+      // Extract email addresses from source field
+      const sourceMatch = item.source?.match(/email:(.+)/);
+      const fromEmail = sourceMatch ? sourceMatch[1] : '';
+
+      return {
+        id: rawData.resend_email_id || item.id,
+        to: rawData.to || [],
+        from: fromEmail,
+        created_at: rawData.created_at || item.created_at,
+        subject: item.title || rawData.subject || '',
+        html: item.description || rawData.body || '',
+        text: rawData.body || item.description || '',
+        attachments: item.attachments || [],
+        headers: rawData.headers,
+        message_id: rawData.message_id,
+      };
+    });
+
+    // Sort by created_at descending (most recent first)
+    allEmailItems.sort((a, b) => {
+      const dateA = new Date(a.created_at).getTime();
+      const dateB = new Date(b.created_at).getTime();
+      return dateB - dateA;
+    });
+
+    // Apply limit if specified
+    const limitedItems = limit ? allEmailItems.slice(0, limit) : allEmailItems;
+
+    // Return all emails from database
     res.json({
-      ...response,
-      data: filteredEmails,
-      has_more: false, // We can't determine pagination correctly after filtering
+      object: 'list',
+      has_more: false,
+      data: limitedItems,
     });
   } catch (error) {
     console.error('Error fetching received emails:', error);
@@ -159,6 +267,45 @@ router.get('/received/:id', authMiddleware, async (req: AuthRequest, res: expres
     }
 
     const emailId = req.params.id;
+
+    // First check if email exists in database
+    let item = await ItemModel.findByResendEmailId(emailId);
+
+    if (item) {
+      // Verify ownership
+      if (item.owner_id !== req.user.id) {
+        return res.status(403).json({ error: 'Email not found or access denied' });
+      }
+
+      // Convert item to Resend-like format
+      let rawData: any = {};
+      try {
+        rawData = item.raw ? JSON.parse(item.raw) : {};
+      } catch {
+        // If raw is not JSON, use defaults
+      }
+
+      // Extract email addresses from source field
+      const sourceMatch = item.source?.match(/email:(.+)/);
+      const fromEmail = sourceMatch ? sourceMatch[1] : '';
+
+      const emailResponse = {
+        id: rawData.resend_email_id || item.id,
+        to: rawData.to || [],
+        from: fromEmail,
+        created_at: rawData.created_at || item.created_at,
+        subject: item.title || rawData.subject || '',
+        html: item.description || rawData.body || '',
+        text: rawData.body || item.description || '',
+        attachments: item.attachments || [],
+        headers: rawData.headers,
+        message_id: rawData.message_id,
+      };
+
+      return res.json(emailResponse);
+    }
+
+    // If not in database, fetch from Resend
     const email = await emailService.getReceivedEmail(emailId);
 
     // Verify that the email was sent FROM the authenticated user
@@ -173,7 +320,37 @@ router.get('/received/:id', authMiddleware, async (req: AuthRequest, res: expres
       return res.status(403).json({ error: 'Email not found or access denied' });
     }
 
-    res.json(email);
+    // Save email to database and index it
+    const savedItem = await saveEmailFromResend(email, req.user.id);
+    if (!savedItem) {
+      return res.status(500).json({ error: 'Failed to save email' });
+    }
+
+    // Convert saved item to Resend-like format
+    let rawData: any = {};
+    try {
+      rawData = savedItem.raw ? JSON.parse(savedItem.raw) : {};
+    } catch {
+      // If raw is not JSON, use defaults
+    }
+
+    const sourceMatch = savedItem.source?.match(/email:(.+)/);
+    const fromEmailFinal = sourceMatch ? sourceMatch[1] : '';
+
+    const emailResponse = {
+      id: rawData.resend_email_id || savedItem.id,
+      to: rawData.to || [],
+      from: fromEmailFinal,
+      created_at: rawData.created_at || savedItem.created_at,
+      subject: savedItem.title || rawData.subject || '',
+      html: savedItem.description || rawData.body || '',
+      text: rawData.body || savedItem.description || '',
+      attachments: savedItem.attachments || [],
+      headers: rawData.headers,
+      message_id: rawData.message_id,
+    };
+
+    res.json(emailResponse);
   } catch (error) {
     console.error('Error fetching received email:', error);
     res.status(500).json({ error: 'Failed to fetch received email' });

@@ -36,5 +36,7 @@ export declare class ItemModel {
     static findByOwner(ownerId: string, limit?: number, offset?: number): Promise<Item[]>;
     static update(id: string, updates: Partial<Item>): Promise<Item>;
     static delete(id: string): Promise<boolean>;
+    static findByResendEmailId(resendEmailId: string): Promise<Item | null>;
+    static findByOwnerAndType(ownerId: string, type: string, limit?: number, offset?: number): Promise<Item[]>;
 }
 //# sourceMappingURL=Item.d.ts.map

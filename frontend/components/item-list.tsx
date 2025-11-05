@@ -386,16 +386,16 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                   {hasUrl && itemMetadata && (
                     <div className="mb-3 border rounded-lg overflow-hidden bg-white">
                       {itemMetadata.image && (
-                        <div className="aspect-video w-full bg-gray-100 overflow-hidden">
+                        <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                           <img
                             src={itemMetadata.image}
                             alt={itemMetadata.title || 'Link preview'}
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto max-h-[120px] object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.style.display = 'none';
                               // Hide parent container if image fails
-                              const parent = target.closest('.aspect-video') as HTMLElement | null;
+                              const parent = target.parentElement;
                               if (parent) {
                                 parent.style.display = 'none';
                               }
@@ -490,16 +490,16 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       return (
                         <>
                           {metadata?.image && (
-                            <div className="aspect-video w-full bg-gray-100 overflow-hidden">
+                            <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                               <img
                                 src={metadata.image}
                                 alt={metadata.title || 'Link preview'}
-                                className="w-full h-full object-cover"
+                                className="w-full h-auto max-h-[120px] object-cover"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   target.style.display = 'none';
                                   // Hide parent container if image fails
-                                  const parent = target.closest('.aspect-video') as HTMLElement | null;
+                                  const parent = target.parentElement;
                                   if (parent) {
                                     parent.style.display = 'none';
                                   }

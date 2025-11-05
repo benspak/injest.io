@@ -95,11 +95,11 @@ export class EmailService {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to fetch emails' }));
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch emails' })) as { error?: string };
       throw new Error(error.error || `Failed to fetch emails: ${response.status}`);
     }
 
-    return response.json();
+    return await response.json() as ReceivedEmailListResponse;
   }
 
   async getReceivedEmail(emailId: string): Promise<ReceivedEmail> {
@@ -114,13 +114,16 @@ export class EmailService {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to fetch email' }));
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch email' })) as { error?: string };
       throw new Error(error.error || `Failed to fetch email: ${response.status}`);
     }
 
-    const result = await response.json();
+    const result = await response.json() as { data?: ReceivedEmail } | ReceivedEmail;
     // Handle both wrapped and unwrapped responses
-    return result.data || result;
+    if ('data' in result && result.data) {
+      return result.data;
+    }
+    return result as ReceivedEmail;
   }
 
   async listEmailAttachments(emailId: string): Promise<{ object: string; has_more: boolean; data: EmailAttachment[] }> {
@@ -135,11 +138,11 @@ export class EmailService {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to fetch attachments' }));
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch attachments' })) as { error?: string };
       throw new Error(error.error || `Failed to fetch attachments: ${response.status}`);
     }
 
-    return response.json();
+    return await response.json() as { object: string; has_more: boolean; data: EmailAttachment[] };
   }
 
   async getEmailAttachment(emailId: string, attachmentId: string): Promise<Blob> {

@@ -80,11 +80,11 @@ export function SearchResults({ results }: SearchResultsProps) {
               {hasUrl && metadata && (
                 <div className="mb-3 border rounded-lg overflow-hidden">
                   {metadata.image && (
-                    <div className="aspect-video w-full bg-gray-100 overflow-hidden">
+                    <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                       <img
                         src={metadata.image}
                         alt={metadata.title || 'Link preview'}
-                        className="w-full h-full object-cover"
+                        className="w-full h-auto max-h-[120px] object-cover"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                         }}

@@ -91,5 +91,18 @@ export class ItemModel {
         const result = await pool.query('DELETE FROM items WHERE id = $1', [id]);
         return result.rowCount !== null && result.rowCount > 0;
     }
+    static async findByResendEmailId(resendEmailId) {
+        // Search for items where raw JSON contains the resend_email_id
+        const result = await pool.query(`SELECT * FROM items
+       WHERE type = 'email'
+       AND raw IS NOT NULL
+       AND raw::jsonb->>'resend_email_id' = $1
+       LIMIT 1`, [resendEmailId]);
+        return result.rows[0] || null;
+    }
+    static async findByOwnerAndType(ownerId, type, limit = 100, offset = 0) {
+        const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND type = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4', [ownerId, type, limit, offset]);
+        return result.rows;
+    }
 }
 //# sourceMappingURL=Item.js.map

@@ -116,15 +116,17 @@ export default function DashboardPage() {
         </div>
       </header>
 
+      {/* Search bar - first thing after nav, bold and wide like Google */}
+      <div className="bg-white border-b py-8">
+        <div className="container mx-auto px-4">
+          <SearchBar />
+        </div>
+      </div>
+
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:grid lg:grid-cols-3 gap-8">
-          {/* Search bar - first on mobile */}
-          <div className="lg:hidden order-1">
-            <SearchBar />
-          </div>
-
-          {/* Item list - third on mobile, first column on desktop */}
-          <div className="lg:col-span-2 order-3 lg:order-1">
+          {/* Item list - first column on desktop */}
+          <div className="lg:col-span-2">
             <div className="mb-4">
               <h2 className="text-xl font-semibold mb-4">Your Items</h2>
             </div>
@@ -134,12 +136,8 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Right sidebar - second on mobile, second column on desktop */}
-          <div className="lg:col-span-1 order-2 lg:order-2">
-            {/* Search bar - hidden on mobile, shown on desktop */}
-            <div className="mb-4 hidden lg:block">
-              <SearchBar />
-            </div>
+          {/* Right sidebar - second column on desktop */}
+          <div className="lg:col-span-1">
             <CaptureForm onItemCreated={loadItems} />
           </div>
         </div>
