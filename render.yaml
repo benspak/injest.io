@@ -3,7 +3,7 @@ services:
     name: injest-api
     env: node
     buildCommand: cd api && npm install --include=dev && npm run build
-    startCommand: cd api && npm start
+    startCommand: cd api && node dist/start.js
     envVars:
       - key: NODE_ENV
         value: production
