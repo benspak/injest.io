@@ -5,6 +5,25 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
+export interface Item {
+  id: string;
+  owner_id: string;
+  type?: 'note' | 'link' | 'file' | 'email';
+  raw?: string;
+  title?: string;
+  description?: string;
+  url?: string;
+  attachments?: any[];
+  clean?: string;
+  tags?: string[];
+  source?: string;
+  embedding_id?: string;
+  link_metadata?: any;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
@@ -91,11 +110,11 @@ class ApiClient {
     });
   }
 
-  async getItems(limit?: number, offset?: number) {
+  async getItems(limit?: number, offset?: number): Promise<Item[]> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (offset) params.append('offset', offset.toString());
-    return this.request(`/api/items?${params.toString()}`);
+    return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
   async getItem(id: string) {

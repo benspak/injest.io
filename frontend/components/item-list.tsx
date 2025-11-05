@@ -12,23 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiClient } from '@/lib/api';
-
-interface Item {
-  id: string;
-  type?: string; // Optional for backward compatibility
-  raw?: string; // Optional for backward compatibility
-  title?: string;
-  description?: string;
-  url?: string;
-  attachments?: any[];
-  clean?: string;
-  tags?: string[];
-  source?: string;
-  link_metadata?: LinkMetadata;
-  notes?: string;
-  created_at: string;
-}
+import { apiClient, Item } from '@/lib/api';
 
 interface LinkMetadata {
   title?: string;

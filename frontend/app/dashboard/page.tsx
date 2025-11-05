@@ -8,11 +8,11 @@ import { CaptureForm } from '@/components/capture-form';
 import { ItemList } from '@/components/item-list';
 import { Button } from '@/components/ui/button';
 import { auth } from '@/lib/auth';
-import { apiClient } from '@/lib/api';
+import { apiClient, Item } from '@/lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
 
