@@ -8,7 +8,7 @@ import { CaptureForm } from '@/components/capture-form';
 import { ItemList } from '@/components/item-list';
 import { Button } from '@/components/ui/button';
 import { auth } from '@/lib/auth';
-import { apiClient, Item } from '@/lib/api';
+import { apiClient, Item, ReceivedEmail } from '@/lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -35,8 +35,46 @@ export default function DashboardPage() {
 
   const loadItems = async () => {
     try {
-      const data = await apiClient.getItems(50);
-      setItems(data);
+      // Fetch both items and emails
+      const [itemsData, emailsResponse] = await Promise.all([
+        apiClient.getItems(50).catch(() => []),
+        apiClient.getReceivedEmails(50).catch(() => ({ data: [], has_more: false })),
+      ]);
+
+      // Transform emails into item-like format for unified display
+      const emailItems: Item[] = (emailsResponse.data || []).map((email: ReceivedEmail) => {
+        // Strip HTML tags for description preview
+        const textPreview = email.text || (email.html ? email.html.replace(/<[^>]*>/g, '').substring(0, 200) : '');
+
+        return {
+          id: `resend-email-${email.id}`,
+          owner_id: '',
+          type: 'email' as const,
+          title: email.subject,
+          description: textPreview,
+          created_at: email.created_at,
+          updated_at: email.created_at,
+          isResendEmail: true,
+          resendEmailId: email.id,
+          attachments: email.attachments?.map((att) => ({
+            filename: att.id,
+            originalname: att.filename,
+            mimetype: att.content_type,
+            size: att.size,
+            attachmentId: att.id,
+          })) || [],
+          source: `email:${email.from}`,
+        };
+      });
+
+      // Combine and sort by date (newest first)
+      const allItems = [...itemsData, ...emailItems].sort((a, b) => {
+        const dateA = new Date(a.created_at).getTime();
+        const dateB = new Date(b.created_at).getTime();
+        return dateB - dateA;
+      });
+
+      setItems(allItems);
     } catch (error) {
       console.error('Error loading items:', error);
     } finally {

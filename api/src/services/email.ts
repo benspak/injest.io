@@ -3,6 +3,41 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const RESEND_API_BASE = 'https://api.resend.com';
+
+export interface ReceivedEmail {
+  id: string;
+  to: string[];
+  from: string;
+  created_at: string;
+  subject: string;
+  bcc?: string[];
+  cc?: string[];
+  reply_to?: string[];
+  message_id?: string;
+  html?: string;
+  text?: string;
+  headers?: Record<string, string>;
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAttachment {
+  id: string;
+  filename: string;
+  size: number;
+  content_type: string;
+  content_disposition?: string;
+  content_id?: string | null;
+  download_url?: string;
+  expires_at?: string;
+}
+
+export interface ReceivedEmailListResponse {
+  object: string;
+  has_more: boolean;
+  data: ReceivedEmail[];
+}
+
 export class EmailService {
   private resend: Resend;
 
@@ -40,6 +75,89 @@ export class EmailService {
         </div>
       `,
     });
+  }
+
+  async listReceivedEmails(limit?: number, after?: string, before?: string): Promise<ReceivedEmailListResponse> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (after) params.append('after', after);
+    if (before) params.append('before', before);
+
+    const queryString = params.toString();
+    const url = `${RESEND_API_BASE}/emails/receiving${queryString ? `?${queryString}` : ''}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch emails' }));
+      throw new Error(error.error || `Failed to fetch emails: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getReceivedEmail(emailId: string): Promise<ReceivedEmail> {
+    const url = `${RESEND_API_BASE}/emails/receiving/${emailId}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch email' }));
+      throw new Error(error.error || `Failed to fetch email: ${response.status}`);
+    }
+
+    const result = await response.json();
+    // Handle both wrapped and unwrapped responses
+    return result.data || result;
+  }
+
+  async listEmailAttachments(emailId: string): Promise<{ object: string; has_more: boolean; data: EmailAttachment[] }> {
+    const url = `${RESEND_API_BASE}/emails/receiving/${emailId}/attachments`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to fetch attachments' }));
+      throw new Error(error.error || `Failed to fetch attachments: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  async getEmailAttachment(emailId: string, attachmentId: string): Promise<Blob> {
+    const url = `${RESEND_API_BASE}/emails/receiving/${emailId}/attachments/${attachmentId}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.text().catch(() => 'Failed to fetch attachment');
+      throw new Error(`Failed to fetch attachment: ${response.status} - ${error}`);
+    }
+
+    return response.blob();
   }
 }
 

@@ -104,9 +104,15 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     }
   };
 
-  const handleDownloadFile = async (itemId: string, filename: string, originalname: string) => {
+  const handleDownloadFile = async (itemId: string, filename: string, originalname: string, attachmentId?: string, resendEmailId?: string) => {
     try {
-      await apiClient.downloadFile(itemId, filename);
+      // If this is a Resend email attachment, use the Resend API
+      if (resendEmailId && attachmentId) {
+        await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
+      } else {
+        // Regular item file download
+        await apiClient.downloadFile(itemId, filename);
+      }
     } catch (error) {
       console.error('Error downloading file:', error);
       alert(`Failed to download ${originalname}. Please try again.`);
@@ -121,26 +127,51 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     setEditingItem(false);
 
     try {
-      const details = await apiClient.getItem(item.id);
-      setItemDetails(details);
-      setNotesValue(details.notes || '');
+      // If this is a Resend email, fetch full email details
+      if (item.isResendEmail && item.resendEmailId) {
+        const emailDetails = await apiClient.getReceivedEmail(item.resendEmailId);
+        // Transform email to item-like format
+        const emailAsItem = {
+          ...item,
+          title: emailDetails.subject,
+          description: emailDetails.text || emailDetails.html || '',
+          html: emailDetails.html,
+          text: emailDetails.text,
+          from: emailDetails.from,
+          to: emailDetails.to,
+          cc: emailDetails.cc,
+          bcc: emailDetails.bcc,
+          reply_to: emailDetails.reply_to,
+          message_id: emailDetails.message_id,
+          headers: emailDetails.headers,
+        };
+        setItemDetails(emailAsItem);
+        setNotesValue('');
+        setEditTitle(emailDetails.subject);
+        setEditDescription(emailDetails.text || emailDetails.html || '');
+      } else {
+        // Regular item
+        const details = await apiClient.getItem(item.id);
+        setItemDetails(details);
+        setNotesValue(details.notes || '');
 
-      // Set edit fields
-      const display = getItemDisplay(details);
-      setEditTitle(details.title || display.title || '');
-      setEditDescription(details.description || display.description || '');
+        // Set edit fields
+        const display = getItemDisplay(details);
+        setEditTitle(details.title || display.title || '');
+        setEditDescription(details.description || display.description || '');
 
-      // Use saved metadata from details, or fetch if missing
-      if (details.url) {
-        if (details.link_metadata) {
-          // Use saved metadata
-          setLinkMetadata((prev) => ({
-            ...prev,
-            [details.id]: details.link_metadata,
-          }));
-        } else {
-          // Fetch metadata if not saved (will also save it)
-          fetchLinkMetadata(details.id, details.url);
+        // Use saved metadata from details, or fetch if missing
+        if (details.url) {
+          if (details.link_metadata) {
+            // Use saved metadata
+            setLinkMetadata((prev) => ({
+              ...prev,
+              [details.id]: details.link_metadata,
+            }));
+          } else {
+            // Fetch metadata if not saved (will also save it)
+            fetchLinkMetadata(details.id, details.url);
+          }
         }
       }
     } catch (error) {
@@ -177,6 +208,12 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   const handleSaveNotes = async () => {
     if (!selectedItem || !itemDetails) return;
 
+    // Resend emails can't have notes (they're not in the database)
+    if (itemDetails.isResendEmail) {
+      alert('Notes are not available for emails from Resend. Import the email as an item to add notes.');
+      return;
+    }
+
     setSavingNotes(true);
     try {
       const updatedItem = await apiClient.updateItemNotes(itemDetails.id, notesValue);
@@ -192,6 +229,12 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
   const handleSaveItem = async () => {
     if (!selectedItem || !itemDetails) return;
+
+    // Resend emails can't be edited (they're not in the database)
+    if (itemDetails.isResendEmail) {
+      alert('Resend emails cannot be edited. Import the email as an item to edit it.');
+      return;
+    }
 
     setSavingItem(true);
     try {
@@ -272,7 +315,13 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (itemDetails) {
-                          handleDownloadFile(itemDetails.id, file.filename, file.originalname);
+                          handleDownloadFile(
+                            itemDetails.id,
+                            file.filename,
+                            file.originalname,
+                            file.attachmentId,
+                            itemDetails.resendEmailId
+                          );
                         }
                       }}
                     >
@@ -327,6 +376,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       <p className="text-xs text-muted-foreground mt-1">
                         {formatDate(item.created_at)}
                         {item.type && ` • ${item.type}`}
+                        {item.isResendEmail && ' • Resend'}
                       </p>
                     </div>
                   </div>
@@ -565,6 +615,10 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       const descriptionDifferent = display.description && metadata?.description !== display.description;
 
                       // Show description if no metadata OR if descriptions are different
+                      // Skip showing description for Resend emails here as we'll show it in email content section
+                      if (itemDetails.isResendEmail) {
+                        return null;
+                      }
                       if (!hasMetadata || descriptionDifferent) {
                         if (display.description) {
                           return (
@@ -591,6 +645,50 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       </div>
                     )}
 
+                    {/* Email-specific information */}
+                    {itemDetails.isResendEmail && (
+                      <div className="space-y-2 border-t pt-4">
+                        <div>
+                          <h4 className="text-sm font-semibold mb-2">Email Details</h4>
+                          <div className="space-y-1 text-sm">
+                            <div>
+                              <span className="font-medium">From:</span> {itemDetails.from}
+                            </div>
+                            <div>
+                              <span className="font-medium">To:</span> {Array.isArray(itemDetails.to) ? itemDetails.to.join(', ') : itemDetails.to}
+                            </div>
+                            {itemDetails.cc && itemDetails.cc.length > 0 && (
+                              <div>
+                                <span className="font-medium">CC:</span> {itemDetails.cc.join(', ')}
+                              </div>
+                            )}
+                            {itemDetails.bcc && itemDetails.bcc.length > 0 && (
+                              <div>
+                                <span className="font-medium">BCC:</span> {itemDetails.bcc.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Email content (HTML or text) */}
+                    {itemDetails.isResendEmail && (itemDetails.html || itemDetails.text) && (
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-semibold mb-2">Email Content</h4>
+                        {itemDetails.html ? (
+                          <div
+                            className="text-sm prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{ __html: itemDetails.html }}
+                          />
+                        ) : (
+                          <div className="text-sm whitespace-pre-wrap">
+                            {itemDetails.text}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Attachments */}
                     {itemDetails.attachments && Array.isArray(itemDetails.attachments) && itemDetails.attachments.length > 0 && (
                       <div>
@@ -612,7 +710,13 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                                 variant="outline"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDownloadFile(itemDetails.id, file.filename, file.originalname);
+                                  handleDownloadFile(
+                                    itemDetails.id,
+                                    file.filename,
+                                    file.originalname,
+                                    file.attachmentId,
+                                    itemDetails.resendEmailId
+                                  );
                                 }}
                               >
                                 Download
@@ -625,8 +729,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                   </>
                 )}
 
-                {/* Notes section (available for all items, not just URLs) */}
-                {!editingItem && itemDetails.notes !== undefined && (
+                {/* Notes section (available for all items, not just URLs) - not for Resend emails */}
+                {!editingItem && !itemDetails.isResendEmail && itemDetails.notes !== undefined && (
                   <div>
                     <div className="flex justify-between items-center mb-2">
                       <h4 className="text-sm font-semibold">Notes</h4>
@@ -682,7 +786,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
 
                 <div className="flex gap-2 pt-4 border-t">
-                  {!editingItem && (
+                  {!editingItem && !itemDetails.isResendEmail && (
                     <Button
                       variant="outline"
                       onClick={() => setEditingItem(true)}
@@ -690,7 +794,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       Edit
                     </Button>
                   )}
-                  {onDelete && (
+                  {onDelete && !itemDetails.isResendEmail && (
                     <Button
                       variant="destructive"
                       onClick={() => {
@@ -702,6 +806,11 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                     >
                       Delete
                     </Button>
+                  )}
+                  {itemDetails.isResendEmail && (
+                    <p className="text-xs text-muted-foreground">
+                      This is an email from Resend. Import it as an item to edit or add notes.
+                    </p>
                   )}
                 </div>
               </div>

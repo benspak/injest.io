@@ -66,6 +66,9 @@ export interface Item {
   notes?: string;
   created_at: string;
   updated_at: string;
+  // Flag to indicate if this is a Resend email (not in database)
+  isResendEmail?: boolean;
+  resendEmailId?: string;
 }
 
 export interface SearchResult {
@@ -77,6 +80,39 @@ export interface SearchResult {
 export interface SearchResponse {
   query: string;
   results: SearchResult[];
+}
+
+export interface ReceivedEmail {
+  id: string;
+  to: string[];
+  from: string;
+  created_at: string;
+  subject: string;
+  bcc?: string[];
+  cc?: string[];
+  reply_to?: string[];
+  message_id?: string;
+  html?: string;
+  text?: string;
+  headers?: Record<string, string>;
+  attachments?: EmailAttachment[];
+}
+
+export interface EmailAttachment {
+  id: string;
+  filename: string;
+  size: number;
+  content_type: string;
+  content_disposition?: string;
+  content_id?: string | null;
+  download_url?: string;
+  expires_at?: string;
+}
+
+export interface ReceivedEmailListResponse {
+  object: string;
+  has_more: boolean;
+  data: ReceivedEmail[];
 }
 
 class ApiClient {
@@ -290,6 +326,61 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ prompt, type, contextQuery }),
     });
+  }
+
+  // Resend Emails
+  async getReceivedEmails(limit?: number, after?: string, before?: string): Promise<ReceivedEmailListResponse> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (after) params.append('after', after);
+    if (before) params.append('before', before);
+    const queryString = params.toString();
+    return this.request<ReceivedEmailListResponse>(`/api/email/received${queryString ? `?${queryString}` : ''}`);
+  }
+
+  async getReceivedEmail(emailId: string): Promise<ReceivedEmail> {
+    return this.request<ReceivedEmail>(`/api/email/received/${emailId}`);
+  }
+
+  async getEmailAttachments(emailId: string): Promise<{ object: string; has_more: boolean; data: EmailAttachment[] }> {
+    return this.request<{ object: string; has_more: boolean; data: EmailAttachment[] }>(`/api/email/received/${emailId}/attachments`);
+  }
+
+  async downloadEmailAttachment(emailId: string, attachmentId: string) {
+    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    const url = `${this.baseUrl}/api/email/received/${emailId}/attachments/${attachmentId}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Download failed' }));
+      throw new Error(error.error || 'Download failed');
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let downloadFilename = attachmentId;
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
+      if (filenameMatch) {
+        downloadFilename = decodeURIComponent(filenameMatch[1]);
+      }
+    }
+
+    link.download = downloadFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
   }
 }
 
