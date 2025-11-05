@@ -42,4 +42,4 @@ databases:
   - name: injest-db
     databaseName: injest
     user: injest_user
-    plan: free
+    plan: standard-0
