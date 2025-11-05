@@ -6,7 +6,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // Semantic search
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });

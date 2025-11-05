@@ -8,7 +8,7 @@ import { emailService } from '../services/email.js';
 const router = express.Router();
 
 // Resend inbound webhook
-router.post('/inbound', async (req, res) => {
+router.post('/inbound', async (req: express.Request, res: express.Response) => {
   try {
     // Resend webhook format
     const { from, to, subject, text, html, attachments } = req.body;

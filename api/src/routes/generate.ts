@@ -7,7 +7,7 @@ const router = express.Router();
 router.use(authMiddleware);
 
 // AI generation
-router.post('/', async (req: AuthRequest, res) => {
+router.post('/', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });

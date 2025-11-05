@@ -24,7 +24,7 @@ const jsonParser = express.json();
 const urlencodedParser = express.urlencoded({ extended: true });
 
 // Conditional body parsing - skip multipart/form-data (handled by multer)
-app.use((req, res, next) => {
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   const contentType = req.headers['content-type'] || '';
 
   // Debug logging (remove after testing)

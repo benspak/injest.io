@@ -8,7 +8,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 const router = express.Router();
 
 // Send magic link
-router.post('/magic-link', async (req, res) => {
+router.post('/magic-link', async (req: express.Request, res: express.Response) => {
   try {
     const { email } = req.body;
 
@@ -41,7 +41,7 @@ router.post('/magic-link', async (req, res) => {
 });
 
 // Verify magic link token
-router.get('/verify', async (req, res) => {
+router.get('/verify', async (req: express.Request, res: express.Response) => {
   try {
     const { token } = req.query;
 
@@ -87,7 +87,7 @@ router.get('/verify', async (req, res) => {
 });
 
 // Get current user (requires auth middleware)
-router.get('/me', authMiddleware, async (req: AuthRequest, res) => {
+router.get('/me', authMiddleware, async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });

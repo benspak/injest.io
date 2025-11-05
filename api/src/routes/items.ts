@@ -16,14 +16,14 @@ router.use(authMiddleware);
 
 // Configure multer for file uploads (Multer 2.x compatible)
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
+  destination: (req: express.Request, file: Express.Multer.File, cb: (error: Error | null, destination: string) => void) => {
     const uploadDir = process.env.UPLOAD_DIR || './uploads';
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
     cb(null, uploadDir);
   },
-  filename: (req, file, cb) => {
+  filename: (req: express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
     cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
@@ -36,7 +36,7 @@ const upload = multer({
 });
 
 // Create item (unified structure)
-router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res, next) => {
+router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
   try {
     // Log incoming request for debugging
     console.log('[DEBUG] Creating item - body:', req.body);
@@ -261,7 +261,7 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res, 
 });
 
 // List items
-router.get('/', async (req: AuthRequest, res) => {
+router.get('/', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -279,7 +279,7 @@ router.get('/', async (req: AuthRequest, res) => {
 });
 
 // Get item by ID
-router.get('/:id', async (req: AuthRequest, res) => {
+router.get('/:id', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -303,7 +303,7 @@ router.get('/:id', async (req: AuthRequest, res) => {
 });
 
 // Get link metadata (fetches and saves if not already saved)
-router.get('/:id/metadata', async (req: AuthRequest, res) => {
+router.get('/:id/metadata', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -347,7 +347,7 @@ router.get('/:id/metadata', async (req: AuthRequest, res) => {
 });
 
 // Trigger indexing
-router.post('/:id/index', async (req: AuthRequest, res) => {
+router.post('/:id/index', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -372,7 +372,7 @@ router.post('/:id/index', async (req: AuthRequest, res) => {
 });
 
 // Download file
-router.get('/:id/files/:filename', async (req: AuthRequest, res) => {
+router.get('/:id/files/:filename', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -421,7 +421,7 @@ router.get('/:id/files/:filename', async (req: AuthRequest, res) => {
 });
 
 // Update item (unified structure)
-router.patch('/:id', async (req: AuthRequest, res) => {
+router.patch('/:id', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -478,7 +478,7 @@ router.patch('/:id', async (req: AuthRequest, res) => {
 });
 
 // Update item notes (primarily for links)
-router.patch('/:id/notes', async (req: AuthRequest, res) => {
+router.patch('/:id/notes', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
@@ -515,7 +515,7 @@ router.patch('/:id/notes', async (req: AuthRequest, res) => {
 });
 
 // Delete item
-router.delete('/:id', async (req: AuthRequest, res) => {
+router.delete('/:id', async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: 'Unauthorized' });
