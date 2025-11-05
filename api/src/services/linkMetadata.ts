@@ -8,28 +8,39 @@ export interface LinkMetadata {
 }
 
 export class LinkMetadataService {
-  async fetchMetadata(url: string): Promise<LinkMetadata> {
-    try {
-      // Ensure URL has protocol
-      let fetchUrl = url;
-      if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        fetchUrl = `https://${url}`;
-      }
+  async fetchMetadata(url: string, retries = 3, timeout = 10000): Promise<LinkMetadata> {
+    // Ensure URL has protocol
+    let fetchUrl = url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      fetchUrl = `https://${url}`;
+    }
 
-      const response = await fetch(fetchUrl, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        },
-        redirect: 'follow',
-      });
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+        const response = await fetch(fetchUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+          },
+          redirect: 'follow',
+          signal: controller.signal,
+        });
 
-      const html = await response.text();
-      const $ = cheerio.load(html);
-      const finalUrl = response.url || fetchUrl;
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const html = await response.text();
+        const $ = cheerio.load(html);
+        const finalUrl = response.url || fetchUrl;
 
       // Extract metadata with priority: Open Graph > Twitter Cards > Standard meta tags
       const metadata: LinkMetadata = {
@@ -78,15 +89,30 @@ export class LinkMetadataService {
         }
       }
 
-      return metadata;
-    } catch (error: any) {
-      console.error('Error fetching link metadata:', error);
-      // Return basic metadata with the URL
-      return {
-        url: url,
-        title: url,
-      };
+        return metadata;
+      } catch (error: any) {
+        // If it's the last attempt or a non-retryable error, return basic metadata
+        if (attempt === retries || error.name === 'AbortError') {
+          console.error(`Error fetching link metadata for ${url} (attempt ${attempt}/${retries}):`, error.message);
+          // Return basic metadata with the URL
+          return {
+            url: url,
+            title: url,
+          };
+        }
+
+        // Wait before retrying (exponential backoff)
+        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+        console.warn(`Retrying metadata fetch for ${url} in ${waitTime}ms (attempt ${attempt}/${retries})`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+      }
     }
+
+    // Fallback if all retries failed
+    return {
+      url: url,
+      title: url,
+    };
   }
 }
 

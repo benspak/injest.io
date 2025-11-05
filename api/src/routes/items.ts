@@ -314,18 +314,37 @@ async function processBookmarksInBackground(
       }
 
       // Fetch metadata for the URL
+      // For paid bookmark imports, we ensure metadata is fetched
       let linkMetadata: any = null;
       try {
-        linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url);
-        if (i < 5) console.log(`Fetched metadata for: ${bookmark.url}`);
-      } catch (error) {
-        // Log but don't fail - we'll use bookmark title if metadata fails
-        if (i < 5) console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error);
+        // Use longer timeout for paid imports (30 seconds)
+        linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url, 3, 30000);
+        if (i < 5) {
+          console.log(`Fetched metadata for: ${bookmark.url}`, {
+            hasTitle: !!linkMetadata?.title,
+            hasDescription: !!linkMetadata?.description,
+            hasImage: !!linkMetadata?.image,
+          });
+        }
+      } catch (error: any) {
+        // Log error but continue - metadata fetch is best effort
+        console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error.message);
+        // Still create item with basic metadata
+        linkMetadata = {
+          url: bookmark.url,
+          title: bookmark.title || bookmark.url,
+        };
       }
 
       // Use metadata title/description if available, otherwise use bookmark title
       const title = linkMetadata?.title || bookmark.title || bookmark.url;
       const description = linkMetadata?.description || undefined;
+
+      // Ensure link_metadata is always saved (even if fetch partially failed)
+      // This ensures paid users get metadata enrichment
+      const metadataToSave = linkMetadata && (linkMetadata.title || linkMetadata.description || linkMetadata.image)
+        ? linkMetadata
+        : undefined;
 
       // Create item
       const item = await ItemModel.create({
@@ -334,7 +353,7 @@ async function processBookmarksInBackground(
         description: description,
         url: bookmark.url,
         source: 'bookmark',
-        link_metadata: linkMetadata || undefined,
+        link_metadata: metadataToSave,
         tags: bookmark.folder ? [bookmark.folder] : undefined,
       });
 
@@ -580,46 +599,50 @@ router.get('/:id', async (req: AuthRequest, res: express.Response) => {
 
 // Get link metadata (fetches and saves if not already saved)
 router.get('/:id/metadata', async (req: AuthRequest, res: express.Response) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
+      try {
+        if (!req.user) {
+          return res.status(401).json({ error: 'Unauthorized' });
+        }
 
-    const item = await ItemModel.findById(req.params.id);
+        const item = await ItemModel.findById(req.params.id);
 
-    if (!item) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
+        if (!item) {
+          return res.status(404).json({ error: 'Item not found' });
+        }
 
-    if (item.owner_id !== req.user.id) {
-      return res.status(403).json({ error: 'Forbidden' });
-    }
+        if (item.owner_id !== req.user.id) {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
 
-    if (!item.url) {
-      return res.status(400).json({ error: 'Item does not have a URL' });
-    }
+        if (!item.url) {
+          return res.status(400).json({ error: 'Item does not have a URL' });
+        }
 
-    // If metadata already exists, return it
-    if (item.link_metadata) {
-      return res.json(item.link_metadata);
-    }
+        // If metadata already exists and has content, return it
+        if (item.link_metadata && (item.link_metadata.title || item.link_metadata.description || item.link_metadata.image)) {
+          return res.json(item.link_metadata);
+        }
 
-    // Fetch metadata and save it to the database
-    const metadata = await linkMetadataService.fetchMetadata(item.url || item.raw || '');
+        // Fetch metadata and save it to the database
+        // Use longer timeout for user-requested metadata fetch
+        const metadata = await linkMetadataService.fetchMetadata(item.url || item.raw || '', 3, 30000);
 
-    // Save metadata to database
-    await ItemModel.update(item.id, { link_metadata: metadata });
+        // Only save if we got meaningful metadata
+        if (metadata && (metadata.title || metadata.description || metadata.image)) {
+          // Save metadata to database
+          await ItemModel.update(item.id, { link_metadata: metadata });
 
-    // Re-index item to include metadata in search
-    indexingService.indexItem(item.id).catch((indexError) => {
-      console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
-    });
+          // Re-index item to include metadata in search
+          indexingService.indexItem(item.id).catch((indexError) => {
+            console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
+          });
+        }
 
-    res.json(metadata);
-  } catch (error) {
-    console.error('Error fetching link metadata:', error);
-    res.status(500).json({ error: 'Failed to fetch link metadata' });
-  }
+        res.json(metadata);
+      } catch (error) {
+        console.error('Error fetching link metadata:', error);
+        res.status(500).json({ error: 'Failed to fetch link metadata' });
+      }
 });
 
 // Trigger indexing
