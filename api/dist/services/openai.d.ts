@@ -1,6 +1,10 @@
 export declare class OpenAIService {
     private client;
     constructor();
+    /**
+     * Wait for rate limit permission before making API call
+     */
+    private waitForRateLimit;
     createEmbedding(text: string): Promise<number[]>;
     classifyAndTag(text: string): Promise<{
         type: string;

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import path from 'path';
+import { openAIRateLimiter } from '../utils/rateLimiter.js';
 
 dotenv.config();
 
@@ -13,7 +14,15 @@ export class OpenAIService {
     });
   }
 
+  /**
+   * Wait for rate limit permission before making API call
+   */
+  private async waitForRateLimit(): Promise<void> {
+    await openAIRateLimiter.waitForPermission();
+  }
+
   async createEmbedding(text: string): Promise<number[]> {
+    await this.waitForRateLimit();
     const response = await this.client.embeddings.create({
       model: 'text-embedding-3-large',
       input: text,
@@ -39,6 +48,7 @@ Respond in JSON format:
   "summary": "..."
 }`;
 
+    await this.waitForRateLimit();
     const response = await this.client.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: [
@@ -77,6 +87,7 @@ Respond in JSON format:
 
     messages.push({ role: 'user', content: prompt });
 
+    await this.waitForRateLimit();
     const response = await this.client.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages,
@@ -106,6 +117,7 @@ Respond in JSON format:
   "description": "..."
 }`;
 
+    await this.waitForRateLimit();
     const response = await this.client.chat.completions.create({
       model: 'gpt-4-turbo-preview',
       messages: [
@@ -161,6 +173,7 @@ Respond with only a JSON array of tag strings, no other text:
 ["tag1", "tag2", "tag3"]`;
 
     try {
+      await this.waitForRateLimit();
       const response = await this.client.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
@@ -217,6 +230,7 @@ Respond with only a JSON array of exactly 3 strings, no other text:
 ["bullet point 1", "bullet point 2", "bullet point 3"]`;
 
     try {
+      await this.waitForRateLimit();
       const response = await this.client.chat.completions.create({
         model: 'gpt-4-turbo-preview',
         messages: [
