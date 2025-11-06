@@ -23,10 +23,17 @@ export class LinkMetadataService {
 
         const response = await fetch(fetchUrl, {
           headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'max-age=0',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Upgrade-Insecure-Requests': '1',
+            'Referer': 'https://www.google.com/',
           },
           redirect: 'follow',
           signal: controller.signal,
@@ -35,6 +42,14 @@ export class LinkMetadataService {
         clearTimeout(timeoutId);
 
         if (!response.ok) {
+          // 403 errors are typically permanent (blocked by site) - don't retry
+          if (response.status === 403) {
+            throw new Error(`HTTP 403 Forbidden - site blocked request`);
+          }
+          // 404 errors are also permanent - don't retry
+          if (response.status === 404) {
+            throw new Error(`HTTP 404 Not Found`);
+          }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -91,9 +106,21 @@ export class LinkMetadataService {
 
         return metadata;
       } catch (error: any) {
+        // Check if error indicates we shouldn't retry (403, 404, AbortError)
+        const isNonRetryable =
+          error.name === 'AbortError' ||
+          (error.message && error.message.includes('403')) ||
+          (error.message && error.message.includes('404')) ||
+          (error.message && error.message.includes('Forbidden')) ||
+          (error.message && error.message.includes('Not Found'));
+
         // If it's the last attempt or a non-retryable error, return basic metadata
-        if (attempt === retries || error.name === 'AbortError') {
-          console.error(`Error fetching link metadata for ${url} (attempt ${attempt}/${retries}):`, error.message);
+        if (attempt === retries || isNonRetryable) {
+          if (isNonRetryable && attempt < retries) {
+            console.warn(`Non-retryable error fetching link metadata for ${url}: ${error.message}`);
+          } else {
+            console.error(`Error fetching link metadata for ${url} (attempt ${attempt}/${retries}):`, error.message);
+          }
           // Return basic metadata with the URL
           return {
             url: url,
