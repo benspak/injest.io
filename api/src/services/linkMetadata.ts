@@ -50,6 +50,12 @@ export class LinkMetadataService {
           if (response.status === 404) {
             throw new Error(`HTTP 404 Not Found`);
           }
+          // 429 errors are rate limiting - retry with longer backoff
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : null;
+            throw new Error(`HTTP 429 Too Many Requests${retryAfterSeconds ? ` - retry after ${retryAfterSeconds}s` : ''}`);
+          }
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
@@ -114,6 +120,9 @@ export class LinkMetadataService {
           (error.message && error.message.includes('Forbidden')) ||
           (error.message && error.message.includes('Not Found'));
 
+        // Check if it's a 429 rate limit error (retryable but needs longer backoff)
+        const isRateLimit = error.message && error.message.includes('429');
+
         // If it's the last attempt or a non-retryable error, return basic metadata
         if (attempt === retries || isNonRetryable) {
           if (isNonRetryable && attempt < retries) {
@@ -128,9 +137,24 @@ export class LinkMetadataService {
           };
         }
 
-        // Wait before retrying (exponential backoff)
-        const waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
-        console.warn(`Retrying metadata fetch for ${url} in ${waitTime}ms (attempt ${attempt}/${retries})`);
+        // Calculate wait time based on error type
+        let waitTime: number;
+        if (isRateLimit) {
+          // For 429 errors, check if Retry-After header was provided
+          const retryAfterMatch = error.message.match(/retry after (\d+)s/);
+          if (retryAfterMatch) {
+            waitTime = parseInt(retryAfterMatch[1], 10) * 1000; // Convert seconds to ms
+          } else {
+            // Longer exponential backoff for rate limits: 5s, 10s, 20s
+            waitTime = Math.min(5000 * Math.pow(2, attempt - 1), 30000);
+          }
+          console.warn(`Rate limited. Waiting ${waitTime}ms before retrying metadata fetch for ${url} (attempt ${attempt}/${retries})`);
+        } else {
+          // Standard exponential backoff for other retryable errors
+          waitTime = Math.min(1000 * Math.pow(2, attempt - 1), 5000);
+          console.warn(`Retrying metadata fetch for ${url} in ${waitTime}ms (attempt ${attempt}/${retries})`);
+        }
+
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
