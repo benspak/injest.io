@@ -1099,7 +1099,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       onClick={() => {
                         if (itemDetails && confirm('Are you sure you want to delete this item?')) {
                           onDelete(itemDetails.id);
-                          handleCloseDialog();
+                          handleCloseDialog(false);
                         }
                       }}
                     >

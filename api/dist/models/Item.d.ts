@@ -37,6 +37,7 @@ export declare class ItemModel {
     static findByOwner(ownerId: string, limit?: number, offset?: number, filters?: {
         source?: string;
         hasAttachments?: boolean;
+        fileType?: string;
     }): Promise<Item[]>;
     static update(id: string, updates: Partial<Item>): Promise<Item>;
     static delete(id: string): Promise<boolean>;

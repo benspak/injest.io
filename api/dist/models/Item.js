@@ -53,6 +53,48 @@ export class ItemModel {
         if (filters?.hasAttachments === true) {
             query += ` AND attachments IS NOT NULL AND jsonb_array_length(attachments) > 0`;
         }
+        // Add file type filter if provided
+        if (filters?.fileType) {
+            const fileType = filters.fileType.toLowerCase();
+            if (fileType === 'image') {
+                // Match items with attachments that have image/* MIME types
+                query += ` AND attachments IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(attachments) AS attachment
+          WHERE (attachment->>'mimetype')::text LIKE 'image/%'
+        )`;
+            }
+            else if (fileType === 'spreadsheet') {
+                // Match items with attachments that have spreadsheet MIME types
+                query += ` AND attachments IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(attachments) AS attachment
+          WHERE (attachment->>'mimetype')::text IN (
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.oasis.opendocument.spreadsheet',
+            'text/csv',
+            'application/csv'
+          ) OR (attachment->>'mimetype')::text LIKE 'application/vnd.ms-excel%'
+          OR (attachment->>'mimetype')::text LIKE 'application/vnd.openxmlformats-officedocument.spreadsheetml%'
+        )`;
+            }
+            else if (fileType === 'document') {
+                // Match items with attachments that have document MIME types
+                query += ` AND attachments IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(attachments) AS attachment
+          WHERE (attachment->>'mimetype')::text IN (
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.oasis.opendocument.text',
+            'text/plain',
+            'text/rtf'
+          ) OR (attachment->>'mimetype')::text LIKE 'application/pdf%'
+          OR (attachment->>'mimetype')::text LIKE 'application/msword%'
+          OR (attachment->>'mimetype')::text LIKE 'application/vnd.openxmlformats-officedocument.wordprocessingml%'
+          OR (attachment->>'mimetype')::text LIKE 'text/plain%'
+        )`;
+            }
+        }
         query += ` ORDER BY created_at DESC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
         params.push(limit, offset);
         const result = await pool.query(query, params);
