@@ -5,7 +5,7 @@ export interface LinkMetadata {
     url: string;
 }
 export declare class LinkMetadataService {
-    fetchMetadata(url: string): Promise<LinkMetadata>;
+    fetchMetadata(url: string, retries?: number, timeout?: number): Promise<LinkMetadata>;
 }
 export declare const linkMetadataService: LinkMetadataService;
 //# sourceMappingURL=linkMetadata.d.ts.map

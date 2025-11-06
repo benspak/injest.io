@@ -286,20 +286,36 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
                 continue;
             }
             // Fetch metadata for the URL
+            // For paid bookmark imports, we ensure metadata is fetched
             let linkMetadata = null;
             try {
-                linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url);
-                if (i < 5)
-                    console.log(`Fetched metadata for: ${bookmark.url}`);
+                // Use longer timeout for paid imports (30 seconds)
+                linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url, 3, 30000);
+                if (i < 5) {
+                    console.log(`Fetched metadata for: ${bookmark.url}`, {
+                        hasTitle: !!linkMetadata?.title,
+                        hasDescription: !!linkMetadata?.description,
+                        hasImage: !!linkMetadata?.image,
+                    });
+                }
             }
             catch (error) {
-                // Log but don't fail - we'll use bookmark title if metadata fails
-                if (i < 5)
-                    console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error);
+                // Log error but continue - metadata fetch is best effort
+                console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error.message);
+                // Still create item with basic metadata
+                linkMetadata = {
+                    url: bookmark.url,
+                    title: bookmark.title || bookmark.url,
+                };
             }
             // Use metadata title/description if available, otherwise use bookmark title
             const title = linkMetadata?.title || bookmark.title || bookmark.url;
             const description = linkMetadata?.description || undefined;
+            // Ensure link_metadata is always saved (even if fetch partially failed)
+            // This ensures paid users get metadata enrichment
+            const metadataToSave = linkMetadata && (linkMetadata.title || linkMetadata.description || linkMetadata.image)
+                ? linkMetadata
+                : undefined;
             // Create item
             const item = await ItemModel.create({
                 owner_id: userId,
@@ -307,7 +323,7 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
                 description: description,
                 url: bookmark.url,
                 source: 'bookmark',
-                link_metadata: linkMetadata || undefined,
+                link_metadata: metadataToSave,
                 tags: bookmark.folder ? [bookmark.folder] : undefined,
             });
             if (i < 5)
@@ -545,18 +561,22 @@ router.get('/:id/metadata', async (req, res) => {
         if (!item.url) {
             return res.status(400).json({ error: 'Item does not have a URL' });
         }
-        // If metadata already exists, return it
-        if (item.link_metadata) {
+        // If metadata already exists and has content, return it
+        if (item.link_metadata && (item.link_metadata.title || item.link_metadata.description || item.link_metadata.image)) {
             return res.json(item.link_metadata);
         }
         // Fetch metadata and save it to the database
-        const metadata = await linkMetadataService.fetchMetadata(item.url || item.raw || '');
-        // Save metadata to database
-        await ItemModel.update(item.id, { link_metadata: metadata });
-        // Re-index item to include metadata in search
-        indexingService.indexItem(item.id).catch((indexError) => {
-            console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
-        });
+        // Use longer timeout for user-requested metadata fetch
+        const metadata = await linkMetadataService.fetchMetadata(item.url || item.raw || '', 3, 30000);
+        // Only save if we got meaningful metadata
+        if (metadata && (metadata.title || metadata.description || metadata.image)) {
+            // Save metadata to database
+            await ItemModel.update(item.id, { link_metadata: metadata });
+            // Re-index item to include metadata in search
+            indexingService.indexItem(item.id).catch((indexError) => {
+                console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
+            });
+        }
         res.json(metadata);
     }
     catch (error) {
@@ -723,6 +743,120 @@ router.delete('/:id', async (req, res) => {
     catch (error) {
         console.error('Error deleting item:', error);
         res.status(500).json({ error: 'Failed to delete item' });
+    }
+});
+// Re-enrich all bookmarks for the current user
+router.post('/re-enrich-bookmarks', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        // Get all bookmark items for this user
+        const bookmarks = await ItemModel.findByOwner(req.user.id, 10000, 0);
+        const bookmarkItems = bookmarks.filter(item => item.source === 'bookmark' && item.url);
+        if (bookmarkItems.length === 0) {
+            return res.json({
+                message: 'No bookmarks found to enrich',
+                total: 0,
+                enriched: 0,
+                failed: 0,
+            });
+        }
+        console.log(`Starting re-enrichment for ${bookmarkItems.length} bookmarks for user ${req.user.id}`);
+        // Process in background
+        const enrichPromise = (async () => {
+            const results = {
+                enriched: 0,
+                failed: 0,
+                skipped: 0,
+                errors: [],
+            };
+            for (let i = 0; i < bookmarkItems.length; i++) {
+                const item = bookmarkItems[i];
+                try {
+                    // Check if metadata already exists and is complete
+                    // We consider metadata complete if it has a meaningful title (not just the URL) AND (description or image)
+                    const metadata = item.link_metadata;
+                    const hasTitle = metadata?.title && metadata.title !== item.url && metadata.title.length > 0;
+                    const hasDescription = metadata?.description && metadata.description.length > 0;
+                    const hasImage = metadata?.image && metadata.image.length > 0;
+                    const hasCompleteMetadata = hasTitle && (hasDescription || hasImage);
+                    // Skip if metadata is already complete (unless force flag is set)
+                    if (hasCompleteMetadata && !req.body.force) {
+                        results.skipped++;
+                        if (i < 10)
+                            console.log(`Skipping ${item.url} - already has complete metadata`);
+                        continue;
+                    }
+                    // Fetch metadata
+                    const fetchedMetadata = await linkMetadataService.fetchMetadata(item.url, 3, 30000);
+                    // Only update if we got meaningful metadata
+                    if (fetchedMetadata && (fetchedMetadata.title || fetchedMetadata.description || fetchedMetadata.image)) {
+                        await ItemModel.update(item.id, { link_metadata: fetchedMetadata });
+                        // Also update title/description if they're missing or using URL
+                        const updates = {};
+                        if (!item.title || item.title === item.url) {
+                            updates.title = fetchedMetadata.title || item.title;
+                        }
+                        if (!item.description && fetchedMetadata.description) {
+                            updates.description = fetchedMetadata.description;
+                        }
+                        if (Object.keys(updates).length > 0) {
+                            await ItemModel.update(item.id, updates);
+                        }
+                        // Re-index item to include metadata in search
+                        indexingService.indexItem(item.id).catch((indexError) => {
+                            console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
+                        });
+                        results.enriched++;
+                        if (i < 10) {
+                            console.log(`Enriched ${item.url}:`, {
+                                hasTitle: !!fetchedMetadata.title,
+                                hasDescription: !!fetchedMetadata.description,
+                                hasImage: !!fetchedMetadata.image,
+                            });
+                        }
+                    }
+                    else {
+                        results.skipped++;
+                        if (i < 10)
+                            console.log(`No metadata found for ${item.url}`);
+                    }
+                    // Log progress every 50 items
+                    if (results.enriched % 50 === 0 && results.enriched > 0) {
+                        console.log(`Progress: ${results.enriched} enriched, ${results.failed} failed, ${results.skipped} skipped out of ${i + 1} processed`);
+                    }
+                    // Small delay to avoid overwhelming external servers
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+                catch (error) {
+                    results.failed++;
+                    results.errors.push(`${item.url}: ${error.message}`);
+                    console.error(`Error enriching bookmark ${item.url}:`, error);
+                }
+            }
+            console.log(`Re-enrichment completed: ${results.enriched} enriched, ${results.failed} failed, ${results.skipped} skipped out of ${bookmarkItems.length} total`);
+            if (results.errors.length > 0) {
+                console.error('Re-enrichment errors (first 10):', results.errors.slice(0, 10));
+            }
+            return results;
+        })();
+        // Don't await - return immediately
+        enrichPromise.catch((error) => {
+            console.error('Background re-enrichment error:', error);
+        });
+        res.status(202).json({
+            message: 'Bookmark re-enrichment started',
+            total: bookmarkItems.length,
+            note: 'Processing will happen in the background. Bookmarks will be updated as metadata is fetched.',
+        });
+    }
+    catch (error) {
+        console.error('Error starting bookmark re-enrichment:', error);
+        res.status(500).json({
+            error: 'Failed to start bookmark re-enrichment',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        });
     }
 });
 // Generate email summary for an item (by item ID)

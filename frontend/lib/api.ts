@@ -274,6 +274,13 @@ class ApiClient {
     });
   }
 
+  async reEnrichBookmarks(force: boolean = false): Promise<{ message: string; total: number; note: string }> {
+    return this.request<{ message: string; total: number; note: string }>('/api/items/re-enrich-bookmarks', {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    });
+  }
+
   async getItems(limit?: number, offset?: number): Promise<Item[]> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
