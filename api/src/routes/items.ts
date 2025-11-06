@@ -6,6 +6,7 @@ import { linkMetadataService } from '../services/linkMetadata.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { fileStorageService } from '../services/storage.js';
 import { fileParserService } from '../services/fileParser.js';
 import { openAIService } from '../services/openai.js';
@@ -112,7 +113,23 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req: express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
+    // Generate a unique filename using UUID to ensure uniqueness
+    // Preserve the original file extension for proper file type detection
+    const ext = path.extname(file.originalname);
+    const baseName = path.basename(file.originalname, ext);
+    // Use crypto.randomUUID() if available (Node 14.17+), otherwise fall back to randomBytes
+    let uniqueId: string;
+    try {
+      uniqueId = crypto.randomUUID();
+    } catch {
+      // Fallback for older Node versions
+      uniqueId = crypto.randomBytes(16).toString('hex');
+    }
+    // Create unique filename: {uuid}-{sanitized-original-name}{ext}
+    // Sanitize original name to remove special characters that might cause issues
+    const sanitizedName = baseName.replace(/[^a-zA-Z0-9-_]/g, '_').substring(0, 50);
+    const uniqueFilename = `${uniqueId}-${sanitizedName}${ext}`;
+    cb(null, uniqueFilename);
   },
 });
 

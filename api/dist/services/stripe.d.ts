@@ -15,6 +15,11 @@ export declare class StripeService {
      */
     createBookmarkImportPaymentIntent(userId: string, email: string, bookmarkCount: number): Promise<Stripe.PaymentIntent>;
     /**
+     * Create a payment intent for premium subscription
+     * $5/month for unlimited items
+     */
+    createPremiumSubscriptionPaymentIntent(userId: string, email: string): Promise<Stripe.PaymentIntent>;
+    /**
      * Verify payment intent was successful
      */
     verifyPaymentIntent(paymentIntentId: string): Promise<boolean>;
