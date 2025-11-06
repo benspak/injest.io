@@ -167,15 +167,15 @@ async function getItemLimitStatus(userId) {
     if (!user) {
         return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: 500 };
     }
+    // Check current indexed item count (always query the actual count)
+    const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL', [userId]);
+    const itemCount = parseInt(result.rows[0].total, 10);
     // Premium users and users who bought bookmark imports are exempt from the limit
     const isPremium = user.is_premium || false;
     const hasPurchasedBookmarkImport = (user.bookmark_import_count || 0) > 0;
     if (isPremium || hasPurchasedBookmarkImport) {
-        return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: Infinity };
+        return { itemCount, isAtLimit: false, isApproachingLimit: false, limit: Infinity };
     }
-    // Check current indexed item count
-    const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL', [userId]);
-    const itemCount = parseInt(result.rows[0].total, 10);
     const limit = 500;
     return {
         itemCount,
