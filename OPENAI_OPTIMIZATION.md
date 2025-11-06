@@ -117,3 +117,17 @@ To enable `text-embedding-3-small` embeddings:
 - Minimal quality impact (1536 dims still very effective)
 
 **Total Potential Savings**: 70-95% reduction in OpenAI costs
+
+## Rate Limiting & Error Handling
+
+**Internal Rate Limiter:**
+- Set to 400 requests per minute (conservative limit)
+- Provides queue management for requests
+- Works alongside OpenAI's retry logic
+
+**429 Error Handling:**
+- Automatic retry with exponential backoff (up to 5 retries)
+- Respects `retry-after` header from OpenAI
+- Jitter added to prevent thundering herd problem
+- All OpenAI API calls now have automatic retry logic
+- Better error detection for various OpenAI SDK error formats

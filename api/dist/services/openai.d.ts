@@ -8,6 +8,10 @@ export declare class OpenAIService {
      * Wait for rate limit permission before making API call
      */
     private waitForRateLimit;
+    /**
+     * Execute OpenAI API call with retry logic for rate limits
+     */
+    private executeWithRetry;
     createEmbedding(text: string): Promise<number[]>;
     classifyAndTag(text: string): Promise<{
         type: string;

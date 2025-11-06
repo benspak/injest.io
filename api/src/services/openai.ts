@@ -36,14 +36,78 @@ export class OpenAIService {
     await openAIRateLimiter.waitForPermission();
   }
 
+  /**
+   * Execute OpenAI API call with retry logic for rate limits
+   */
+  private async executeWithRetry<T>(
+    apiCall: () => Promise<T>,
+    maxRetries: number = 5,
+    baseDelay: number = 2000
+  ): Promise<T> {
+    let lastError: any;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        return await apiCall();
+      } catch (error: any) {
+        lastError = error;
+
+        // Check if it's a rate limit error (429)
+        // OpenAI SDK errors can have different structures
+        const isRateLimit =
+          error?.status === 429 ||
+          error?.statusCode === 429 ||
+          error?.code === 'rate_limit_exceeded' ||
+          error?.type === 'rate_limit_error' ||
+          (error?.message && error.message.includes('rate limit'));
+
+        if (isRateLimit) {
+          // Try to get retry-after from various possible locations
+          let retryAfter: number | null = null;
+
+          if (error?.response?.headers?.['retry-after']) {
+            retryAfter = parseInt(error.response.headers['retry-after'], 10) * 1000;
+          } else if (error?.headers?.['retry-after']) {
+            retryAfter = parseInt(error.headers['retry-after'], 10) * 1000;
+          } else if (error?.retryAfter) {
+            retryAfter = error.retryAfter * 1000;
+          }
+
+          // Use retry-after header if available, otherwise exponential backoff with jitter
+          const exponentialDelay = baseDelay * Math.pow(2, attempt);
+          const jitter = Math.random() * 1000; // Add random jitter to avoid thundering herd
+          const delay = retryAfter || (exponentialDelay + jitter);
+
+          if (attempt < maxRetries - 1) {
+            const delaySeconds = Math.ceil(delay / 1000);
+            console.warn(
+              `[OpenAI] Rate limit hit (429), retrying in ${delaySeconds}s (attempt ${attempt + 1}/${maxRetries}). ` +
+              `Error: ${error?.message || 'Unknown error'}`
+            );
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+
+        // For non-rate-limit errors, throw immediately (unless it's the last attempt)
+        if (attempt === maxRetries - 1 || !isRateLimit) {
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
   async createEmbedding(text: string): Promise<number[]> {
     await this.waitForRateLimit();
-    const response = await this.client.embeddings.create({
-      model: this.EMBEDDING_MODEL,
-      input: text,
+    return this.executeWithRetry(async () => {
+      const response = await this.client.embeddings.create({
+        model: this.EMBEDDING_MODEL,
+        input: text,
+      });
+      return response.data[0].embedding;
     });
-
-    return response.data[0].embedding;
   }
 
   async classifyAndTag(text: string): Promise<{ type: string; category: string; tags: string[]; summary: string }> {
@@ -61,15 +125,17 @@ export class OpenAIService {
 Content: ${contentPreview}`;
 
     await this.waitForRateLimit();
-    const response = await this.client.chat.completions.create({
-      model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for classification
-      messages: [
-        { role: 'system', content: 'Respond with valid JSON only.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 200, // Limit response length to save tokens
-      response_format: { type: 'json_object' }, // Structured output for better reliability
+    const response = await this.executeWithRetry(async () => {
+      return await this.client.chat.completions.create({
+        model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for classification
+        messages: [
+          { role: 'system', content: 'Respond with valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 200, // Limit response length to save tokens
+        response_format: { type: 'json_object' }, // Structured output for better reliability
+      });
     });
 
     const content = response.choices[0].message.content;
@@ -105,11 +171,13 @@ Content: ${contentPreview}`;
     messages.push({ role: 'user', content: prompt });
 
     await this.waitForRateLimit();
-    const response = await this.client.chat.completions.create({
-      model: this.ADVANCED_TASK_MODEL, // Keep GPT-4 for user-facing generation
-      messages,
-      temperature: 0.7,
-      max_tokens: 1000, // Limit response length
+    const response = await this.executeWithRetry(async () => {
+      return await this.client.chat.completions.create({
+        model: this.ADVANCED_TASK_MODEL, // Keep GPT-4 for user-facing generation
+        messages,
+        temperature: 0.7,
+        max_tokens: 1000, // Limit response length
+      });
     });
 
     return response.choices[0].message.content || '';
@@ -132,15 +200,17 @@ File${filename ? ` "${filename}"` : ''}:
 ${contentPreview}`;
 
     await this.waitForRateLimit();
-    const response = await this.client.chat.completions.create({
-      model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for title/description
-      messages: [
-        { role: 'system', content: 'Respond with valid JSON only.' },
-        { role: 'user', content: prompt },
-      ],
-      temperature: 0.5,
-      max_tokens: 150, // Limit response length
-      response_format: { type: 'json_object' },
+    const response = await this.executeWithRetry(async () => {
+      return await this.client.chat.completions.create({
+        model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for title/description
+        messages: [
+          { role: 'system', content: 'Respond with valid JSON only.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.5,
+        max_tokens: 150, // Limit response length
+        response_format: { type: 'json_object' },
+      });
     });
 
     const content = response.choices[0].message.content;
@@ -187,17 +257,19 @@ Content: ${contentPreview}`;
 
     try {
       await this.waitForRateLimit();
-      const response = await this.client.chat.completions.create({
-        model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for tagging
-        messages: [
-          {
-            role: 'system',
-            content: 'Respond with only a JSON array of tag strings.'
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.3,
-        max_tokens: 100, // Limit response length
+      const response = await this.executeWithRetry(async () => {
+        return await this.client.chat.completions.create({
+          model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for tagging
+          messages: [
+            {
+              role: 'system',
+              content: 'Respond with only a JSON array of tag strings.'
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.3,
+          max_tokens: 100, // Limit response length
+        });
       });
 
       const content = response.choices[0].message.content;
@@ -242,17 +314,19 @@ Email: ${contentPreview}`;
 
     try {
       await this.waitForRateLimit();
-      const response = await this.client.chat.completions.create({
-        model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for summarization
-        messages: [
-          {
-            role: 'system',
-            content: 'Respond with only a JSON array of 3 summary strings.'
-          },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.5,
-        max_tokens: 200, // Limit response length
+      const response = await this.executeWithRetry(async () => {
+        return await this.client.chat.completions.create({
+          model: this.SIMPLE_TASK_MODEL, // GPT-3.5 is sufficient for summarization
+          messages: [
+            {
+              role: 'system',
+              content: 'Respond with only a JSON array of 3 summary strings.'
+            },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.5,
+          max_tokens: 200, // Limit response length
+        });
       });
 
       const content = response.choices[0].message.content;
