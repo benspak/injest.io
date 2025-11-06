@@ -75,11 +75,39 @@ export class ItemModel {
     return result.rows[0] || null;
   }
 
-  static async findByOwner(ownerId: string, limit: number = 100, offset: number = 0): Promise<Item[]> {
-    const result = await pool.query(
-      'SELECT * FROM items WHERE owner_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
-      [ownerId, limit, offset]
-    );
+  static async findByOwner(
+    ownerId: string,
+    limit: number = 100,
+    offset: number = 0,
+    filters?: { source?: string; hasAttachments?: boolean }
+  ): Promise<Item[]> {
+    let query = 'SELECT * FROM items WHERE owner_id = $1';
+    const params: any[] = [ownerId];
+    let paramCount = 2;
+
+    // Add source filter if provided
+    if (filters?.source) {
+      // For email sources, match items that start with "email:" or have type='email'
+      if (filters.source === 'email') {
+        query += ` AND (source LIKE $${paramCount} OR type = $${paramCount + 1})`;
+        params.push('email:%');
+        params.push('email');
+        paramCount += 2;
+      } else {
+        query += ` AND source = $${paramCount++}`;
+        params.push(filters.source);
+      }
+    }
+
+    // Add attachments filter if provided
+    if (filters?.hasAttachments === true) {
+      query += ` AND attachments IS NOT NULL AND jsonb_array_length(attachments) > 0`;
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
+    params.push(limit, offset);
+
+    const result = await pool.query(query, params);
     return result.rows;
   }
 

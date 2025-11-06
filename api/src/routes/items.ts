@@ -582,8 +582,18 @@ router.get('/', async (req: AuthRequest, res: express.Response) => {
 
     const limit = parseInt(req.query.limit as string) || 100;
     const offset = parseInt(req.query.offset as string) || 0;
+    const source = req.query.source as string | undefined;
+    const hasAttachments = req.query.hasAttachments === 'true' || req.query.hasAttachments === true;
 
-    const items = await ItemModel.findByOwner(req.user.id, limit, offset);
+    const filters: { source?: string; hasAttachments?: boolean } = {};
+    if (source) {
+      filters.source = source;
+    }
+    if (hasAttachments) {
+      filters.hasAttachments = true;
+    }
+
+    const items = await ItemModel.findByOwner(req.user.id, limit, offset, filters);
     res.json(items);
   } catch (error) {
     console.error('Error listing items:', error);

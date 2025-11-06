@@ -28,6 +28,8 @@ export default function DashboardPage() {
   const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
+  const [sourceFilter, setSourceFilter] = useState<string>('');
+  const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
   const BATCH_SIZE = 50;
 
   useEffect(() => {
@@ -77,13 +79,23 @@ export default function DashboardPage() {
         setHasMore(true);
       }
 
-      // Fetch items with pagination
-      const itemsData = await apiClient.getItems(BATCH_SIZE, currentOffset).catch(() => []);
+      // Build filters object
+      const filters: { source?: string; hasAttachments?: boolean } = {};
+      if (sourceFilter) {
+        filters.source = sourceFilter;
+      }
+      if (hasAttachmentsFilter) {
+        filters.hasAttachments = true;
+      }
+
+      // Fetch items with pagination and filters
+      const itemsData = await apiClient.getItems(BATCH_SIZE, currentOffset, filters).catch(() => []);
 
       // For emails, we only fetch the first batch to avoid duplicates
       // Subsequent loads will only fetch database items
       let emailItems: Item[] = [];
-      if (currentOffset === 0) {
+      // Only fetch email items if no source filter is set, or if filtering for email sources
+      if (currentOffset === 0 && (!sourceFilter || sourceFilter === 'email' || sourceFilter.startsWith('email:'))) {
         const emailsResponse = await apiClient.getReceivedEmails(BATCH_SIZE).catch(() => ({ data: [], has_more: false }));
 
         // Extract resend_email_id from database items to check for duplicates
@@ -129,6 +141,18 @@ export default function DashboardPage() {
               source: `email:${email.from}`,
             };
           });
+
+        // Apply client-side filtering to email items
+        if (sourceFilter === 'email') {
+          // Keep all email items when filtering by 'email'
+          // No additional filtering needed
+        } else if (sourceFilter && !sourceFilter.startsWith('email:')) {
+          // Filter out email items if source filter is set to something other than email
+          emailItems = [];
+        }
+        if (hasAttachmentsFilter) {
+          emailItems = emailItems.filter(item => item.attachments && item.attachments.length > 0);
+        }
       }
 
       // Combine items
@@ -182,8 +206,17 @@ export default function DashboardPage() {
       // Use current offset from state by reading it directly
       const currentOffset = offset;
 
-      // Fetch items with pagination
-      const itemsData = await apiClient.getItems(BATCH_SIZE, currentOffset).catch(() => []);
+      // Build filters object
+      const filters: { source?: string; hasAttachments?: boolean } = {};
+      if (sourceFilter) {
+        filters.source = sourceFilter;
+      }
+      if (hasAttachmentsFilter) {
+        filters.hasAttachments = true;
+      }
+
+      // Fetch items with pagination and filters
+      const itemsData = await apiClient.getItems(BATCH_SIZE, currentOffset, filters).catch(() => []);
 
       // Combine items
       const allItems = [...itemsData];
@@ -213,7 +246,18 @@ export default function DashboardPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, loading, offset]);
+  }, [loadingMore, hasMore, loading, offset, sourceFilter, hasAttachmentsFilter]);
+
+  // Reload items when filters change
+  useEffect(() => {
+    if (!authLoading && auth.isAuthenticated()) {
+      setOffset(0);
+      setItems([]);
+      setHasMore(true);
+      loadItems(0, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceFilter, hasAttachmentsFilter]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -493,19 +537,79 @@ export default function DashboardPage() {
                 </p>
               </CardContent>
             </Card>
+
+            {/* Important Links Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Important Links</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <a
+                    href="https://x.com/settings/download_your_data"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    Download X (Twitter) Data
+                  </a>
+                  <a
+                    href="https://www.linkedin.com/mypreferences/d/download-my-data"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    Download LinkedIn Data
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Item list - second column on desktop, second on mobile */}
           <div className="lg:col-span-2">
             <div className="mb-4">
-              <h2 className="text-xl font-semibold mb-4">
-                Your Items
-                {indexedCount !== null && (
-                  <span className="text-sm font-normal text-gray-500 ml-2">
-                    ({indexedCount} indexed)
-                  </span>
-                )}
-              </h2>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                <h2 className="text-xl font-semibold">
+                  Your Items
+                  {indexedCount !== null && (
+                    <span className="text-sm font-normal text-gray-500 ml-2">
+                      ({indexedCount} indexed)
+                    </span>
+                  )}
+                </h2>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  {/* Source Filter */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="source-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                      Source:
+                    </label>
+                    <select
+                      id="source-filter"
+                      value={sourceFilter}
+                      onChange={(e) => setSourceFilter(e.target.value)}
+                      className="px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Sources</option>
+                      <option value="web">Web</option>
+                      <option value="bookmark">Bookmark</option>
+                      <option value="email">Email</option>
+                    </select>
+                  </div>
+                  {/* Attachments Filter */}
+                  <div className="flex items-center gap-2">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={hasAttachmentsFilter}
+                        onChange={(e) => setHasAttachmentsFilter(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <span>With Files</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
             <ItemList
               items={items}

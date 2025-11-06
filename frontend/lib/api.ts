@@ -281,10 +281,12 @@ class ApiClient {
     });
   }
 
-  async getItems(limit?: number, offset?: number): Promise<Item[]> {
+  async getItems(limit?: number, offset?: number, filters?: { source?: string; hasAttachments?: boolean }): Promise<Item[]> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (offset) params.append('offset', offset.toString());
+    if (filters?.source) params.append('source', filters.source);
+    if (filters?.hasAttachments) params.append('hasAttachments', 'true');
     return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
