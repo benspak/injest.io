@@ -21,7 +21,7 @@ function getStripe(): Stripe {
 }
 
 export interface BookmarkImportPayment {
-  amount: number; // $10 in cents = 1000
+  amount: number; // $5 in cents = 500
   currency: string;
   description: string;
 }
@@ -57,7 +57,7 @@ export class StripeService {
 
   /**
    * Create a payment intent for bookmark import
-   * $10 for up to 555 bookmarks
+   * $5 for up to 555 bookmarks
    */
   async createBookmarkImportPaymentIntent(
     userId: string,
@@ -69,7 +69,7 @@ export class StripeService {
       throw new Error('Bookmark import limit is 555 bookmarks per payment');
     }
 
-    const amount = 1000; // $10 in cents
+    const amount = 500; // $5 in cents
     const customerId = await this.getOrCreateCustomer(userId, email);
     const stripe = getStripe();
 
@@ -82,6 +82,34 @@ export class StripeService {
         userId,
         bookmarkCount: bookmarkCount.toString(),
         type: 'bookmark_import',
+      },
+    });
+
+    return paymentIntent;
+  }
+
+  /**
+   * Create a payment intent for LinkedIn connections import
+   * $5 per import
+   */
+  async createConnectionsImportPaymentIntent(
+    userId: string,
+    email: string,
+    connectionCount: number
+  ): Promise<Stripe.PaymentIntent> {
+    const amount = 500; // $5 in cents
+    const customerId = await this.getOrCreateCustomer(userId, email);
+    const stripe = getStripe();
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'usd',
+      customer: customerId,
+      description: `LinkedIn connections import: ${connectionCount} connections`,
+      metadata: {
+        userId,
+        connectionCount: connectionCount.toString(),
+        type: 'connections_import',
       },
     });
 
@@ -127,7 +155,7 @@ export class StripeService {
               name: 'Bookmark Import',
               description: `Import up to ${bookmarkCount} bookmarks`,
             },
-            unit_amount: 1000, // $10 in cents
+            unit_amount: 500, // $5 in cents
           },
           quantity: 1,
         },

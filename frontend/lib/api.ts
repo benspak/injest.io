@@ -250,6 +250,37 @@ class ApiClient {
     });
   }
 
+  async importConnections(file: File, paymentIntentId?: string): Promise<{ message: string; total: number; note: string; premium?: boolean }> {
+    const formData = new FormData();
+    formData.append('connectionsFile', file);
+    if (paymentIntentId) {
+      formData.append('paymentIntentId', paymentIntentId);
+    }
+
+    // Don't set Content-Type header - browser will set it automatically with boundary for FormData
+    return this.request<{ message: string; total: number; note: string; premium?: boolean }>('/api/items/import-connections', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
+  async createConnectionsImportPaymentIntent(connectionCount: number): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    amount: number;
+    currency: string;
+  }> {
+    return this.request<{
+      clientSecret: string;
+      paymentIntentId: string;
+      amount: number;
+      currency: string;
+    }>('/api/payment/connections-import', {
+      method: 'POST',
+      body: JSON.stringify({ connectionCount }),
+    });
+  }
+
   async createBookmarkImportPaymentIntent(bookmarkCount: number): Promise<{
     clientSecret: string;
     paymentIntentId: string;
@@ -276,6 +307,13 @@ class ApiClient {
 
   async reEnrichBookmarks(force: boolean = false): Promise<{ message: string; total: number; note: string }> {
     return this.request<{ message: string; total: number; note: string }>('/api/items/re-enrich-bookmarks', {
+      method: 'POST',
+      body: JSON.stringify({ force }),
+    });
+  }
+
+  async reIndexConnections(force: boolean = false): Promise<{ message: string; total: number; note: string }> {
+    return this.request<{ message: string; total: number; note: string }>('/api/items/re-index-connections', {
       method: 'POST',
       body: JSON.stringify({ force }),
     });

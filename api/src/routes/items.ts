@@ -10,6 +10,7 @@ import { fileStorageService } from '../services/storage.js';
 import { fileParserService } from '../services/fileParser.js';
 import { openAIService } from '../services/openai.js';
 import { bookmarkParserService } from '../services/bookmarkParser.js';
+import { connectionsParserService } from '../services/connectionsParser.js';
 import { UserModel } from '../models/User.js';
 import pool from '../config/database.js';
 
@@ -503,7 +504,7 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req: Auth
           message: 'Bookmark import requires payment for non-premium users',
           requiresPayment: true,
           bookmarkCount,
-          amount: 1000, // $10 in cents
+          amount: 500, // $5 in cents
           currency: 'usd',
         });
       }
@@ -550,6 +551,290 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req: Auth
     console.error('Error importing bookmarks:', error);
     res.status(500).json({
       error: 'Failed to import bookmarks',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+// Background function to process connections
+async function processConnectionsInBackground(
+  userId: string,
+  connections: any[],
+  filePath: string
+): Promise<void> {
+  const results = {
+    imported: 0,
+    failed: 0,
+    skipped: 0,
+    errors: [] as string[],
+  };
+
+  console.log(`Starting connections import for user ${userId}: ${connections.length} connections to process`);
+  if (connections.length > 0) {
+    console.log(`Sample connection structure:`, JSON.stringify(connections[0], null, 2));
+  }
+
+  // Get existing items once to check for duplicates
+  let existingItems: Item[] = [];
+  try {
+    existingItems = await ItemModel.findByOwner(userId, 1000, 0);
+    console.log(`Found ${existingItems.length} existing items for duplicate check`);
+  } catch (error) {
+    console.error('Error fetching existing items for duplicate check:', error);
+  }
+
+  // Create sets to track existing URLs and emails
+  const existingUrls = new Set(existingItems.map(item => item.url).filter(Boolean));
+  const existingEmails = new Set(
+    existingItems
+      .map(item => {
+        // Try to extract email from description or notes
+        const desc = item.description || '';
+        const notes = item.notes || '';
+        const emailMatch = (desc + ' ' + notes).match(/[\w\.-]+@[\w\.-]+\.\w+/);
+        return emailMatch ? emailMatch[0].toLowerCase() : null;
+      })
+      .filter(Boolean)
+  );
+
+  // Process connections sequentially
+  for (let i = 0; i < connections.length; i++) {
+    const connection = connections[i];
+    try {
+      // Build full name
+      const fullName = [connection.firstName, connection.lastName]
+        .filter(Boolean)
+        .join(' ')
+        .trim();
+
+      if (!fullName) {
+        results.failed++;
+        results.errors.push(`Connection ${i + 1}: Missing name`);
+        continue;
+      }
+
+      // Check for duplicates by URL or email
+      if (connection.url && existingUrls.has(connection.url)) {
+        results.skipped++;
+        if (i < 5) console.log(`Duplicate URL skipped: ${connection.url}`);
+        continue;
+      }
+      if (connection.emailAddress) {
+        const emailLower = connection.emailAddress.toLowerCase();
+        if (existingEmails.has(emailLower)) {
+          results.skipped++;
+          if (i < 5) console.log(`Duplicate email skipped: ${connection.emailAddress}`);
+          continue;
+        }
+      }
+
+      // Build description with connection details
+      const descriptionParts: string[] = [];
+      if (connection.position) {
+        descriptionParts.push(connection.position);
+      }
+      if (connection.company) {
+        descriptionParts.push(`at ${connection.company}`);
+      }
+      if (connection.emailAddress) {
+        descriptionParts.push(`Email: ${connection.emailAddress}`);
+      }
+      if (connection.connectedOn) {
+        descriptionParts.push(`Connected: ${connection.connectedOn}`);
+      }
+      const description = descriptionParts.join(' | ');
+
+      // Create item
+      const item = await ItemModel.create({
+        owner_id: userId,
+        title: fullName,
+        description: description || undefined,
+        url: connection.url || undefined,
+        source: 'linkedin-connection',
+        notes: connection.emailAddress ? `Email: ${connection.emailAddress}` : undefined,
+        tags: ['contact', 'linkedin'].concat(connection.company ? [connection.company] : []),
+      });
+
+      if (i < 5) console.log(`Created item ${item.id} for connection: ${fullName}`);
+
+      // Add to existing sets to avoid duplicates within this batch
+      if (connection.url) {
+        existingUrls.add(connection.url);
+      }
+      if (connection.emailAddress) {
+        existingEmails.add(connection.emailAddress.toLowerCase());
+      }
+
+      // Indexing is deferred - users can re-index connections later using the re-index endpoint
+      // This prevents overwhelming the system during large imports
+
+      results.imported++;
+
+      // Log progress every 50 items
+      if (results.imported % 50 === 0) {
+        console.log(`Progress: ${results.imported} imported, ${results.failed} failed, ${results.skipped} skipped out of ${i + 1} processed`);
+      }
+    } catch (error: any) {
+      results.failed++;
+      results.errors.push(`Failed to import connection ${i + 1}: ${error.message}`);
+      console.error(`Error importing connection ${i + 1}:`, error);
+      if (i < 5) console.error(`Error details:`, error.stack);
+      // Continue processing other connections
+    }
+  }
+
+  // Clean up uploaded file after processing
+  try {
+    fs.unlinkSync(filePath);
+  } catch (cleanupError) {
+    console.warn('Failed to clean up connections file:', cleanupError);
+  }
+
+  console.log(`Connections import completed: ${results.imported} imported, ${results.failed} failed, ${results.skipped} skipped out of ${connections.length} total`);
+  if (results.errors.length > 0) {
+    console.error('Connections import errors (first 10):', results.errors.slice(0, 10));
+  }
+}
+
+// Import connections from CSV file
+router.post('/import-connections', upload.single('connectionsFile'), async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No connections file provided' });
+    }
+
+    // Validate user ID
+    if (!req.user.id || typeof req.user.id !== 'string') {
+      return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Validate file type
+    if (!req.file.originalname.toLowerCase().endsWith('.csv')) {
+      // Clean up file
+      try {
+        const filePath = fileStorageService.getFilePath(req.file.filename);
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return res.status(400).json({ error: 'File must be a CSV file' });
+    }
+
+    // Parse connections file
+    const connectionsFile = req.file;
+    const filePath = fileStorageService.getFilePath(connectionsFile.filename);
+
+    let connections;
+    try {
+      connections = await connectionsParserService.parseConnectionsFile(filePath);
+    } catch (parseError: any) {
+      console.error('Error parsing connections file:', parseError);
+      // Clean up file on parse error
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return res.status(400).json({
+        error: 'Failed to parse connections file',
+        details: parseError.message
+      });
+    }
+
+    if (connections.length === 0) {
+      // Clean up file if no connections found
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return res.status(400).json({ error: 'No connections found in file' });
+    }
+
+    // Get user to check premium status
+    const user = await UserModel.findById(req.user.id);
+    if (!user) {
+      // Clean up file
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
+      }
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check premium status and payment requirements
+    const isPremium = user.is_premium || false;
+    const connectionCount = connections.length;
+    // paymentIntentId comes from FormData, access it from body
+    const paymentIntentId = (req.body?.paymentIntentId as string | undefined) || undefined;
+
+    // Premium users can import for free
+    if (!isPremium) {
+      // Require payment verification for non-premium users
+      if (!paymentIntentId) {
+        // Clean up file
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          // Ignore cleanup errors
+        }
+        return res.status(402).json({
+          error: 'Payment required',
+          message: 'LinkedIn connections import requires payment for non-premium users',
+          requiresPayment: true,
+          connectionCount,
+          amount: 500, // $5 in cents
+          currency: 'usd',
+        });
+      }
+
+      // Verify payment
+      const { stripeService } = await import('../services/stripe.js');
+      const isPaymentVerified = await stripeService.verifyPaymentIntent(paymentIntentId);
+
+      if (!isPaymentVerified) {
+        // Clean up file
+        try {
+          fs.unlinkSync(filePath);
+        } catch {
+          // Ignore cleanup errors
+        }
+        return res.status(402).json({
+          error: 'Payment verification failed',
+          message: 'Please complete payment before importing connections',
+        });
+      }
+
+      // Update user's connections import count after successful payment verification
+      await UserModel.update(req.user.id, {
+        bookmark_import_count: (user.bookmark_import_count || 0) + 1,
+        last_bookmark_import_payment: new Date(),
+      });
+    }
+
+    // Start processing in background (don't await)
+    console.log(`Starting background processing for ${connections.length} connections (premium: ${isPremium})`);
+    processConnectionsInBackground(req.user.id, connections, filePath).catch((error) => {
+      console.error('Background connections processing error:', error);
+      console.error('Error stack:', error.stack);
+    });
+
+    // Return immediately
+    res.status(202).json({
+      message: 'Connections import started',
+      total: connections.length,
+      note: 'Processing will happen in the background. Connections will appear in your list as they are imported.',
+      premium: isPremium,
+    });
+  } catch (error: any) {
+    console.error('Error importing connections:', error);
+    res.status(500).json({
+      error: 'Failed to import connections',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
@@ -1003,6 +1288,109 @@ router.post('/re-enrich-bookmarks', async (req: AuthRequest, res: express.Respon
     console.error('Error starting bookmark re-enrichment:', error);
     res.status(500).json({
       error: 'Failed to start bookmark re-enrichment',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+});
+
+// Re-index all LinkedIn connections for the current user
+router.post('/re-index-connections', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get all LinkedIn connection items for this user
+    const allItems = await ItemModel.findByOwner(req.user.id, 10000, 0);
+    const connectionItems = allItems.filter(item => item.source === 'linkedin-connection');
+
+    if (connectionItems.length === 0) {
+      return res.json({
+        message: 'No LinkedIn connections found to index',
+        total: 0,
+        indexed: 0,
+        failed: 0,
+      });
+    }
+
+    console.log(`Starting re-indexing for ${connectionItems.length} LinkedIn connections for user ${req.user.id}`);
+
+    // Process in background with throttling
+    const indexPromise = (async () => {
+      const results = {
+        indexed: 0,
+        failed: 0,
+        skipped: 0,
+        errors: [] as string[],
+      };
+
+      const BATCH_SIZE = 15; // Process 15 items per batch
+      const DELAY_BETWEEN_ITEMS = 150; // 150ms delay between items
+      const DELAY_BETWEEN_BATCHES = 1500; // 1.5 second delay between batches
+
+      for (let i = 0; i < connectionItems.length; i++) {
+        const item = connectionItems[i];
+        try {
+          // Check if item already has an embedding (unless force flag is set)
+          if (item.embedding_id && !req.body.force) {
+            results.skipped++;
+            if (i < 10) console.log(`Skipping ${item.id} - already has embedding`);
+            continue;
+          }
+
+          // Index the item
+          await indexingService.indexItem(item.id);
+
+          results.indexed++;
+          if (i < 10) {
+            console.log(`Indexed connection item ${item.id}: ${item.title || 'Untitled'}`);
+          }
+
+          // Log progress every 50 items
+          if (results.indexed % 50 === 0 && results.indexed > 0) {
+            console.log(`Progress: ${results.indexed} indexed, ${results.failed} failed, ${results.skipped} skipped out of ${i + 1} processed`);
+          }
+
+          // Throttling: delay between items
+          if (i < connectionItems.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_ITEMS));
+          }
+
+          // Throttling: longer delay between batches
+          if ((i + 1) % BATCH_SIZE === 0 && i < connectionItems.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES));
+            console.log(`Completed batch of ${BATCH_SIZE} items. Continuing...`);
+          }
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push(`${item.id}: ${error.message}`);
+          console.error(`Error indexing connection item ${item.id}:`, error);
+          // Continue with next item even if this one failed
+        }
+      }
+
+      console.log(`Re-indexing completed: ${results.indexed} indexed, ${results.failed} failed, ${results.skipped} skipped out of ${connectionItems.length} total`);
+      if (results.errors.length > 0) {
+        console.error('Re-indexing errors (first 10):', results.errors.slice(0, 10));
+      }
+
+      return results;
+    })();
+
+    // Don't await - return immediately
+    indexPromise.catch((error) => {
+      console.error('Background re-indexing error:', error);
+    });
+
+    res.status(202).json({
+      message: 'Connections re-indexing started',
+      total: connectionItems.length,
+      note: 'Processing will happen in the background with throttling. Connections will be indexed as they are processed.',
+    });
+  } catch (error: any) {
+    console.error('Error starting connections re-indexing:', error);
+    res.status(500).json({
+      error: 'Failed to start connections re-indexing',
       details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }

@@ -12,20 +12,23 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
-interface BookmarkPaymentDialogProps {
+interface ImportPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bookmarkCount: number;
+  count: number;
+  type: 'bookmark' | 'connection';
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
 }
 
 function PaymentForm({
-  bookmarkCount,
+  count,
+  type,
   onPaymentComplete,
   onCancel
 }: {
-  bookmarkCount: number;
+  count: number;
+  type: 'bookmark' | 'connection';
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
 }) {
@@ -86,6 +89,9 @@ function PaymentForm({
     }
   };
 
+  const itemName = type === 'bookmark' ? 'bookmark' : 'connection';
+  const itemNamePlural = type === 'bookmark' ? 'bookmarks' : 'connections';
+
   return (
     <form id="payment-form" onSubmit={handleSubmit} className="space-y-4">
       {error && (
@@ -116,18 +122,22 @@ function PaymentForm({
   );
 }
 
-export function BookmarkPaymentDialog({
+export function ImportPaymentDialog({
   open,
   onOpenChange,
-  bookmarkCount,
+  count,
+  type,
   onPaymentComplete,
   onCancel,
-}: BookmarkPaymentDialogProps) {
+}: ImportPaymentDialogProps) {
   const [stripePromise, setStripePromise] = useState<any>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const itemName = type === 'bookmark' ? 'bookmark' : 'connection';
+  const itemNamePlural = type === 'bookmark' ? 'bookmarks' : 'connections';
 
   // Initialize Stripe
   useEffect(() => {
@@ -144,10 +154,10 @@ export function BookmarkPaymentDialog({
 
   // Create payment intent when dialog opens
   useEffect(() => {
-    if (open && bookmarkCount > 0 && stripePromise) {
+    if (open && count > 0 && stripePromise) {
       createPaymentIntent();
     }
-  }, [open, bookmarkCount, stripePromise]);
+  }, [open, count, stripePromise]);
 
   const createPaymentIntent = async () => {
     try {
@@ -155,7 +165,9 @@ export function BookmarkPaymentDialog({
       setError(null);
 
       const { apiClient } = await import('@/lib/api');
-      const paymentData = await apiClient.createBookmarkImportPaymentIntent(bookmarkCount);
+      const paymentData = type === 'bookmark'
+        ? await apiClient.createBookmarkImportPaymentIntent(count)
+        : await apiClient.createConnectionsImportPaymentIntent(count);
 
       setClientSecret(paymentData.clientSecret);
       setPaymentIntentId(paymentData.paymentIntentId);
@@ -183,15 +195,18 @@ export function BookmarkPaymentDialog({
         <DialogHeader>
           <DialogTitle>Payment Required</DialogTitle>
           <DialogDescription>
-            Import {bookmarkCount} bookmark{bookmarkCount !== 1 ? 's' : ''} for $5
+            Import {count} {count !== 1 ? itemNamePlural : itemName} for $5
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded text-sm">
+            <strong>Note:</strong> This $5 fee covers OpenAI token usage for metadata enrichment and processing.
+          </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Bookmarks:</span>
-              <span className="font-medium">{bookmarkCount}</span>
+              <span className="text-sm text-gray-600 capitalize">{itemNamePlural}:</span>
+              <span className="font-medium">{count}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Amount:</span>
@@ -230,7 +245,8 @@ export function BookmarkPaymentDialog({
               }}
             >
               <PaymentForm
-                bookmarkCount={bookmarkCount}
+                count={count}
+                type={type}
                 onPaymentComplete={handlePaymentComplete}
                 onCancel={handleCancel}
               />
