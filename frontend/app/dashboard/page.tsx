@@ -21,16 +21,11 @@ export default function DashboardPage() {
   const [offset, setOffset] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
   const [importingBookmarks, setImportingBookmarks] = useState(false);
-  const [importingConnections, setImportingConnections] = useState(false);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
   const [showPaymentDialog, setShowPaymentDialog] = useState(false);
   const [pendingBookmarkFile, setPendingBookmarkFile] = useState<File | null>(null);
   const [pendingBookmarkCount, setPendingBookmarkCount] = useState(0);
-  const [showConnectionsPaymentDialog, setShowConnectionsPaymentDialog] = useState(false);
-  const [pendingConnectionsFile, setPendingConnectionsFile] = useState<File | null>(null);
-  const [pendingConnectionsCount, setPendingConnectionsCount] = useState(0);
   const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
-  const connectionsFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('');
@@ -451,135 +446,6 @@ export default function DashboardPage() {
     }
   };
 
-  const parseConnectionsCount = async (file: File): Promise<number> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const csv = e.target?.result as string;
-        const lines = csv.split(/\r?\n/);
-        // Skip first 3 rows (metadata/notes rows) and header row (row 4)
-        // Count data rows starting from row 5 (index 4 after skipping 3)
-        const dataLines = lines.slice(4).filter(line => line.trim().length > 0);
-        resolve(dataLines.length);
-      };
-      reader.readAsText(file);
-    });
-  };
-
-  const handleImportConnections = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.name.endsWith('.csv') && file.type !== 'text/csv') {
-      toast.error('Please select a CSV file');
-      return;
-    }
-
-    // First, parse the file to count connections
-    setPendingConnectionsFile(file);
-
-    // Try to import - server will tell us if payment is needed
-    setImportingConnections(true);
-    try {
-      const result = await apiClient.importConnections(file);
-
-      // Success - no payment needed (premium user)
-      handleConnectionsImportSuccess(result.total);
-    } catch (error: any) {
-      console.error('Error importing connections:', error);
-
-      // Check if payment is required
-      if (error.message && error.message.includes('Payment required')) {
-        // Parse connection count from file
-        parseConnectionsCount(file).then((count) => {
-          setPendingConnectionsCount(count);
-          setShowConnectionsPaymentDialog(true);
-        });
-      } else {
-        toast.error(error.message || 'Failed to start connections import');
-        setImportingConnections(false);
-      }
-    }
-  };
-
-  const handleConnectionsPaymentComplete = async (paymentIntentId: string) => {
-    if (!pendingConnectionsFile) return;
-
-    setImportingConnections(true);
-    try {
-      const result = await apiClient.importConnections(pendingConnectionsFile, paymentIntentId);
-      handleConnectionsImportSuccess(result.total);
-    } catch (error: any) {
-      console.error('Error importing connections after payment:', error);
-      toast.error(error.message || 'Failed to start connections import');
-      setImportingConnections(false);
-    } finally {
-      setPendingConnectionsFile(null);
-      setPendingConnectionsCount(0);
-    }
-  };
-
-  const handleConnectionsImportSuccess = (total: number) => {
-    // Show success message with note about background processing
-    toast.success(
-      `Import started! Processing ${total} connection${total !== 1 ? 's' : ''} in the background. They will appear in your list as they are imported.`,
-      { duration: 6000 }
-    );
-
-    // Clear any existing polling interval
-    if (bookmarkPollIntervalRef.current) {
-      clearInterval(bookmarkPollIntervalRef.current);
-    }
-
-    // Start polling for new items periodically to show them as they appear
-    bookmarkPollIntervalRef.current = setInterval(() => {
-      // Reset and reload from beginning to show new items
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
-    }, 3000); // Poll every 3 seconds
-
-    // Stop polling after 2 minutes (connections should be processed by then)
-    setTimeout(() => {
-      if (bookmarkPollIntervalRef.current) {
-        clearInterval(bookmarkPollIntervalRef.current);
-        bookmarkPollIntervalRef.current = null;
-      }
-      // Final refresh
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
-    }, 120000);
-
-    // Initial refresh after a short delay
-    setTimeout(() => {
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
-    }, 2000);
-
-    setImportingConnections(false);
-    // Reset file input
-    if (connectionsFileInputRef.current) {
-      connectionsFileInputRef.current.value = '';
-    }
-  };
-
-  const handleConnectionsPaymentCancel = () => {
-    setPendingConnectionsFile(null);
-    setPendingConnectionsCount(0);
-    setImportingConnections(false);
-    if (connectionsFileInputRef.current) {
-      connectionsFileInputRef.current.value = '';
-    }
-  };
 
   if (authLoading || loading) {
     return <div className="container mx-auto px-4 py-8">Loading...</div>;
@@ -676,58 +542,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Import Connections Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Import LinkedIn Connections</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <input
-                  ref={connectionsFileInputRef}
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={handleImportConnections}
-                  className="hidden"
-                  id="connections-file-input"
-                />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => connectionsFileInputRef.current?.click()}
-                  disabled={importingConnections}
-                >
-                  {importingConnections ? 'Importing...' : 'Import Connections from CSV'}
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={async () => {
-                    const force = confirm('Force re-indexing? This will re-index even connections that already have embeddings.\n\nClick OK to force, Cancel to skip already-indexed connections.');
-                    if (!confirm(`This will ${force ? 'force re-index' : 'index'} all your LinkedIn connections. This may take a while. Continue?`)) {
-                      return;
-                    }
-                    try {
-                      const result = await apiClient.reIndexConnections(force);
-                      toast.success(
-                        `Re-indexing started! Processing ${result.total} connection${result.total !== 1 ? 's' : ''} in the background.`,
-                        { duration: 6000 }
-                      );
-                    } catch (error: any) {
-                      toast.error(error.message || 'Failed to start re-indexing');
-                    }
-                  }}
-                >
-                  Re-index All Connections
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Export your LinkedIn connections as CSV and import them here. Each connection will be created as a contact item. Use "Re-index" to create embeddings for search.
-                </p>
-                <p className="text-xs text-amber-600 font-medium">
-                  💰 $5 per import (due to OpenAI token usage for metadata enrichment)
-                </p>
-              </CardContent>
-            </Card>
-
             {/* Important Links Card */}
             <Card>
               <CardHeader>
@@ -742,14 +556,6 @@ export default function DashboardPage() {
                     className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
                   >
                     Download X (Twitter) Data
-                  </a>
-                  <a
-                    href="https://www.linkedin.com/mypreferences/d/download-my-data"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                  >
-                    Download LinkedIn Data
                   </a>
                 </div>
               </CardContent>
@@ -784,7 +590,6 @@ export default function DashboardPage() {
                       <option value="web">Web</option>
                       <option value="bookmark">Bookmark</option>
                       <option value="email">Email</option>
-                      <option value="linkedin-connection">LinkedIn Connection</option>
                     </select>
                   </div>
                   {/* Attachments Filter */}
@@ -830,14 +635,6 @@ export default function DashboardPage() {
         type="bookmark"
         onPaymentComplete={handlePaymentComplete}
         onCancel={handlePaymentCancel}
-      />
-      <ImportPaymentDialog
-        open={showConnectionsPaymentDialog}
-        onOpenChange={setShowConnectionsPaymentDialog}
-        count={pendingConnectionsCount}
-        type="connection"
-        onPaymentComplete={handleConnectionsPaymentComplete}
-        onCancel={handleConnectionsPaymentCancel}
       />
     </div>
   );

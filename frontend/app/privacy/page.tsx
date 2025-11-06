@@ -60,7 +60,6 @@ export default function PrivacyPolicyPage() {
               <ul className="list-disc list-inside space-y-2">
                 <li><strong>Email Services:</strong> Content from emails forwarded to our service</li>
                 <li><strong>Payment Processors:</strong> Stripe provides us with payment transaction information</li>
-                <li><strong>LinkedIn Data:</strong> Information imported from LinkedIn connection exports</li>
               </ul>
             </section>
 

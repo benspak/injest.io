@@ -16,7 +16,7 @@ interface ImportPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   count: number;
-  type: 'bookmark' | 'connection';
+  type: 'bookmark';
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
 }
@@ -28,7 +28,7 @@ function PaymentForm({
   onCancel
 }: {
   count: number;
-  type: 'bookmark' | 'connection';
+  type: 'bookmark';
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
 }) {
@@ -89,8 +89,8 @@ function PaymentForm({
     }
   };
 
-  const itemName = type === 'bookmark' ? 'bookmark' : 'connection';
-  const itemNamePlural = type === 'bookmark' ? 'bookmarks' : 'connections';
+  const itemName = 'bookmark';
+  const itemNamePlural = 'bookmarks';
 
   return (
     <form id="payment-form" onSubmit={handleSubmit} className="space-y-4">
@@ -136,8 +136,8 @@ export function ImportPaymentDialog({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const itemName = type === 'bookmark' ? 'bookmark' : 'connection';
-  const itemNamePlural = type === 'bookmark' ? 'bookmarks' : 'connections';
+  const itemName = 'bookmark';
+  const itemNamePlural = 'bookmarks';
 
   // Initialize Stripe
   useEffect(() => {
@@ -165,9 +165,7 @@ export function ImportPaymentDialog({
       setError(null);
 
       const { apiClient } = await import('@/lib/api');
-      const paymentData = type === 'bookmark'
-        ? await apiClient.createBookmarkImportPaymentIntent(count)
-        : await apiClient.createConnectionsImportPaymentIntent(count);
+      const paymentData = await apiClient.createBookmarkImportPaymentIntent(count);
 
       setClientSecret(paymentData.clientSecret);
       setPaymentIntentId(paymentData.paymentIntentId);

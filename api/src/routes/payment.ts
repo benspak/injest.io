@@ -64,59 +64,6 @@ router.post('/bookmark-import', async (req: AuthRequest, res: express.Response) 
 });
 
 /**
- * Create a payment intent for LinkedIn connections import
- * POST /api/payment/connections-import
- * Body: { connectionCount: number }
- */
-router.post('/connections-import', async (req: AuthRequest, res: express.Response) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    const { connectionCount } = req.body;
-
-    if (!connectionCount || typeof connectionCount !== 'number' || connectionCount <= 0) {
-      return res.status(400).json({ error: 'Invalid connection count' });
-    }
-
-    // Get user to check premium status
-    const user = await UserModel.findById(req.user.id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    // Check if user is premium (they can import for free)
-    if (user.is_premium) {
-      return res.status(200).json({
-        message: 'Premium user - no payment required',
-        premium: true,
-      });
-    }
-
-    // Create payment intent
-    const paymentIntent = await stripeService.createConnectionsImportPaymentIntent(
-      req.user.id,
-      user.email,
-      connectionCount
-    );
-
-    res.json({
-      clientSecret: paymentIntent.client_secret,
-      paymentIntentId: paymentIntent.id,
-      amount: paymentIntent.amount,
-      currency: paymentIntent.currency,
-    });
-  } catch (error: any) {
-    console.error('Error creating payment intent:', error);
-    res.status(500).json({
-      error: 'Failed to create payment intent',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-    });
-  }
-});
-
-/**
  * Verify payment and mark user as premium for bookmark import
  * POST /api/payment/verify
  * Body: { paymentIntentId: string }

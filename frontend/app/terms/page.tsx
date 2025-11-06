@@ -46,7 +46,7 @@ export default function TermsOfServicePage() {
                 <li>Capture and store content, including links, bookmarks, emails, and files</li>
                 <li>Enrich content with metadata and AI-generated summaries</li>
                 <li>Search and organize information using AI-powered semantic search</li>
-                <li>Import bookmarks and LinkedIn connections</li>
+                <li>Import bookmarks</li>
                 <li>Access premium features through subscription plans</li>
               </ul>
               <p>
@@ -106,7 +106,7 @@ export default function TermsOfServicePage() {
 
               <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-6">5.2 Pay-Per-Use Services</h3>
               <p className="mb-4">
-                Certain features, such as importing large numbers of bookmarks or LinkedIn connections, may require payment. Payment is processed through Stripe, and you agree to provide valid payment information. Prices are subject to change with notice.
+                Certain features, such as importing large numbers of bookmarks, may require payment. Payment is processed through Stripe, and you agree to provide valid payment information. Prices are subject to change with notice.
               </p>
 
               <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-6">5.3 Payment Processing</h3>

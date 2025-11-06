@@ -88,33 +88,6 @@ export class StripeService {
     return paymentIntent;
   }
 
-  /**
-   * Create a payment intent for LinkedIn connections import
-   * $5 per import
-   */
-  async createConnectionsImportPaymentIntent(
-    userId: string,
-    email: string,
-    connectionCount: number
-  ): Promise<Stripe.PaymentIntent> {
-    const amount = 500; // $5 in cents
-    const customerId = await this.getOrCreateCustomer(userId, email);
-    const stripe = getStripe();
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount,
-      currency: 'usd',
-      customer: customerId,
-      description: `LinkedIn connections import: ${connectionCount} connections`,
-      metadata: {
-        userId,
-        connectionCount: connectionCount.toString(),
-        type: 'connections_import',
-      },
-    });
-
-    return paymentIntent;
-  }
 
   /**
    * Verify payment intent was successful
