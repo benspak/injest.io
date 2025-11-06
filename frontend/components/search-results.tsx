@@ -431,6 +431,39 @@ export function SearchResults({ results }: SearchResultsProps) {
                   </div>
                 )}
 
+                {/* Image attachments preview - show if no URL metadata image or no URL at all */}
+                {(!hasUrl || !metadata?.image) && result.item.attachments && Array.isArray(result.item.attachments) && result.item.attachments.length > 0 && (() => {
+                  const imageAttachments = result.item.attachments.filter((file: any) => apiClient.isImageMimetype(file.mimetype));
+                  if (imageAttachments.length > 0) {
+                    const firstImage = imageAttachments[0];
+                    return (
+                      <div className="mb-3 border rounded-lg overflow-hidden bg-white">
+                        <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
+                          <img
+                            src={apiClient.getFileUrl(result.item.id, firstImage.filename, true)}
+                            alt={firstImage.originalname}
+                            className="w-full h-auto max-h-[120px] object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.style.display = 'none';
+                              }
+                            }}
+                          />
+                        </div>
+                        {result.item.attachments.length > 1 && (
+                          <div className="p-2 text-xs text-muted-foreground text-center">
+                            +{result.item.attachments.length - 1} more file{result.item.attachments.length - 1 !== 1 ? 's' : ''}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 {/* Regular content for items without URL or without metadata */}
                 {(!hasUrl || !metadata) && displayDescription && (
                   <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 sm:line-clamp-3">
@@ -754,35 +787,86 @@ export function SearchResults({ results }: SearchResultsProps) {
                       <div>
                         <h4 className="text-sm font-semibold mb-2">Attachments</h4>
                         <div className="space-y-2">
-                          {itemDetails.attachments.map((file: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="flex items-center justify-between p-2 bg-gray-50 border rounded-md"
-                            >
-                              <div className="flex-1">
-                                <p className="text-sm font-medium">{file.originalname}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {Math.round(file.size / 1024)} KB
-                                </p>
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadFile(
-                                    itemDetails.id,
-                                    file.filename,
-                                    file.originalname,
-                                    file.attachmentId,
-                                    (itemDetails as any).resendEmailId
-                                  );
-                                }}
+                          {itemDetails.attachments.map((file: any, idx: number) => {
+                            const isImage = apiClient.isImageMimetype(file.mimetype);
+                            return (
+                              <div
+                                key={idx}
+                                className={`${isImage ? 'space-y-2' : 'flex items-center justify-between'} p-2 bg-gray-50 border rounded-md`}
                               >
-                                Download
-                              </Button>
-                            </div>
-                          ))}
+                                {isImage ? (
+                                  <>
+                                    <img
+                                      src={apiClient.getFileUrl(itemDetails.id, file.filename, true)}
+                                      alt={file.originalname}
+                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96"
+                                      onError={(e) => {
+                                        // Fallback to download button if image fails to load
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                        const parent = target.parentElement;
+                                        if (parent) {
+                                          const fallback = parent.querySelector('.image-fallback');
+                                          if (fallback) {
+                                            (fallback as HTMLElement).style.display = 'flex';
+                                          }
+                                        }
+                                      }}
+                                    />
+                                    <div className="image-fallback hidden flex items-center justify-between w-full">
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium">{file.originalname}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {Math.round(file.size / 1024)} KB
+                                        </p>
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownloadFile(
+                                            itemDetails.id,
+                                            file.filename,
+                                            file.originalname,
+                                            file.attachmentId,
+                                            (itemDetails as any).resendEmailId
+                                          );
+                                        }}
+                                      >
+                                        Download
+                                      </Button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium">{file.originalname}</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {Math.round(file.size / 1024)} KB
+                                      </p>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownloadFile(
+                                          itemDetails.id,
+                                          file.filename,
+                                          file.originalname,
+                                          file.attachmentId,
+                                          (itemDetails as any).resendEmailId
+                                        );
+                                      }}
+                                    >
+                                      Download
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

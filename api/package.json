@@ -28,7 +28,8 @@
     "pg": "^8.11.3",
     "pgvector": "^0.1.8",
     "resend": "^3.2.0",
-    "stripe": "^19.2.1"
+    "stripe": "^19.2.1",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
     "@types/cheerio": "^0.22.35",

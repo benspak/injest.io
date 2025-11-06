@@ -9,7 +9,8 @@ import {
   Search,
   Tag,
   Filter,
-  Sparkles
+  Sparkles,
+  Image as ImageIcon
 } from 'lucide-react';
 
 export default function Home() {
@@ -177,6 +178,38 @@ export default function Home() {
                     <div className="text-xs text-gray-700">
                       Search notes, descriptions, titles, and content to find exactly what you need
                     </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* OCR & Image Auto Titling */}
+            <Card className="shadow-lg border-2">
+              <CardHeader>
+                <div className="flex items-center gap-3 mb-2">
+                  <ImageIcon className="w-6 h-6 text-blue-600" />
+                  <CardTitle className="text-2xl">OCR & Image Auto Titling</CardTitle>
+                </div>
+                <CardDescription className="text-base">
+                  Images are automatically processed with OCR and intelligent title generation
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600 mb-4">
+                  Upload images and get automatic text extraction and smart titles:
+                </p>
+                <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
+                  <li>Optical Character Recognition (OCR) extracts text from images</li>
+                  <li>AI-powered auto titling based on image content</li>
+                  <li>Searchable text content from images</li>
+                  <li>Automatic descriptions for better organization</li>
+                </ul>
+                <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
+                  <div className="text-xs text-gray-500 mb-2">Example: Image with OCR</div>
+                  <div className="bg-gray-50 p-3 rounded border">
+                    <div className="font-semibold text-sm mb-1">Auto-generated title from image content</div>
+                    <div className="text-xs text-gray-600 mb-2">Extracted text: "Meeting notes: Q4 planning session..."</div>
+                    <div className="text-xs text-gray-500">Source: image • OCR processed</div>
                   </div>
                 </div>
               </CardContent>

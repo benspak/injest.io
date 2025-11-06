@@ -10,9 +10,84 @@ import { fileStorageService } from '../services/storage.js';
 import { fileParserService } from '../services/fileParser.js';
 import { openAIService } from '../services/openai.js';
 import { bookmarkParserService } from '../services/bookmarkParser.js';
+import { ocrService } from '../services/ocr.js';
 import { UserModel } from '../models/User.js';
 import pool from '../config/database.js';
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../config/auth.js';
 const router = express.Router();
+// Download file or serve inline (for images)
+// Note: This route is defined before authMiddleware to allow token in query string for images
+router.get('/:id/files/:filename', async (req, res) => {
+    try {
+        // Check for token in Authorization header or query string (for images)
+        let token = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
+        }
+        else if (req.query.token && typeof req.query.token === 'string') {
+            token = req.query.token;
+        }
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+        // Verify token and get user
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await UserModel.findById(decoded.userId);
+        if (!user || !user.verified) {
+            return res.status(401).json({ error: 'User not found or not verified' });
+        }
+        req.user = {
+            id: user.id,
+            email: user.email,
+        };
+        const item = await ItemModel.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        if (item.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        if (!item.attachments || !Array.isArray(item.attachments) || item.attachments.length === 0) {
+            return res.status(400).json({ error: 'Item does not have attachments' });
+        }
+        // Find file info from attachments array
+        const fileInfo = item.attachments.find((f) => f.filename === req.params.filename);
+        if (!fileInfo) {
+            return res.status(404).json({ error: 'File not found in item' });
+        }
+        // Get file stream
+        try {
+            const fileStream = await fileStorageService.getFileStream(fileInfo.filename);
+            // Check if this is an image and should be served inline
+            const isImage = fileInfo.mimetype && fileInfo.mimetype.startsWith('image/');
+            const inline = req.query.inline === 'true' || req.query.inline === '1';
+            // Set appropriate headers
+            if (isImage && inline) {
+                // Serve image inline for display
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileInfo.originalname)}"`);
+            }
+            else {
+                // Force download for non-images or when inline is not requested
+                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileInfo.originalname)}"`);
+            }
+            res.setHeader('Content-Type', fileInfo.mimetype || 'application/octet-stream');
+            // Pipe file to response
+            fileStream.pipe(res);
+        }
+        catch (fileError) {
+            if (fileError.message === 'File not found') {
+                return res.status(404).json({ error: 'File not found on server' });
+            }
+            throw fileError;
+        }
+    }
+    catch (error) {
+        console.error('Error downloading file:', error);
+        res.status(500).json({ error: 'Failed to download file' });
+    }
+});
 router.use(authMiddleware);
 // Configure multer for file uploads (Multer 2.x compatible)
 const storage = multer.diskStorage({
@@ -91,17 +166,58 @@ router.post('/', upload.array('attachments', 10), async (req, res, next) => {
             try {
                 // Use the first file for auto-filling title/description
                 const firstFile = req.files[0];
-                // Parse the file to extract content
+                const isImageFile = ocrService.isImage(firstFile.mimetype, firstFile.originalname);
+                // Parse the file to extract content (for images, this will use OCR or Vision API)
                 const parsedContent = await fileParserService.parseFile(firstFile.filename, firstFile.mimetype);
                 if (parsedContent.text && parsedContent.text.trim().length > 0) {
-                    // Generate title and description from file content using OpenAI
-                    const generated = await openAIService.generateTitleAndDescription(parsedContent.text, firstFile.originalname);
-                    // Only use generated values if the corresponding field is missing
-                    if (!finalTitle) {
-                        finalTitle = generated.title;
+                    if (isImageFile) {
+                        // Check if description came from Vision API (when OCR found no text)
+                        const isVisionSource = parsedContent.metadata?.source === 'vision';
+                        if (isVisionSource) {
+                            // If Vision API was used, use the title and description from parsed content
+                            // (fileParser already called Vision API and stored both)
+                            if (!finalTitle && parsedContent.title) {
+                                finalTitle = parsedContent.title;
+                            }
+                            if (!finalDescription) {
+                                finalDescription = parsedContent.text;
+                            }
+                            // Fallback if title wasn't set (shouldn't happen, but defensive)
+                            if (!finalTitle) {
+                                finalTitle = path.basename(firstFile.originalname, path.extname(firstFile.originalname));
+                            }
+                        }
+                        else {
+                            // OCR found text - use OCR text as description, then generate title from OCR text
+                            // Put OCR text into description if no description was provided
+                            if (!finalDescription) {
+                                finalDescription = parsedContent.text;
+                            }
+                            // Generate a concise title from the OCR text (which is now in the description)
+                            // Always try to generate title from OCR text for images if no title was provided
+                            if (!finalTitle) {
+                                try {
+                                    const generated = await openAIService.generateTitleAndDescription(parsedContent.text, firstFile.originalname);
+                                    finalTitle = generated.title;
+                                }
+                                catch (titleError) {
+                                    // If title generation fails, fallback to filename
+                                    console.error('Error generating title from OCR text:', titleError);
+                                    finalTitle = path.basename(firstFile.originalname, path.extname(firstFile.originalname));
+                                }
+                            }
+                        }
                     }
-                    if (!finalDescription) {
-                        finalDescription = generated.description;
+                    else {
+                        // For non-image files: generate both title and description from content
+                        const generated = await openAIService.generateTitleAndDescription(parsedContent.text, firstFile.originalname);
+                        // Only use generated values if the corresponding field is missing
+                        if (!finalTitle) {
+                            finalTitle = generated.title;
+                        }
+                        if (!finalDescription) {
+                            finalDescription = generated.description;
+                        }
                     }
                 }
             }
@@ -633,48 +749,6 @@ router.post('/:id/index', async (req, res) => {
     catch (error) {
         console.error('Error indexing item:', error);
         res.status(500).json({ error: 'Failed to index item' });
-    }
-});
-// Download file
-router.get('/:id/files/:filename', async (req, res) => {
-    try {
-        if (!req.user) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-        const item = await ItemModel.findById(req.params.id);
-        if (!item) {
-            return res.status(404).json({ error: 'Item not found' });
-        }
-        if (item.owner_id !== req.user.id) {
-            return res.status(403).json({ error: 'Forbidden' });
-        }
-        if (!item.attachments || !Array.isArray(item.attachments) || item.attachments.length === 0) {
-            return res.status(400).json({ error: 'Item does not have attachments' });
-        }
-        // Find file info from attachments array
-        const fileInfo = item.attachments.find((f) => f.filename === req.params.filename);
-        if (!fileInfo) {
-            return res.status(404).json({ error: 'File not found in item' });
-        }
-        // Get file stream
-        try {
-            const fileStream = await fileStorageService.getFileStream(fileInfo.filename);
-            // Set appropriate headers
-            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileInfo.originalname)}"`);
-            res.setHeader('Content-Type', fileInfo.mimetype || 'application/octet-stream');
-            // Pipe file to response
-            fileStream.pipe(res);
-        }
-        catch (fileError) {
-            if (fileError.message === 'File not found') {
-                return res.status(404).json({ error: 'File not found on server' });
-            }
-            throw fileError;
-        }
-    }
-    catch (error) {
-        console.error('Error downloading file:', error);
-        res.status(500).json({ error: 'Failed to download file' });
     }
 });
 // Update item (unified structure)

@@ -1,8 +1,10 @@
 export interface ParsedFileContent {
     text: string;
+    title?: string;
     metadata?: {
         pageCount?: number;
         wordCount?: number;
+        source?: 'ocr' | 'vision';
     };
 }
 export declare class FileParserService {
@@ -15,6 +17,7 @@ export declare class FileParserService {
     private parseJsonFile;
     private parseDocxFile;
     private parsePdfFile;
+    private parseImageFile;
     private getMimeTypeFromExtension;
     /**
      * Extract a summary/preview of the file content (first N characters)

@@ -1,12 +1,16 @@
 import fs from 'fs';
 import path from 'path';
 import { fileStorageService } from './storage.js';
+import { ocrService } from './ocr.js';
+import { openAIService } from './openai.js';
 
 export interface ParsedFileContent {
   text: string;
+  title?: string; // Optional title (used for images when Vision API is used)
   metadata?: {
     pageCount?: number;
     wordCount?: number;
+    source?: 'ocr' | 'vision'; // Indicates whether description came from OCR or Vision API
   };
 }
 
@@ -45,6 +49,11 @@ export class FileParserService {
 
       if (type?.includes('application/pdf') || ext === '.pdf') {
         return await this.parsePdfFile(filePath);
+      }
+
+      // Handle image files with OCR
+      if (ocrService.isImage(type, filename)) {
+        return await this.parseImageFile(filePath);
       }
 
       // Fallback: try to read as text
@@ -135,6 +144,75 @@ export class FileParserService {
     }
   }
 
+  private async parseImageFile(filePath: string): Promise<ParsedFileContent> {
+    try {
+      // First attempt OCR to extract text from image
+      const text = await ocrService.extractTextFromImage(filePath);
+
+      // If OCR returns meaningful text (more than 10 characters), use it
+      if (text && text.trim().length > 10) {
+        return {
+          text: text,
+          metadata: {
+            wordCount: text.split(/\s+/).filter(Boolean).length,
+            source: 'ocr',
+          },
+        };
+      }
+
+      // If OCR returns minimal or no text, use Vision API to generate description
+      // This handles images with no text content (photos, illustrations, etc.)
+      try {
+        const filename = path.basename(filePath);
+        const visionResult = await openAIService.generateImageDescriptionAndTitle(filePath, filename);
+
+        // Use the description from Vision API as the text content
+        const description = visionResult.description || 'Image description unavailable';
+
+        return {
+          text: description,
+          title: visionResult.title, // Store title for use in items route
+          metadata: {
+            wordCount: description.split(/\s+/).filter(Boolean).length,
+            source: 'vision',
+          },
+        };
+      } catch (visionError: any) {
+        // If Vision API fails, log but don't fail - return OCR text or empty
+        console.warn(`Vision API failed for image ${filePath}:`, visionError.message);
+        return {
+          text: text || '',
+          metadata: {
+            wordCount: text ? text.split(/\s+/).filter(Boolean).length : 0,
+            source: 'ocr',
+          },
+        };
+      }
+    } catch (error: any) {
+      // If OCR fails completely, try Vision API as fallback
+      console.warn(`OCR failed for image ${filePath}:`, error.message);
+
+      try {
+        const filename = path.basename(filePath);
+        const visionResult = await openAIService.generateImageDescriptionAndTitle(filePath, filename);
+        const description = visionResult.description || 'Image description unavailable';
+
+        return {
+          text: description,
+          title: visionResult.title, // Store title for use in items route
+          metadata: {
+            wordCount: description.split(/\s+/).filter(Boolean).length,
+            source: 'vision',
+          },
+        };
+      } catch (visionError: any) {
+        // If both OCR and Vision API fail, return empty
+        console.warn(`Both OCR and Vision API failed for image ${filePath}:`, visionError.message);
+        return { text: '', metadata: {} };
+      }
+    }
+  }
+
   private getMimeTypeFromExtension(ext: string): string {
     const mimeTypes: Record<string, string> = {
       '.txt': 'text/plain',
@@ -144,6 +222,14 @@ export class FileParserService {
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.pdf': 'application/pdf',
       '.doc': 'application/msword',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.bmp': 'image/bmp',
+      '.webp': 'image/webp',
+      '.tiff': 'image/tiff',
+      '.tif': 'image/tiff',
     };
     return mimeTypes[ext] || 'application/octet-stream';
   }

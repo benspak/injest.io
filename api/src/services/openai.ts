@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { openAIRateLimiter } from '../utils/rateLimiter.js';
 
 dotenv.config();
@@ -17,6 +18,7 @@ export class OpenAIService {
 
   private readonly SIMPLE_TASK_MODEL = 'gpt-3.5-turbo'; // For simple tasks (10-30x cheaper than GPT-4)
   private readonly ADVANCED_TASK_MODEL = 'gpt-4-turbo-preview'; // For complex tasks that need GPT-4
+  private readonly VISION_MODEL = 'gpt-4o'; // For vision tasks (supports image analysis)
 
   constructor() {
     this.client = new OpenAI({
@@ -27,6 +29,7 @@ export class OpenAIService {
     console.log(`[OpenAI] Using embedding model: ${this.EMBEDDING_MODEL}`);
     console.log(`[OpenAI] Using chat model (simple): ${this.SIMPLE_TASK_MODEL}`);
     console.log(`[OpenAI] Using chat model (advanced): ${this.ADVANCED_TASK_MODEL}`);
+    console.log(`[OpenAI] Using vision model: ${this.VISION_MODEL}`);
   }
 
   /**
@@ -292,6 +295,90 @@ Content: ${contentPreview}`;
       console.error('Error generating tags:', error);
       // Return empty array on error - don't fail the request
       return [];
+    }
+  }
+
+  /**
+   * Generate title and description from an image using Vision API
+   */
+  async generateImageDescriptionAndTitle(imagePath: string, filename?: string): Promise<{ title: string; description: string }> {
+    try {
+      // Read image file and convert to base64
+      const imageBuffer = fs.readFileSync(imagePath);
+      const base64Image = imageBuffer.toString('base64');
+
+      // Determine MIME type from file extension
+      const ext = path.extname(imagePath).toLowerCase();
+      let mimeType = 'image/jpeg'; // default
+      if (ext === '.png') mimeType = 'image/png';
+      else if (ext === '.gif') mimeType = 'image/gif';
+      else if (ext === '.webp') mimeType = 'image/webp';
+      else if (ext === '.bmp') mimeType = 'image/bmp';
+      else if (ext === '.tiff' || ext === '.tif') mimeType = 'image/tiff';
+
+      const prompt = `Analyze this image and provide a title and description. Respond with JSON only:
+{
+  "title": "3-10 word descriptive title",
+  "description": "1-2 sentence description of what's in the image, max 200 chars"
+}`;
+
+      await this.waitForRateLimit();
+      const response = await this.executeWithRetry(async () => {
+        return await this.client.chat.completions.create({
+          model: this.VISION_MODEL,
+          messages: [
+            { role: 'system', content: 'Respond with valid JSON only.' },
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: prompt },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:${mimeType};base64,${base64Image}`,
+                  },
+                },
+              ],
+            },
+          ],
+          temperature: 0.5,
+          max_tokens: 200, // Limit response length
+          response_format: { type: 'json_object' },
+        });
+      });
+
+      const content = response.choices[0].message.content;
+      if (!content) {
+        // Fallback to filename-based title
+        const fallbackTitle = filename ? path.basename(filename, path.extname(filename)) : 'Untitled Image';
+        return {
+          title: fallbackTitle,
+          description: 'Image description unavailable',
+        };
+      }
+
+      try {
+        const parsed = JSON.parse(content);
+        return {
+          title: parsed.title || (filename ? path.basename(filename, path.extname(filename)) : 'Untitled Image'),
+          description: parsed.description || 'Image description unavailable',
+        };
+      } catch (error) {
+        // Fallback if JSON parsing fails
+        const fallbackTitle = filename ? path.basename(filename, path.extname(filename)) : 'Untitled Image';
+        return {
+          title: fallbackTitle,
+          description: 'Image description unavailable',
+        };
+      }
+    } catch (error: any) {
+      console.error(`[OpenAI] Error generating image description:`, error);
+      // Fallback to filename-based title
+      const fallbackTitle = filename ? path.basename(filename, path.extname(filename)) : 'Untitled Image';
+      return {
+        title: fallbackTitle,
+        description: 'Image description unavailable',
+      };
     }
   }
 

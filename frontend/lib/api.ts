@@ -283,12 +283,13 @@ class ApiClient {
     });
   }
 
-  async getItems(limit?: number, offset?: number, filters?: { source?: string; hasAttachments?: boolean }): Promise<Item[]> {
+  async getItems(limit?: number, offset?: number, filters?: { source?: string; hasAttachments?: boolean; fileType?: string }): Promise<Item[]> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());
     if (offset) params.append('offset', offset.toString());
     if (filters?.source) params.append('source', filters.source);
     if (filters?.hasAttachments) params.append('hasAttachments', 'true');
+    if (filters?.fileType) params.append('fileType', filters.fileType);
     return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
@@ -324,6 +325,24 @@ class ApiClient {
 
   async deleteItem(id: string) {
     return this.request(`/api/items/${id}`, { method: 'DELETE' });
+  }
+
+  getFileUrl(itemId: string, filename: string, inline: boolean = false): string {
+    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+    const url = `${this.baseUrl}/api/items/${itemId}/files/${encodeURIComponent(filename)}`;
+    const params = new URLSearchParams();
+    if (inline) {
+      params.append('inline', 'true');
+    }
+    params.append('token', token);
+    return `${url}?${params.toString()}`;
+  }
+
+  isImageMimetype(mimetype: string | undefined): boolean {
+    return !!mimetype && mimetype.startsWith('image/');
   }
 
   async downloadFile(itemId: string, filename: string) {

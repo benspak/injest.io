@@ -30,6 +30,7 @@ export default function DashboardPage() {
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
+  const [fileTypeFilter, setFileTypeFilter] = useState<string>('');
   const BATCH_SIZE = 50;
 
   useEffect(() => {
@@ -80,12 +81,15 @@ export default function DashboardPage() {
       }
 
       // Build filters object
-      const filters: { source?: string; hasAttachments?: boolean } = {};
+      const filters: { source?: string; hasAttachments?: boolean; fileType?: string } = {};
       if (sourceFilter) {
         filters.source = sourceFilter;
       }
       if (hasAttachmentsFilter) {
         filters.hasAttachments = true;
+      }
+      if (fileTypeFilter) {
+        filters.fileType = fileTypeFilter;
       }
 
       // Fetch items with pagination and filters
@@ -153,6 +157,28 @@ export default function DashboardPage() {
         if (hasAttachmentsFilter) {
           emailItems = emailItems.filter(item => item.attachments && item.attachments.length > 0);
         }
+        if (fileTypeFilter) {
+          emailItems = emailItems.filter(item => {
+            if (!item.attachments || item.attachments.length === 0) return false;
+            return item.attachments.some((att: any) => {
+              const mimetype = (att.mimetype || '').toLowerCase();
+              if (fileTypeFilter === 'image') {
+                return mimetype.startsWith('image/');
+              } else if (fileTypeFilter === 'spreadsheet') {
+                return mimetype.includes('spreadsheet') ||
+                       mimetype.includes('excel') ||
+                       mimetype === 'text/csv' ||
+                       mimetype === 'application/csv';
+              } else if (fileTypeFilter === 'document') {
+                return mimetype === 'application/pdf' ||
+                       mimetype.includes('word') ||
+                       mimetype === 'text/plain' ||
+                       mimetype === 'text/rtf';
+              }
+              return false;
+            });
+          });
+        }
       }
 
       // Combine items
@@ -207,12 +233,15 @@ export default function DashboardPage() {
       const currentOffset = offset;
 
       // Build filters object
-      const filters: { source?: string; hasAttachments?: boolean } = {};
+      const filters: { source?: string; hasAttachments?: boolean; fileType?: string } = {};
       if (sourceFilter) {
         filters.source = sourceFilter;
       }
       if (hasAttachmentsFilter) {
         filters.hasAttachments = true;
+      }
+      if (fileTypeFilter) {
+        filters.fileType = fileTypeFilter;
       }
 
       // Fetch items with pagination and filters
@@ -246,7 +275,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loadingMore, hasMore, loading, offset, sourceFilter, hasAttachmentsFilter]);
+  }, [loadingMore, hasMore, loading, offset, sourceFilter, hasAttachmentsFilter, fileTypeFilter]);
 
   // Reload items when filters change
   useEffect(() => {
@@ -257,7 +286,7 @@ export default function DashboardPage() {
       loadItems(0, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceFilter, hasAttachmentsFilter]);
+  }, [sourceFilter, hasAttachmentsFilter, fileTypeFilter]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -603,6 +632,23 @@ export default function DashboardPage() {
                       />
                       <span>With Files</span>
                     </label>
+                  </div>
+                  {/* File Type Filter */}
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <label htmlFor="file-type-filter" className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
+                      File Type:
+                    </label>
+                    <select
+                      id="file-type-filter"
+                      value={fileTypeFilter}
+                      onChange={(e) => setFileTypeFilter(e.target.value)}
+                      className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="">All Types</option>
+                      <option value="image">Image</option>
+                      <option value="spreadsheet">Spreadsheet</option>
+                      <option value="document">Document</option>
+                    </select>
                   </div>
                 </div>
               </div>
