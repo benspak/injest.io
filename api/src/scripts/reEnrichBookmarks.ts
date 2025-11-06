@@ -64,18 +64,19 @@ async function reEnrichBookmarks(userId?: string, force: boolean = false, allUse
       for (let i = 0; i < bookmarkItems.length; i++) {
         const item = bookmarkItems[i];
         try {
-          // Check if metadata already exists and is complete
+          // Check if metadata already exists and is complete BEFORE making any API calls
           // We consider metadata complete if it has a meaningful title (not just the URL) AND (description or image)
-          const metadata = item.link_metadata as any;
-          const hasTitle = metadata?.title && metadata.title !== item.url && metadata.title.length > 0;
-          const hasDescription = metadata?.description && metadata.description.length > 0;
-          const hasImage = metadata?.image && metadata.image.length > 0;
+          const existingMetadata = item.link_metadata as any;
+          const hasTitle = existingMetadata?.title && existingMetadata.title !== item.url && existingMetadata.title.length > 0;
+          const hasDescription = existingMetadata?.description && existingMetadata.description.length > 0;
+          const hasImage = existingMetadata?.image && existingMetadata.image.length > 0;
           const hasCompleteMetadata = hasTitle && (hasDescription || hasImage);
 
           // Skip if metadata is already complete (unless force flag is set)
+          // This prevents unnecessary API calls and retries
           if (hasCompleteMetadata && !force) {
             results.skipped++;
-            if (i < 10) console.log(`  Skipping ${item.url} - already has complete metadata`);
+            if (i < 10) console.log(`  Skipping ${item.url} - already has complete metadata (saved in DB)`);
             continue;
           }
 
