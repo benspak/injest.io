@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient } from '@/lib/api';
+import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
 
 interface CaptureFormProps {
   onItemCreated?: () => void;
@@ -19,6 +20,14 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
+  const [pendingFormValues, setPendingFormValues] = useState<{
+    title: string;
+    description: string;
+    url: string;
+    notes: string;
+    files: File[];
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -33,19 +42,20 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       return;
     }
 
+    // Create form data outside try block so it's accessible in catch block
+    const formData = new FormData();
+
+    if (title) formData.append('title', title);
+    if (description) formData.append('description', description);
+    if (url) formData.append('url', url);
+    if (notes) formData.append('notes', notes);
+
+    // Add file attachments
+    files.forEach((file) => {
+      formData.append('attachments', file);
+    });
+
     try {
-      const formData = new FormData();
-
-      if (title) formData.append('title', title);
-      if (description) formData.append('description', description);
-      if (url) formData.append('url', url);
-      if (notes) formData.append('notes', notes);
-
-      // Add file attachments
-      files.forEach((file) => {
-        formData.append('attachments', file);
-      });
-
       const response = await apiClient.createItem(formData);
 
       // Check if this is a batch processing response
@@ -98,11 +108,27 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       if (error.message) {
         errorMessage = error.message;
 
+        // Check for item limit exceeded error
+        if (errorMessage.includes('Item limit exceeded') || errorMessage.includes('item limit')) {
+          // Store form values for retry after subscription (FormData can't be stored in state)
+          setPendingFormValues({
+            title,
+            description,
+            url,
+            notes,
+            files: [...files], // Create a copy of the files array
+          });
+          setShowSubscriptionDialog(true);
+          setMessage('');
+          setLoading(false);
+          return;
+        }
+
         // Provide more user-friendly messages for specific errors
         if (errorMessage.includes('File too large') || errorMessage.includes('LIMIT_FILE_SIZE')) {
           errorMessage = 'File too large. Maximum file size is 50MB. Please choose a smaller file.';
         } else if (errorMessage.includes('Too many files') || errorMessage.includes('LIMIT_FILE_COUNT')) {
-          errorMessage = 'Too many files. You can upload a maximum of 10 files at once.';
+          errorMessage = 'Too many files. You can upload a maximum of 500 files at once.';
         } else if (errorMessage.includes('File upload error')) {
           errorMessage = 'File upload failed. Please try again or choose a different file.';
         }
@@ -112,6 +138,94 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubscriptionComplete = async (paymentIntentId: string) => {
+    try {
+      // Verify payment
+      const verification = await apiClient.verifyPayment(paymentIntentId);
+
+      if (verification.verified && verification.premium) {
+        setMessage('Premium subscription activated! Retrying upload...');
+
+        // Retry the upload with the pending form values
+        if (pendingFormValues) {
+          setLoading(true);
+          try {
+            // Recreate FormData from stored values
+            const retryFormData = new FormData();
+
+            if (pendingFormValues.title) retryFormData.append('title', pendingFormValues.title);
+            if (pendingFormValues.description) retryFormData.append('description', pendingFormValues.description);
+            if (pendingFormValues.url) retryFormData.append('url', pendingFormValues.url);
+            if (pendingFormValues.notes) retryFormData.append('notes', pendingFormValues.notes);
+
+            // Add file attachments
+            pendingFormValues.files.forEach((file) => {
+              retryFormData.append('attachments', file);
+            });
+
+            const response = await apiClient.createItem(retryFormData);
+
+            // Check if this is a batch processing response
+            if (response && typeof response === 'object' && 'batch' in response && response.batch === true) {
+              const batchResponse = response as {
+                batch: boolean;
+                total: number;
+                created: number;
+                failed: number;
+                items?: any[];
+                errors?: Array<{ filename: string; error: string }>;
+              };
+
+              if (batchResponse.created > 0) {
+                if (batchResponse.failed > 0) {
+                  setMessage(
+                    `Successfully created ${batchResponse.created} item(s). ${batchResponse.failed} file(s) failed to process.`
+                  );
+                } else {
+                  setMessage(`Successfully created ${batchResponse.created} item(s)!`);
+                }
+              } else {
+                setMessage(`Failed to process all ${batchResponse.total} file(s).`);
+              }
+            } else {
+              setMessage('Item created successfully!');
+            }
+
+            // Reset form
+            setTitle('');
+            setDescription('');
+            setUrl('');
+            setNotes('');
+            setFiles([]);
+            setPendingFormValues(null);
+
+            // Clear file input element
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+
+            // Notify parent component to refresh items list
+            if (onItemCreated) {
+              onItemCreated();
+            }
+          } catch (retryError: any) {
+            setMessage(retryError.message || 'Failed to create item after subscription');
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    } catch (error: any) {
+      setMessage('Failed to verify subscription. Please try again.');
+    }
+  };
+
+  const handleSubscriptionCancel = () => {
+    setShowSubscriptionDialog(false);
+    setPendingFormValues(null);
+    setMessage('You can delete some items to stay within the free tier limit, or subscribe to premium for unlimited items.');
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -169,7 +283,35 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
           />
 
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? 'Creating...' : 'Create Item'}
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg
+                  className="animate-spin h-4 w-4"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Processing
+              </span>
+            ) : files.length > 1 ? (
+              'Process Uploads'
+            ) : (
+              'Create Item'
+            )}
           </Button>
 
           {message && (
@@ -179,6 +321,13 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
           )}
         </form>
       </CardContent>
+
+      <SubscriptionPaymentDialog
+        open={showSubscriptionDialog}
+        onOpenChange={setShowSubscriptionDialog}
+        onPaymentComplete={handleSubscriptionComplete}
+        onCancel={handleSubscriptionCancel}
+      />
     </Card>
   );
 }

@@ -124,6 +124,44 @@ const upload = multer({
 });
 
 /**
+ * Helper function to check if a user can create more items
+ * Returns null if allowed, or an error response object if blocked
+ */
+async function checkItemCreationLimit(userId: string): Promise<null | { status: number; error: string; message: string }> {
+  // Get user to check premium status and bookmark import purchase
+  const user = await UserModel.findById(userId);
+  if (!user) {
+    return { status: 404, error: 'User not found', message: 'User not found' };
+  }
+
+  // Premium users and users who bought bookmark imports are exempt from the limit
+  const isPremium = user.is_premium || false;
+  const hasPurchasedBookmarkImport = (user.bookmark_import_count || 0) > 0;
+
+  if (isPremium || hasPurchasedBookmarkImport) {
+    return null; // Allowed
+  }
+
+  // Check current indexed item count
+  const result = await pool.query(
+    'SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL',
+    [userId]
+  );
+  const itemCount = parseInt(result.rows[0].total, 10);
+
+  // If user has 500 or more indexed items, block creation
+  if (itemCount >= 500) {
+    return {
+      status: 403,
+      error: 'Item limit exceeded',
+      message: 'You have reached the limit of 500 indexed items. Please upgrade to premium ($5/month) or purchase a bookmark import to create more items.',
+    };
+  }
+
+  return null; // Allowed
+}
+
+/**
  * Helper function to process a single file and create an item with full enrichment
  * Handles all file types: images (OCR/Vision API), PDFs, text files, etc.
  */
@@ -263,7 +301,7 @@ async function processSingleFile(
 }
 
 // Create item (unified structure)
-router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
+router.post('/', upload.array('attachments', 500), async (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
   try {
     // Log incoming request for debugging
     console.log('[DEBUG] Creating item - body:', req.body);
@@ -279,6 +317,15 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
     if (!req.user.id || typeof req.user.id !== 'string') {
       console.error('Invalid user ID:', req.user.id);
       return res.status(400).json({ error: 'Invalid user ID' });
+    }
+
+    // Check item creation limit (500 items unless premium or purchased bookmark import)
+    const limitCheck = await checkItemCreationLimit(req.user.id);
+    if (limitCheck) {
+      return res.status(limitCheck.status).json({
+        error: limitCheck.error,
+        message: limitCheck.message,
+      });
     }
 
     // Validate that at least one field is provided
@@ -314,6 +361,17 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
 
       // Process each file separately with full enrichment
       for (const file of files) {
+        // Check limit before processing each file in batch
+        // This ensures we don't create items if limit was reached during batch processing
+        const limitCheck = await checkItemCreationLimit(req.user.id);
+        if (limitCheck) {
+          results.failed.push({
+            filename: file.originalname,
+            error: limitCheck.message,
+          });
+          continue;
+        }
+
         const result = await processSingleFile(
           file,
           req.user.id,

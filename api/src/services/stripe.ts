@@ -90,6 +90,32 @@ export class StripeService {
 
 
   /**
+   * Create a payment intent for premium subscription
+   * $5/month for unlimited items
+   */
+  async createPremiumSubscriptionPaymentIntent(
+    userId: string,
+    email: string
+  ): Promise<Stripe.PaymentIntent> {
+    const amount = 500; // $5 in cents
+    const customerId = await this.getOrCreateCustomer(userId, email);
+    const stripe = getStripe();
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount,
+      currency: 'usd',
+      customer: customerId,
+      description: 'Premium subscription - $5/month',
+      metadata: {
+        userId,
+        type: 'premium_subscription',
+      },
+    });
+
+    return paymentIntent;
+  }
+
+  /**
    * Verify payment intent was successful
    */
   async verifyPaymentIntent(paymentIntentId: string): Promise<boolean> {

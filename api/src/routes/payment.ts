@@ -2,6 +2,7 @@ import express from 'express';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { stripeService } from '../services/stripe.js';
 import { UserModel } from '../models/User.js';
+import Stripe from 'stripe';
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -64,6 +65,51 @@ router.post('/bookmark-import', async (req: AuthRequest, res: express.Response) 
 });
 
 /**
+ * Create a payment intent for premium subscription
+ * POST /api/payment/premium-subscription
+ */
+router.post('/premium-subscription', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    // Get user to check premium status
+    const user = await UserModel.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Check if user is already premium
+    if (user.is_premium) {
+      return res.status(200).json({
+        message: 'User is already premium',
+        premium: true,
+      });
+    }
+
+    // Create payment intent
+    const paymentIntent = await stripeService.createPremiumSubscriptionPaymentIntent(
+      req.user.id,
+      user.email
+    );
+
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
+      amount: paymentIntent.amount,
+      currency: paymentIntent.currency,
+    });
+  } catch (error: any) {
+    console.error('Error creating premium subscription payment intent:', error);
+    res.status(500).json({
+      error: 'Failed to create payment intent',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
+  }
+});
+
+/**
  * Verify payment and mark user as premium for bookmark import
  * POST /api/payment/verify
  * Body: { paymentIntentId: string }
@@ -87,21 +133,45 @@ router.post('/verify', async (req: AuthRequest, res: express.Response) => {
       return res.status(400).json({ error: 'Payment not verified' });
     }
 
+    // Get payment intent to check type
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return res.status(500).json({ error: 'Stripe not configured' });
+    }
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      apiVersion: '2025-10-29.clover',
+    });
+    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    const paymentType = paymentIntent.metadata?.type;
+
     // Update user's bookmark import count and payment timestamp
     const user = await UserModel.findById(req.user.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
-    await UserModel.update(req.user.id, {
-      bookmark_import_count: (user.bookmark_import_count || 0) + 1,
-      last_bookmark_import_payment: new Date(),
-    });
+    if (paymentType === 'premium_subscription') {
+      // Mark user as premium
+      await UserModel.update(req.user.id, {
+        is_premium: true,
+      });
 
-    res.json({
-      verified: true,
-      message: 'Payment verified successfully',
-    });
+      return res.json({
+        verified: true,
+        message: 'Premium subscription activated successfully',
+        premium: true,
+      });
+    } else {
+      // Bookmark import payment
+      await UserModel.update(req.user.id, {
+        bookmark_import_count: (user.bookmark_import_count || 0) + 1,
+        last_bookmark_import_payment: new Date(),
+      });
+
+      return res.json({
+        verified: true,
+        message: 'Payment verified successfully',
+      });
+    }
   } catch (error: any) {
     console.error('Error verifying payment:', error);
     res.status(500).json({

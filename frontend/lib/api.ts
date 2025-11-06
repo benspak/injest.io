@@ -283,8 +283,24 @@ class ApiClient {
     });
   }
 
-  async verifyPayment(paymentIntentId: string): Promise<{ verified: boolean; message: string }> {
-    return this.request<{ verified: boolean; message: string }>('/api/payment/verify', {
+  async createPremiumSubscriptionPaymentIntent(): Promise<{
+    clientSecret: string;
+    paymentIntentId: string;
+    amount: number;
+    currency: string;
+  }> {
+    return this.request<{
+      clientSecret: string;
+      paymentIntentId: string;
+      amount: number;
+      currency: string;
+    }>('/api/payment/premium-subscription', {
+      method: 'POST',
+    });
+  }
+
+  async verifyPayment(paymentIntentId: string): Promise<{ verified: boolean; message: string; premium?: boolean }> {
+    return this.request<{ verified: boolean; message: string; premium?: boolean }>('/api/payment/verify', {
       method: 'POST',
       body: JSON.stringify({ paymentIntentId }),
     });
