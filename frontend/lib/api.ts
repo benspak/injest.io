@@ -316,8 +316,8 @@ class ApiClient {
     return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
-  async getIndexedItemCount(): Promise<{ count: number }> {
-    return this.request<{ count: number }>('/api/items/count');
+  async getIndexedItemCount(): Promise<{ count: number; isAtLimit?: boolean; isApproachingLimit?: boolean; limit?: number | null }> {
+    return this.request<{ count: number; isAtLimit?: boolean; isApproachingLimit?: boolean; limit?: number | null }>('/api/items/count');
   }
 
   async getItem(id: string): Promise<Item> {

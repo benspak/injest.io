@@ -129,6 +129,7 @@ const upload = multer({
 /**
  * Helper function to check if a user can create more items
  * Returns null if allowed, or an error response object if blocked
+ * Also returns warning information when approaching the limit
  */
 async function checkItemCreationLimit(userId) {
     // Get user to check premium status and bookmark import purchase
@@ -151,9 +152,37 @@ async function checkItemCreationLimit(userId) {
             status: 403,
             error: 'Item limit exceeded',
             message: 'You have reached the limit of 500 indexed items. Please upgrade to premium ($5/month) or purchase a bookmark import to create more items.',
+            itemCount,
         };
     }
     return null; // Allowed
+}
+/**
+ * Helper function to get item count and warning status
+ * Returns item count and whether user is approaching or at limit
+ */
+async function getItemLimitStatus(userId) {
+    // Get user to check premium status
+    const user = await UserModel.findById(userId);
+    if (!user) {
+        return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: 500 };
+    }
+    // Premium users and users who bought bookmark imports are exempt from the limit
+    const isPremium = user.is_premium || false;
+    const hasPurchasedBookmarkImport = (user.bookmark_import_count || 0) > 0;
+    if (isPremium || hasPurchasedBookmarkImport) {
+        return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: Infinity };
+    }
+    // Check current indexed item count
+    const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL', [userId]);
+    const itemCount = parseInt(result.rows[0].total, 10);
+    const limit = 500;
+    return {
+        itemCount,
+        isAtLimit: itemCount >= limit,
+        isApproachingLimit: itemCount >= 450 && itemCount < limit,
+        limit,
+    };
 }
 /**
  * Helper function to process a single file and create an item with full enrichment
@@ -873,14 +902,19 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
         });
     }
 });
-// Get total indexed item count
+// Get total indexed item count and limit status
 router.get('/count', async (req, res) => {
     try {
         if (!req.user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL', [req.user.id]);
-        res.json({ count: parseInt(result.rows[0].total, 10) });
+        const limitStatus = await getItemLimitStatus(req.user.id);
+        res.json({
+            count: limitStatus.itemCount,
+            isAtLimit: limitStatus.isAtLimit,
+            isApproachingLimit: limitStatus.isApproachingLimit,
+            limit: limitStatus.limit === Infinity ? null : limitStatus.limit,
+        });
     }
     catch (error) {
         console.error('Error getting item count:', error);

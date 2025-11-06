@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,7 +28,29 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     notes: string;
     files: File[];
   } | null>(null);
+  const [itemCount, setItemCount] = useState<number | null>(null);
+  const [isAtLimit, setIsAtLimit] = useState(false);
+  const [isApproachingLimit, setIsApproachingLimit] = useState(false);
+  const [limit, setLimit] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load item count and limit status
+  const loadItemLimitStatus = async () => {
+    try {
+      const response = await apiClient.getIndexedItemCount();
+      setItemCount(response.count);
+      setIsAtLimit(response.isAtLimit || false);
+      setIsApproachingLimit(response.isApproachingLimit || false);
+      setLimit(response.limit || null);
+    } catch (error) {
+      console.error('Error loading item limit status:', error);
+    }
+  };
+
+  // Load limit status on mount
+  useEffect(() => {
+    loadItemLimitStatus();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,6 +62,28 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       setMessage('Please provide at least a title, description, URL, or attachment');
       setLoading(false);
       return;
+    }
+
+    // Check limit status before submission
+    try {
+      const limitStatus = await apiClient.getIndexedItemCount();
+
+      // If at limit, show subscription dialog immediately
+      if (limitStatus.isAtLimit && limitStatus.limit !== null) {
+        setPendingFormValues({
+          title,
+          description,
+          url,
+          notes,
+          files: [...files],
+        });
+        setShowSubscriptionDialog(true);
+        setLoading(false);
+        return;
+      }
+    } catch (error) {
+      // If limit check fails, continue with submission (backend will handle it)
+      console.error('Error checking limit status:', error);
     }
 
     // Create form data outside try block so it's accessible in catch block
@@ -97,6 +141,9 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         fileInputRef.current.value = '';
       }
 
+      // Reload limit status after successful creation
+      await loadItemLimitStatus();
+
       // Notify parent component to refresh items list
       if (onItemCreated) {
         onItemCreated();
@@ -147,6 +194,9 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
 
       if (verification.verified && verification.premium) {
         setMessage('Premium subscription activated! Retrying upload...');
+
+        // Reload limit status after premium activation
+        await loadItemLimitStatus();
 
         // Retry the upload with the pending form values
         if (pendingFormValues) {
@@ -206,6 +256,9 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
               fileInputRef.current.value = '';
             }
 
+            // Reload limit status after successful creation
+            await loadItemLimitStatus();
+
             // Notify parent component to refresh items list
             if (onItemCreated) {
               onItemCreated();
@@ -240,6 +293,30 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         <CardTitle>Capture New Item</CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Warning banner when approaching limit */}
+        {isApproachingLimit && limit !== null && itemCount !== null && (
+          <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-sm text-amber-800 font-medium">
+              ⚠️ You're approaching the limit: {itemCount} / {limit} indexed items
+            </p>
+            <p className="text-xs text-amber-700 mt-1">
+              Consider subscribing to Premium ($5/month) for unlimited items.
+            </p>
+          </div>
+        )}
+
+        {/* Error banner when at limit */}
+        {isAtLimit && limit !== null && itemCount !== null && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-sm text-red-800 font-medium">
+              🚫 You've reached the limit: {itemCount} / {limit} indexed items
+            </p>
+            <p className="text-xs text-red-700 mt-1">
+              Please subscribe to Premium ($5/month) to create more items.
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <Input
             type="text"
@@ -282,7 +359,11 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             className="min-h-[80px]"
           />
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={loading || (isAtLimit && limit !== null)}
+          >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
                 <svg
@@ -307,6 +388,8 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
                 </svg>
                 Processing
               </span>
+            ) : isAtLimit && limit !== null ? (
+              'Limit Reached - Subscribe to Continue'
             ) : files.length > 1 ? (
               'Process Uploads'
             ) : (
