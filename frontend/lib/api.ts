@@ -252,12 +252,9 @@ class ApiClient {
     });
   }
 
-  async importBookmarks(file: File, paymentIntentId?: string): Promise<{ message: string; total: number; note: string; premium?: boolean }> {
+  async importBookmarks(file: File): Promise<{ message: string; total: number; note: string; premium?: boolean }> {
     const formData = new FormData();
     formData.append('bookmarkFile', file);
-    if (paymentIntentId) {
-      formData.append('paymentIntentId', paymentIntentId);
-    }
 
     // Don't set Content-Type header - browser will set it automatically with boundary for FormData
     return this.request<{ message: string; total: number; note: string; premium?: boolean }>('/api/items/import-bookmarks', {
