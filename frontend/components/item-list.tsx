@@ -36,6 +36,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   const [emailSummary, setEmailSummary] = useState<string[]>([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -129,6 +130,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     setEditingNotes(false);
     setEditingItem(false);
     setEmailBodyExpanded(false);
+    setDescriptionExpanded(false);
 
     try {
       // If this is a Resend email, fetch full email details
@@ -259,17 +261,22 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     }
   };
 
-  const handleCloseDialog = () => {
-    setDialogOpen(false);
-    setSelectedItem(null);
-    setItemDetails(null);
-    setEditingNotes(false);
-    setEditingItem(false);
-    setNotesValue('');
-    setEditTitle('');
-    setEditDescription('');
-    setEmailSummary([]);
-    setEmailBodyExpanded(false);
+  const handleCloseDialog = (open: boolean) => {
+    // Only close when explicitly set to false (clicking overlay or close button)
+    // Radix UI prevents closing when clicking inside DialogContent by default
+    if (open === false) {
+      setDialogOpen(false);
+      setSelectedItem(null);
+      setItemDetails(null);
+      setEditingNotes(false);
+      setEditingItem(false);
+      setNotesValue('');
+      setEditTitle('');
+      setEditDescription('');
+      setEmailSummary([]);
+      setEmailBodyExpanded(false);
+      setDescriptionExpanded(false);
+    }
   };
 
   const handleSaveNotes = async () => {
@@ -824,7 +831,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                                 )}
                               </div>
                             );
-                          } else {
+                          } else if (isEmail) {
                             // For plain text emails
                             return (
                               <div>
@@ -838,6 +845,30 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                                     className="text-sm text-blue-600 hover:underline mt-2"
                                   >
                                     {emailBodyExpanded ? 'Show less' : 'View all'}
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          } else {
+                            // For non-email items, check if description is longer than 250 characters
+                            const description = display.description || fullBody;
+                            const shouldTruncateDescription = description && description.length > 250;
+                            const truncatedDescription = shouldTruncateDescription && !descriptionExpanded
+                              ? description.substring(0, 250)
+                              : description;
+
+                            return (
+                              <div>
+                                <p className="text-sm whitespace-pre-wrap">{truncatedDescription}</p>
+                                {shouldTruncateDescription && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDescriptionExpanded(!descriptionExpanded);
+                                    }}
+                                    className="text-sm text-blue-600 hover:underline mt-2"
+                                  >
+                                    {descriptionExpanded ? 'Show less' : 'Show more'}
                                   </button>
                                 )}
                               </div>

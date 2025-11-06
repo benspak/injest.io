@@ -230,9 +230,23 @@ class ApiClient {
   }
 
   // Items
-  async createItem(data: FormData) {
+  async createItem(data: FormData): Promise<Item | {
+    batch: boolean;
+    total: number;
+    created: number;
+    failed: number;
+    items?: Item[];
+    errors?: Array<{ filename: string; error: string }>;
+  }> {
     // Don't set Content-Type header - browser will set it automatically with boundary for FormData
-    return this.request('/api/items', {
+    return this.request<Item | {
+      batch: boolean;
+      total: number;
+      created: number;
+      failed: number;
+      items?: Item[];
+      errors?: Array<{ filename: string; error: string }>;
+    }>('/api/items', {
       method: 'POST',
       body: data,
     });
@@ -273,13 +287,6 @@ class ApiClient {
     return this.request<{ verified: boolean; message: string }>('/api/payment/verify', {
       method: 'POST',
       body: JSON.stringify({ paymentIntentId }),
-    });
-  }
-
-  async reEnrichBookmarks(force: boolean = false): Promise<{ message: string; total: number; note: string }> {
-    return this.request<{ message: string; total: number; note: string }>('/api/items/re-enrich-bookmarks', {
-      method: 'POST',
-      body: JSON.stringify({ force }),
     });
   }
 

@@ -46,8 +46,34 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         formData.append('attachments', file);
       });
 
-      await apiClient.createItem(formData);
-      setMessage('Item created successfully!');
+      const response = await apiClient.createItem(formData);
+
+      // Check if this is a batch processing response
+      if (response && typeof response === 'object' && 'batch' in response && response.batch === true) {
+        const batchResponse = response as {
+          batch: boolean;
+          total: number;
+          created: number;
+          failed: number;
+          items?: any[];
+          errors?: Array<{ filename: string; error: string }>;
+        };
+
+        if (batchResponse.created > 0) {
+          if (batchResponse.failed > 0) {
+            setMessage(
+              `Successfully created ${batchResponse.created} item(s). ${batchResponse.failed} file(s) failed to process.`
+            );
+          } else {
+            setMessage(`Successfully created ${batchResponse.created} item(s)!`);
+          }
+        } else {
+          setMessage(`Failed to process all ${batchResponse.total} file(s).`);
+        }
+      } else {
+        // Single item response
+        setMessage('Item created successfully!');
+      }
 
       // Reset form
       setTitle('');

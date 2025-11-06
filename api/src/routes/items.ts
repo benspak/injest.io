@@ -123,6 +123,145 @@ const upload = multer({
   },
 });
 
+/**
+ * Helper function to process a single file and create an item with full enrichment
+ * Handles all file types: images (OCR/Vision API), PDFs, text files, etc.
+ */
+async function processSingleFile(
+  file: Express.Multer.File,
+  userId: string,
+  sharedNotes?: string,
+  sharedTags?: string[]
+): Promise<{ item: Item; error?: string }> {
+  try {
+    const isImageFile = ocrService.isImage(file.mimetype, file.originalname);
+
+    // Parse the file to extract content (OCR/Vision API for images, text extraction for other types)
+    const parsedContent = await fileParserService.parseFile(file.filename, file.mimetype);
+
+    let finalTitle: string | undefined;
+    let finalDescription: string | undefined;
+
+    if (parsedContent.text && parsedContent.text.trim().length > 0) {
+      if (isImageFile) {
+        // Check if description came from Vision API (when OCR found no text)
+        const isVisionSource = parsedContent.metadata?.source === 'vision';
+
+        if (isVisionSource) {
+          // If Vision API was used, use the title and description from parsed content
+          if (parsedContent.title) {
+            finalTitle = parsedContent.title;
+          }
+          if (parsedContent.text) {
+            finalDescription = parsedContent.text;
+          }
+
+          // Fallback if title wasn't set
+          if (!finalTitle) {
+            finalTitle = path.basename(file.originalname, path.extname(file.originalname));
+          }
+        } else {
+          // OCR found text - use OCR text as description, then generate title from OCR text
+          if (parsedContent.text) {
+            finalDescription = parsedContent.text;
+          }
+
+          // Generate a concise title from the OCR text
+          if (parsedContent.text) {
+            try {
+              const generated = await openAIService.generateTitleAndDescription(
+                parsedContent.text,
+                file.originalname
+              );
+              finalTitle = generated.title;
+            } catch (titleError) {
+              // If title generation fails, fallback to filename
+              console.error('Error generating title from OCR text:', titleError);
+              finalTitle = path.basename(file.originalname, path.extname(file.originalname));
+            }
+          }
+        }
+      } else {
+        // For non-image files: generate both title and description from content
+        try {
+          const generated = await openAIService.generateTitleAndDescription(
+            parsedContent.text,
+            file.originalname
+          );
+          finalTitle = generated.title;
+          finalDescription = generated.description;
+        } catch (titleError) {
+          // If title generation fails, fallback to filename and use content as description
+          console.error('Error generating title/description from file content:', titleError);
+          finalTitle = path.basename(file.originalname, path.extname(file.originalname));
+          // Use first 500 chars of content as description if available
+          if (parsedContent.text) {
+            finalDescription = parsedContent.text.substring(0, 500) +
+              (parsedContent.text.length > 500 ? '...' : '');
+          }
+        }
+      }
+    } else {
+      // No text extracted - use filename as title
+      finalTitle = path.basename(file.originalname, path.extname(file.originalname));
+    }
+
+    // Auto-generate tags from content
+    let parsedTags: string[] | undefined = sharedTags;
+    if (!parsedTags) {
+      try {
+        const contentForTagging: string[] = [];
+        if (finalTitle) contentForTagging.push(finalTitle);
+        if (finalDescription) contentForTagging.push(finalDescription);
+        if (sharedNotes) contentForTagging.push(sharedNotes);
+        if (parsedContent.text) {
+          contentForTagging.push(parsedContent.text.substring(0, 500));
+        }
+
+        if (contentForTagging.length > 0) {
+          const combinedContent = contentForTagging.join(' ');
+          parsedTags = await openAIService.generateTags(combinedContent);
+        }
+      } catch (error) {
+        // Log error but don't fail - tags are optional
+        console.error('Error auto-generating tags:', error);
+      }
+    }
+
+    // Create attachment array for this single file
+    const attachments = [{
+      filename: file.filename,
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+    }];
+
+    // Create item in database
+    const item = await ItemModel.create({
+      owner_id: userId,
+      title: finalTitle || undefined,
+      description: finalDescription || undefined,
+      attachments: attachments,
+      notes: sharedNotes || undefined,
+      tags: parsedTags,
+      source: 'web',
+    });
+
+    // Trigger indexing in background
+    indexingService.indexItem(item.id).catch((indexError) => {
+      console.error(`Background indexing failed for item ${item.id}:`, indexError);
+    });
+
+    return { item };
+  } catch (error: any) {
+    console.error(`Error processing file ${file.originalname}:`, error);
+    return {
+      item: null as any,
+      error: error.message || 'Failed to process file'
+    };
+  }
+}
+
 // Create item (unified structure)
 router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
   try {
@@ -150,10 +289,76 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
       });
     }
 
+    // Check if we have multiple files (batch processing scenario)
+    const files = req.files && Array.isArray(req.files) ? req.files : [];
+
+    // Batch processing: If we have multiple files, no URL, no title/description
+    // Process each file as a separate item with full enrichment
+    if (files.length > 1 && !url && !title && !description) {
+      console.log(`[BATCH] Processing ${files.length} files as separate items`);
+
+      const results = {
+        created: [] as Item[],
+        failed: [] as Array<{ filename: string; error: string }>,
+      };
+
+      // Parse shared tags if provided
+      let sharedTags: string[] | undefined = undefined;
+      if (tags) {
+        if (typeof tags === 'string') {
+          sharedTags = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+        } else if (Array.isArray(tags)) {
+          sharedTags = tags;
+        }
+      }
+
+      // Process each file separately with full enrichment
+      for (const file of files) {
+        const result = await processSingleFile(
+          file,
+          req.user.id,
+          notes,
+          sharedTags
+        );
+
+        if (result.item) {
+          results.created.push(result.item);
+        } else {
+          results.failed.push({
+            filename: file.originalname,
+            error: result.error || 'Unknown error',
+          });
+        }
+      }
+
+      // Return batch processing results
+      if (results.created.length > 0) {
+        return res.status(201).json({
+          batch: true,
+          total: files.length,
+          created: results.created.length,
+          failed: results.failed.length,
+          items: results.created,
+          errors: results.failed.length > 0 ? results.failed : undefined,
+        });
+      } else {
+        // All failed
+        return res.status(500).json({
+          error: 'Failed to process all files',
+          batch: true,
+          total: files.length,
+          created: 0,
+          failed: results.failed.length,
+          errors: results.failed,
+        });
+      }
+    }
+
+    // Standard processing: single file, mixed files, or files with URL/title/description
     // Process file attachments if present
     let attachments: any[] = [];
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      attachments = req.files.map((file: Express.Multer.File) => ({
+    if (files.length > 0) {
+      attachments = files.map((file: Express.Multer.File) => ({
         filename: file.filename,
         originalname: file.originalname,
         mimetype: file.mimetype,
@@ -185,10 +390,10 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
       }
     }
 
-    if ((!finalTitle || !finalDescription) && req.files && Array.isArray(req.files) && req.files.length > 0) {
+    if ((!finalTitle || !finalDescription) && files.length > 0) {
       try {
         // Use the first file for auto-filling title/description
-        const firstFile = req.files[0] as Express.Multer.File;
+        const firstFile = files[0] as Express.Multer.File;
         const isImageFile = ocrService.isImage(firstFile.mimetype, firstFile.originalname);
 
         // Parse the file to extract content (for images, this will use OCR or Vision API)
@@ -255,8 +460,8 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
       } catch (error) {
         // Log error but don't fail the request - fallback to filename if title is missing
         console.error('Error auto-filling title/description from file:', error);
-        if (!finalTitle && req.files && Array.isArray(req.files) && req.files.length > 0) {
-          const firstFile = req.files[0] as Express.Multer.File;
+        if (!finalTitle && files.length > 0) {
+          const firstFile = files[0] as Express.Multer.File;
           finalTitle = path.basename(firstFile.originalname, path.extname(firstFile.originalname));
         }
       }
@@ -284,9 +489,9 @@ router.post('/', upload.array('attachments', 10), async (req: AuthRequest, res: 
         if (linkMetadata?.description) contentForTagging.push(linkMetadata.description);
 
         // If we have files, try to extract text content
-        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+        if (files.length > 0) {
           try {
-            const firstFile = req.files[0] as Express.Multer.File;
+            const firstFile = files[0] as Express.Multer.File;
             const parsedContent = await fileParserService.parseFile(firstFile.filename, firstFile.mimetype);
             if (parsedContent.text && parsedContent.text.trim().length > 0) {
               // Add first 500 chars of file content for tagging
@@ -956,141 +1161,6 @@ router.delete('/:id', async (req: AuthRequest, res: express.Response) => {
   } catch (error) {
     console.error('Error deleting item:', error);
     res.status(500).json({ error: 'Failed to delete item' });
-  }
-});
-
-// Re-enrich all bookmarks for the current user
-router.post('/re-enrich-bookmarks', async (req: AuthRequest, res: express.Response) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Unauthorized' });
-    }
-
-    // Get all bookmark items for this user
-    const bookmarks = await ItemModel.findByOwner(req.user.id, 10000, 0);
-    const bookmarkItems = bookmarks.filter(item => item.source === 'bookmark' && item.url);
-
-    if (bookmarkItems.length === 0) {
-      return res.json({
-        message: 'No bookmarks found to enrich',
-        total: 0,
-        enriched: 0,
-        failed: 0,
-      });
-    }
-
-    console.log(`Starting re-enrichment for ${bookmarkItems.length} bookmarks for user ${req.user.id}`);
-
-    // Process in background
-    const enrichPromise = (async () => {
-      const results = {
-        enriched: 0,
-        failed: 0,
-        skipped: 0,
-        errors: [] as string[],
-      };
-
-      for (let i = 0; i < bookmarkItems.length; i++) {
-        const item = bookmarkItems[i];
-        try {
-          // Check if metadata already exists and is complete
-          // We consider metadata complete if it has a meaningful title (not just the URL) AND (description or image)
-          const metadata = item.link_metadata as any;
-          const hasTitle = metadata?.title && metadata.title !== item.url && metadata.title.length > 0;
-          const hasDescription = metadata?.description && metadata.description.length > 0;
-          const hasImage = metadata?.image && metadata.image.length > 0;
-          const hasCompleteMetadata = hasTitle && (hasDescription || hasImage);
-
-          // Skip if metadata is already complete (unless force flag is set)
-          if (hasCompleteMetadata && !req.body.force) {
-            results.skipped++;
-            if (i < 10) console.log(`Skipping ${item.url} - already has complete metadata`);
-            continue;
-          }
-
-          // Fetch metadata only if we don't already have complete metadata saved
-          const fetchedMetadata = await linkMetadataService.fetchMetadata(item.url!, 3, 30000);
-
-          // Only update if we got meaningful metadata that's complete
-          // Check if fetched metadata is better than what we have
-          const hasNewMetadata = fetchedMetadata && (fetchedMetadata.title || fetchedMetadata.description || fetchedMetadata.image);
-          const newHasTitle = fetchedMetadata?.title && fetchedMetadata.title !== item.url && fetchedMetadata.title.length > 0;
-          const newHasDescription = fetchedMetadata?.description && fetchedMetadata.description.length > 0;
-          const newHasImage = fetchedMetadata?.image && fetchedMetadata.image.length > 0;
-          const newIsComplete = newHasTitle && (newHasDescription || newHasImage);
-
-          if (hasNewMetadata && newIsComplete) {
-            await ItemModel.update(item.id, { link_metadata: fetchedMetadata });
-
-            // Also update title/description if they're missing or using URL
-            const updates: any = {};
-            if (!item.title || item.title === item.url) {
-              updates.title = fetchedMetadata.title || item.title;
-            }
-            if (!item.description && fetchedMetadata.description) {
-              updates.description = fetchedMetadata.description;
-            }
-
-            if (Object.keys(updates).length > 0) {
-              await ItemModel.update(item.id, updates);
-            }
-
-            // Re-index item to include metadata in search
-            indexingService.indexItem(item.id).catch((indexError) => {
-              console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
-            });
-
-            results.enriched++;
-            if (i < 10) {
-              console.log(`Enriched ${item.url}:`, {
-                hasTitle: !!fetchedMetadata.title,
-                hasDescription: !!fetchedMetadata.description,
-                hasImage: !!fetchedMetadata.image,
-              });
-            }
-          } else {
-            results.skipped++;
-            if (i < 10) console.log(`No metadata found for ${item.url}`);
-          }
-
-          // Log progress every 50 items
-          if (results.enriched % 50 === 0 && results.enriched > 0) {
-            console.log(`Progress: ${results.enriched} enriched, ${results.failed} failed, ${results.skipped} skipped out of ${i + 1} processed`);
-          }
-
-          // Small delay to avoid overwhelming external servers
-          await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error: any) {
-          results.failed++;
-          results.errors.push(`${item.url}: ${error.message}`);
-          console.error(`Error enriching bookmark ${item.url}:`, error);
-        }
-      }
-
-      console.log(`Re-enrichment completed: ${results.enriched} enriched, ${results.failed} failed, ${results.skipped} skipped out of ${bookmarkItems.length} total`);
-      if (results.errors.length > 0) {
-        console.error('Re-enrichment errors (first 10):', results.errors.slice(0, 10));
-      }
-
-      return results;
-    })();
-
-    // Don't await - return immediately
-    enrichPromise.catch((error) => {
-      console.error('Background re-enrichment error:', error);
-    });
-
-    res.status(202).json({
-      message: 'Bookmark re-enrichment started',
-      total: bookmarkItems.length,
-      note: 'Processing will happen in the background. Bookmarks will be updated as metadata is fetched.',
-    });
-  } catch (error: any) {
-    console.error('Error starting bookmark re-enrichment:', error);
-    res.status(500).json({
-      error: 'Failed to start bookmark re-enrichment',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
-    });
   }
 });
 

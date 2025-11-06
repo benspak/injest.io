@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -54,6 +54,8 @@ export function SearchResults({ results }: SearchResultsProps) {
   const [emailSummary, setEmailSummary] = useState<string[]>([]);
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
+  const dialogContentRef = useRef<HTMLDivElement>(null);
+  const isClickInsideRef = useRef(false);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: SearchResult['item'] | Item) => {
@@ -139,6 +141,7 @@ export function SearchResults({ results }: SearchResultsProps) {
   const handleItemClick = async (item: SearchResult['item']) => {
     setSelectedItem(item as Item);
     setDialogOpen(true);
+    isClickInsideRef.current = false; // Reset click tracking
     setLoadingDetails(true);
     setEditingNotes(false);
     setEditingItem(false);
@@ -326,6 +329,24 @@ export function SearchResults({ results }: SearchResultsProps) {
     setEmailBodyExpanded(false);
   };
 
+  const handleOpenChange = (open: boolean) => {
+    // Only close if the click was outside the dialog
+    if (open === false) {
+      // Check if the click was inside - if so, prevent closing
+      if (isClickInsideRef.current) {
+        // Click was inside, prevent closing and reset flag
+        isClickInsideRef.current = false;
+        // Use requestAnimationFrame to ensure state update happens after Radix processes the event
+        requestAnimationFrame(() => {
+          setDialogOpen(true);
+        });
+        return;
+      }
+      // Click was outside, allow closing
+      handleCloseDialog();
+    }
+  };
+
   const handleSaveNotes = async () => {
     if (!selectedItem || !itemDetails) return;
 
@@ -504,8 +525,92 @@ export function SearchResults({ results }: SearchResultsProps) {
         })}
       </div>
 
-      <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden w-auto sm:w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl left-2 right-2 sm:left-[50%] sm:right-auto translate-x-0 sm:translate-x-[-50%] top-4 sm:top-[50%] translate-y-0 sm:translate-y-[-50%] p-4 sm:p-6">
+      <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+        <DialogContent
+          ref={dialogContentRef}
+          className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden w-auto sm:w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl left-2 right-2 sm:left-[50%] sm:right-auto translate-x-0 sm:translate-x-[-50%] top-4 sm:top-[50%] translate-y-0 sm:translate-y-[-50%] p-4 sm:p-6"
+          onInteractOutside={(e) => {
+            // This only fires when clicking OUTSIDE the dialog
+            // Mark that click was outside so dialog can close
+            isClickInsideRef.current = false;
+            // Allow closing when clicking on overlay (outside)
+            // But prevent if clicking on interactive elements that might be outside
+            const target = e.target as HTMLElement;
+            if (target.closest('button') ||
+                target.closest('input') ||
+                target.closest('textarea') ||
+                target.closest('a') ||
+                target.closest('[role="button"]')) {
+              e.preventDefault();
+            }
+          }}
+          onPointerDownOutside={(e) => {
+            // This only fires when clicking OUTSIDE the dialog
+            // Mark that click was outside so dialog can close
+            isClickInsideRef.current = false;
+            const target = e.target as HTMLElement;
+            if (target.closest('button') ||
+                target.closest('input') ||
+                target.closest('textarea') ||
+                target.closest('a') ||
+                target.closest('[role="button"]')) {
+              e.preventDefault();
+            }
+          }}
+          onPointerDown={(e) => {
+            // Mark that the click was inside the dialog content
+            // This fires before onOpenChange, so we can prevent closing
+            isClickInsideRef.current = true;
+            e.stopPropagation();
+          }}
+          onClick={(e) => {
+            // Mark that the click was inside the dialog content
+            isClickInsideRef.current = true;
+            e.stopPropagation();
+          }}
+          onMouseDown={(e) => {
+            // Mark that the click was inside the dialog content
+            isClickInsideRef.current = true;
+            e.stopPropagation();
+          }}
+          onTouchStart={(e) => {
+            // Mark that the touch was inside the dialog content (for mobile)
+            isClickInsideRef.current = true;
+            e.stopPropagation();
+          }}
+        >
+          <div
+            onPointerDown={(e) => {
+              // Mark that the click was inside the dialog content
+              // But exclude the close button (X) - it should be able to close
+              const target = e.target as HTMLElement;
+              if (!target.closest('button[data-radix-dialog-close]') &&
+                  !target.closest('[data-radix-dialog-close]')) {
+                isClickInsideRef.current = true;
+              }
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              // Mark that the click was inside the dialog content
+              // But exclude the close button (X)
+              const target = e.target as HTMLElement;
+              if (!target.closest('button[data-radix-dialog-close]') &&
+                  !target.closest('[data-radix-dialog-close]')) {
+                isClickInsideRef.current = true;
+              }
+              e.stopPropagation();
+            }}
+            onMouseDown={(e) => {
+              // Mark that the click was inside the dialog content
+              // But exclude the close button (X)
+              const target = e.target as HTMLElement;
+              if (!target.closest('button[data-radix-dialog-close]') &&
+                  !target.closest('[data-radix-dialog-close]')) {
+                isClickInsideRef.current = true;
+              }
+              e.stopPropagation();
+            }}
+          >
           <DialogHeader>
             <div className="overflow-hidden">
               <DialogTitle className="pr-8 break-words">
@@ -618,14 +723,18 @@ export function SearchResults({ results }: SearchResultsProps) {
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        onClick={handleSaveItem}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSaveItem();
+                        }}
                         disabled={savingItem}
                       >
                         {savingItem ? 'Saving...' : 'Save'}
                       </Button>
                       <Button
                         variant="outline"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setEditingItem(false);
                           const display = getItemDisplay(itemDetails);
                           setEditTitle(itemDetails.title || display.title || '');
@@ -881,7 +990,10 @@ export function SearchResults({ results }: SearchResultsProps) {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setEditingNotes(true)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingNotes(true);
+                        }}
                       >
                         {itemDetails.notes ? 'Edit Notes' : 'Add Notes'}
                       </Button>
@@ -897,7 +1009,10 @@ export function SearchResults({ results }: SearchResultsProps) {
                         <div className="flex gap-2">
                           <Button
                             size="sm"
-                            onClick={handleSaveNotes}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveNotes();
+                            }}
                             disabled={savingNotes}
                           >
                             {savingNotes ? 'Saving...' : 'Save'}
@@ -905,7 +1020,8 @@ export function SearchResults({ results }: SearchResultsProps) {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setEditingNotes(false);
                               setNotesValue(itemDetails.notes || '');
                             }}
@@ -931,7 +1047,10 @@ export function SearchResults({ results }: SearchResultsProps) {
                   {!editingItem && !(itemDetails as any).isResendEmail && (
                     <Button
                       variant="outline"
-                      onClick={() => setEditingItem(true)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingItem(true);
+                      }}
                     >
                       Edit
                     </Button>
@@ -945,6 +1064,7 @@ export function SearchResults({ results }: SearchResultsProps) {
               </div>
             </>
           ) : null}
+          </div>
         </DialogContent>
       </Dialog>
     </>

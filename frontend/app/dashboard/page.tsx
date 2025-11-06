@@ -541,29 +541,8 @@ export default function DashboardPage() {
                 >
                   {importingBookmarks ? 'Importing...' : 'Import Bookmarks from HTML'}
                 </Button>
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={async () => {
-                    const force = confirm('Force re-enrichment? This will re-fetch metadata even for bookmarks that already have it.\n\nClick OK to force, Cancel to skip already-enriched bookmarks.');
-                    if (!confirm(`This will ${force ? 'force re-fetch' : 'fetch'} metadata for all your bookmarks. This may take a while. Continue?`)) {
-                      return;
-                    }
-                    try {
-                      const result = await apiClient.reEnrichBookmarks(force);
-                      toast.success(
-                        `Re-enrichment started! Processing ${result.total} bookmark${result.total !== 1 ? 's' : ''} in the background.`,
-                        { duration: 6000 }
-                      );
-                    } catch (error: any) {
-                      toast.error(error.message || 'Failed to start re-enrichment');
-                    }
-                  }}
-                >
-                  Re-enrich All Bookmarks
-                </Button>
                 <p className="text-xs text-muted-foreground">
-                  Export your browser bookmarks as HTML and import them here. Use "Re-enrich" to fetch metadata for existing bookmarks.
+                  Export your browser bookmarks as HTML and import them here.
                 </p>
                 <p className="text-xs text-amber-600 font-medium">
                   💰 $5 per import (due to OpenAI token usage for metadata enrichment)

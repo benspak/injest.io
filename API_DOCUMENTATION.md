@@ -1,0 +1,1114 @@
+# Injest.io API Documentation
+
+## Base URL
+
+```
+Production: https://api.injest.io
+Development: http://localhost:5555
+```
+
+## Authentication
+
+Most endpoints require authentication using JWT tokens. Include the token in the `Authorization` header:
+
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+### Getting a Token
+
+1. Request a magic link via `POST /api/auth/magic-link`
+2. Click the link in your email to verify
+3. The verification endpoint returns a JWT token
+4. Use this token for subsequent authenticated requests
+
+---
+
+## Endpoints
+
+### Authentication (`/api/auth`)
+
+#### Send Magic Link
+
+Request a passwordless login link via email.
+
+**Endpoint:** `POST /api/auth/magic-link`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Magic link sent to your email"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Email is required
+- `500 Internal Server Error` - Failed to send magic link
+
+---
+
+#### Verify Magic Link Token
+
+Verify the token from the magic link and get a session token.
+
+**Endpoint:** `GET /api/auth/verify`
+
+**Authentication:** Not required
+
+**Query Parameters:**
+- `token` (string, required) - JWT token from magic link
+
+**Response:** `200 OK`
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user-id",
+    "email": "user@example.com",
+    "verified": true
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Token is required
+- `401 Unauthorized` - Invalid or expired token
+- `500 Internal Server Error` - Failed to verify token
+
+---
+
+#### Get Current User
+
+Get information about the currently authenticated user.
+
+**Endpoint:** `GET /api/auth/me`
+
+**Authentication:** Required
+
+**Response:** `200 OK`
+```json
+{
+  "user": {
+    "id": "user-id",
+    "email": "user@example.com",
+    "verified": true
+  }
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - No token provided or invalid token
+- `404 Not Found` - User not found
+- `500 Internal Server Error` - Failed to get current user
+
+---
+
+### Items (`/api/items`)
+
+#### Create Item
+
+Create a new item (note, link, file, or email). Supports file uploads via multipart/form-data.
+
+**Endpoint:** `POST /api/items`
+
+**Authentication:** Required
+
+**Request Body (multipart/form-data):**
+- `title` (string, optional) - Item title
+- `description` (string, optional) - Item description
+- `url` (string, optional) - URL for link items
+- `notes` (string, optional) - User notes
+- `tags` (string or array, optional) - Tags (comma-separated string or array)
+- `attachments` (file[], optional) - Files to attach (max 10 files, 50MB each)
+
+**Note:** At least one of `title`, `description`, `url`, or `attachments` must be provided.
+
+**Batch Processing:** If multiple files are uploaded without `title`, `description`, or `url`, each file is processed as a separate item with full enrichment (OCR, metadata extraction, etc.).
+
+**Response:** `201 Created`
+
+Single item:
+```json
+{
+  "id": "item-id",
+  "owner_id": "user-id",
+  "title": "Item Title",
+  "description": "Item description",
+  "url": "https://example.com",
+  "attachments": [
+    {
+      "filename": "stored-filename",
+      "originalname": "original-filename.pdf",
+      "mimetype": "application/pdf",
+      "size": 12345
+    }
+  ],
+  "tags": ["tag1", "tag2"],
+  "notes": "User notes",
+  "source": "web",
+  "link_metadata": {
+    "title": "Page Title",
+    "description": "Page description",
+    "image": "https://example.com/image.jpg"
+  },
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+Batch processing:
+```json
+{
+  "batch": true,
+  "total": 5,
+  "created": 4,
+  "failed": 1,
+  "items": [...],
+  "errors": [
+    {
+      "filename": "failed-file.pdf",
+      "error": "Error message"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid item data or file upload error
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Failed to create item
+
+**Features:**
+- Auto-generates title and description from file content (OCR for images, text extraction for documents)
+- Auto-fetches link metadata when URL is provided
+- Auto-generates tags using AI if not provided
+- Automatically indexes items for search
+
+---
+
+#### List Items
+
+Get a paginated list of items for the authenticated user.
+
+**Endpoint:** `GET /api/items`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `limit` (number, optional, default: 100) - Maximum number of items to return
+- `offset` (number, optional, default: 0) - Number of items to skip
+- `source` (string, optional) - Filter by source (e.g., "email", "web", "bookmark")
+- `hasAttachments` (boolean, optional) - Filter items with attachments
+- `fileType` (string, optional) - Filter by file type: "image", "spreadsheet", or "document"
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "item-id",
+    "owner_id": "user-id",
+    "title": "Item Title",
+    "description": "Item description",
+    "url": "https://example.com",
+    "attachments": [...],
+    "tags": ["tag1", "tag2"],
+    "notes": "User notes",
+    "source": "web",
+    "link_metadata": {...},
+    "created_at": "2024-01-01T00:00:00.000Z",
+    "updated_at": "2024-01-01T00:00:00.000Z"
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Failed to list items
+
+---
+
+#### Get Item by ID
+
+Get a specific item by its ID.
+
+**Endpoint:** `GET /api/items/:id`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Response:** `200 OK`
+```json
+{
+  "id": "item-id",
+  "owner_id": "user-id",
+  "title": "Item Title",
+  "description": "Item description",
+  "url": "https://example.com",
+  "attachments": [...],
+  "tags": ["tag1", "tag2"],
+  "notes": "User notes",
+  "source": "web",
+  "link_metadata": {...},
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to get item
+
+---
+
+#### Update Item
+
+Update an existing item's fields.
+
+**Endpoint:** `PATCH /api/items/:id`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Request Body:**
+```json
+{
+  "title": "Updated Title",
+  "description": "Updated description",
+  "url": "https://updated-url.com",
+  "tags": ["new", "tags"],
+  "notes": "Updated notes"
+}
+```
+
+All fields are optional. Only provided fields will be updated.
+
+**Response:** `200 OK`
+```json
+{
+  "id": "item-id",
+  "owner_id": "user-id",
+  "title": "Updated Title",
+  "description": "Updated description",
+  ...
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to update item
+
+**Note:** Updating title, description, url, or notes triggers automatic re-indexing for search.
+
+---
+
+#### Update Item Notes
+
+Update only the notes field of an item.
+
+**Endpoint:** `PATCH /api/items/:id/notes`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Request Body:**
+```json
+{
+  "notes": "Updated notes"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "id": "item-id",
+  "notes": "Updated notes",
+  ...
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Notes must be a string
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to update notes
+
+**Note:** Triggers automatic re-indexing for search.
+
+---
+
+#### Delete Item
+
+Soft delete an item (sets `deleted_at` timestamp).
+
+**Endpoint:** `DELETE /api/items/:id`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Item deleted"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to delete item
+
+---
+
+#### Get Item Count
+
+Get the total count of indexed items for the authenticated user.
+
+**Endpoint:** `GET /api/items/count`
+
+**Authentication:** Required
+
+**Response:** `200 OK`
+```json
+{
+  "count": 42
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Failed to get item count
+
+---
+
+#### Get Link Metadata
+
+Fetch and return link metadata for an item with a URL. If metadata doesn't exist or is incomplete, it will be fetched and saved.
+
+**Endpoint:** `GET /api/items/:id/metadata`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Response:** `200 OK`
+```json
+{
+  "title": "Page Title",
+  "description": "Page description",
+  "image": "https://example.com/image.jpg",
+  "url": "https://example.com"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Item does not have a URL
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to fetch link metadata
+
+---
+
+#### Trigger Indexing
+
+Manually trigger indexing for an item (usually done automatically).
+
+**Endpoint:** `POST /api/items/:id/index`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Indexing started"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to index item
+
+---
+
+#### Download File
+
+Download or view a file attachment from an item. Supports token authentication via query parameter for images.
+
+**Endpoint:** `GET /api/items/:id/files/:filename`
+
+**Authentication:** Required (Bearer token in header or `?token=` query parameter)
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+- `filename` (string, required) - Filename from attachments array
+
+**Query Parameters:**
+- `token` (string, optional) - JWT token (alternative to Authorization header)
+- `inline` (boolean, optional) - Serve image inline instead of download
+
+**Response:** `200 OK`
+- File stream with appropriate Content-Type and Content-Disposition headers
+
+**Error Responses:**
+- `401 Unauthorized` - No token provided or invalid token
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item or file not found
+- `500 Internal Server Error` - Failed to download file
+
+---
+
+#### Import Bookmarks
+
+Import bookmarks from an HTML file (browser bookmarks export). Requires payment for non-premium users.
+
+**Endpoint:** `POST /api/items/import-bookmarks`
+
+**Authentication:** Required
+
+**Request Body (multipart/form-data):**
+- `bookmarkFile` (file, required) - HTML file containing bookmarks
+- `paymentIntentId` (string, optional) - Stripe payment intent ID (required for non-premium users)
+
+**Response:** `202 Accepted`
+```json
+{
+  "message": "Bookmark import started",
+  "total": 150,
+  "note": "Processing will happen in the background. Bookmarks will appear in your list as they are imported.",
+  "premium": false
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - No bookmark file provided or failed to parse
+- `401 Unauthorized` - Not authenticated
+- `402 Payment Required` - Payment required for non-premium users
+- `403 Forbidden` - Bookmark import limit exceeded (max 555 per payment)
+- `500 Internal Server Error` - Failed to import bookmarks
+
+**Notes:**
+- Premium users can import bookmarks for free
+- Non-premium users must pay $5 per import (up to 555 bookmarks)
+- Processing happens in the background
+- Duplicate URLs are automatically skipped
+- Link metadata is automatically fetched for each bookmark
+
+---
+
+#### Generate Email Summary
+
+Generate a 3-bullet-point summary for an email item.
+
+**Endpoint:** `POST /api/items/:id/email-summary`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID (must be an email item)
+
+**Response:** `200 OK`
+```json
+{
+  "summary": [
+    "First key point",
+    "Second key point",
+    "Third key point"
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Item is not an email or email body is empty
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to generate summary
+
+**Notes:**
+- Returns existing summary if already generated
+- Returns empty array if email is too short (< 500 characters)
+- Summary is saved to the item's `clean` field
+
+---
+
+### Search (`/api/search`)
+
+#### Semantic Search
+
+Perform semantic search across all indexed items using vector similarity.
+
+**Endpoint:** `GET /api/search`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `q` (string, required) - Search query
+
+**Response:** `200 OK`
+```json
+{
+  "query": "search query",
+  "results": [
+    {
+      "item": {
+        "id": "item-id",
+        "title": "Item Title",
+        "description": "Item description",
+        ...
+      },
+      "similarity": 0.95,
+      "source": "web"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Query parameter is required
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Failed to search
+
+**Notes:**
+- Returns top 10 most similar results
+- Results are ordered by similarity score (higher is better)
+- Only searches items that have been indexed (have embeddings)
+
+---
+
+### AI Generation (`/api/generate`)
+
+#### Generate Content
+
+Generate AI content (email drafts, summaries, replies, etc.) with optional context from knowledge base.
+
+**Endpoint:** `POST /api/generate`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "prompt": "Write a professional email about...",
+  "type": "draft_email",
+  "contextQuery": "relevant search query"
+}
+```
+
+**Request Fields:**
+- `prompt` (string, required) - The generation prompt
+- `type` (string, required) - Type of generation: `"draft_email"`, `"summary"`, `"reply"`, or `"general"`
+- `contextQuery` (string, optional) - Search query to find relevant items for context
+
+**Response:** `200 OK`
+```json
+{
+  "type": "draft_email",
+  "content": "Generated content here...",
+  "context": "Provided"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Prompt and type are required
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Failed to generate content
+
+**Notes:**
+- If `contextQuery` is provided, the system searches for relevant items and includes them as context
+- Context helps the AI generate more relevant content based on your knowledge base
+
+---
+
+### Email (`/api/email`)
+
+#### Inbound Webhook
+
+Webhook endpoint for receiving emails via Resend. This is called automatically by Resend when emails are received.
+
+**Endpoint:** `POST /api/email/inbound`
+
+**Authentication:** Not required (webhook)
+
+**Request Body (Resend webhook format):**
+```json
+{
+  "from": "sender@example.com",
+  "to": "input@injest.io",
+  "subject": "Email Subject",
+  "text": "Plain text body",
+  "html": "<p>HTML body</p>",
+  "attachments": [...],
+  "id": "resend-email-id",
+  "created_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Email processed successfully",
+  "itemId": "item-id"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Missing required email fields
+- `403 Forbidden` - Email not sent to receiving address or user not verified
+- `404 Not Found` - User not found
+- `500 Internal Server Error` - Failed to process email
+
+**Notes:**
+- Only processes emails sent to the configured receiving address
+- Only processes emails from verified users
+- Automatically creates items and triggers indexing
+
+---
+
+#### List Received Emails
+
+Get a list of emails received by the authenticated user.
+
+**Endpoint:** `GET /api/email/received`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `limit` (number, optional) - Maximum number of emails to return
+- `after` (string, optional) - Cursor for pagination (Resend format)
+- `before` (string, optional) - Cursor for pagination (Resend format)
+
+**Response:** `200 OK`
+```json
+{
+  "object": "list",
+  "has_more": false,
+  "data": [
+    {
+      "id": "resend-email-id",
+      "to": ["input@injest.io"],
+      "from": "user@example.com",
+      "created_at": "2024-01-01T00:00:00.000Z",
+      "subject": "Email Subject",
+      "html": "<p>HTML body</p>",
+      "text": "Plain text body",
+      "attachments": [...],
+      "headers": {...},
+      "message_id": "message-id"
+    }
+  ]
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `500 Internal Server Error` - Failed to fetch received emails
+
+**Notes:**
+- Only returns emails sent FROM the authenticated user
+- Automatically syncs new emails from Resend
+- Returns emails from database (sorted by created_at descending)
+
+---
+
+#### Get Received Email
+
+Get a specific received email by ID.
+
+**Endpoint:** `GET /api/email/received/:id`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Resend email ID
+
+**Response:** `200 OK`
+```json
+{
+  "id": "resend-email-id",
+  "to": ["input@injest.io"],
+  "from": "user@example.com",
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "subject": "Email Subject",
+  "html": "<p>HTML body</p>",
+  "text": "Plain text body",
+  "attachments": [...],
+  "headers": {...},
+  "message_id": "message-id"
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Email not found or access denied
+- `500 Internal Server Error` - Failed to fetch received email
+
+**Notes:**
+- Verifies email was sent FROM the authenticated user
+- Automatically saves email to database if not already saved
+
+---
+
+#### List Email Attachments
+
+Get a list of attachments for a received email.
+
+**Endpoint:** `GET /api/email/received/:id/attachments`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Resend email ID
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "attachment-id",
+    "filename": "document.pdf",
+    "content_type": "application/pdf",
+    "size": 12345,
+    "url": "https://..."
+  }
+]
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Email not found or access denied
+- `500 Internal Server Error` - Failed to fetch email attachments
+
+---
+
+#### Get Email Attachment
+
+Download a specific attachment from a received email.
+
+**Endpoint:** `GET /api/email/received/:emailId/attachments/:attachmentId`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `emailId` (string, required) - Resend email ID
+- `attachmentId` (string, required) - Attachment ID
+
+**Response:** `200 OK`
+- File stream with appropriate Content-Type and Content-Disposition headers
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Email not found or access denied
+- `500 Internal Server Error` - Failed to fetch email attachment
+
+---
+
+#### Generate Email Summary
+
+Generate a 3-bullet-point summary for a received email.
+
+**Endpoint:** `POST /api/email/received/:emailId/summary`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `emailId` (string, required) - Resend email ID
+
+**Response:** `200 OK`
+```json
+{
+  "summary": [
+    "First key point",
+    "Second key point",
+    "Third key point"
+  ]
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Email body is empty or too short
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Email not found or access denied
+- `500 Internal Server Error` - Failed to generate summary
+
+**Notes:**
+- Returns existing summary if already generated
+- Returns empty array if email is too short (< 500 characters)
+- Summary is saved to the item's `clean` field
+
+---
+
+### Payment (`/api/payment`)
+
+#### Create Bookmark Import Payment Intent
+
+Create a Stripe payment intent for bookmark import.
+
+**Endpoint:** `POST /api/payment/bookmark-import`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "bookmarkCount": 150
+}
+```
+
+**Response:** `200 OK`
+
+Premium user:
+```json
+{
+  "message": "Premium user - no payment required",
+  "premium": true
+}
+```
+
+Non-premium user:
+```json
+{
+  "clientSecret": "pi_xxx_secret_xxx",
+  "paymentIntentId": "pi_xxx",
+  "amount": 500,
+  "currency": "usd"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid bookmark count or limit exceeded (max 555)
+- `401 Unauthorized` - Not authenticated
+- `404 Not Found` - User not found
+- `500 Internal Server Error` - Failed to create payment intent
+
+**Notes:**
+- Premium users don't need to pay
+- Cost is $5 (500 cents) per import (up to 555 bookmarks)
+- Use the `clientSecret` with Stripe.js to complete payment on the frontend
+
+---
+
+#### Verify Payment
+
+Verify a completed payment intent.
+
+**Endpoint:** `POST /api/payment/verify`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "paymentIntentId": "pi_xxx"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "verified": true,
+  "message": "Payment verified successfully"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid payment intent ID or payment not verified
+- `401 Unauthorized` - Not authenticated
+- `404 Not Found` - User not found
+- `500 Internal Server Error` - Failed to verify payment
+
+**Notes:**
+- Updates user's bookmark import count and payment timestamp
+- Use this after payment is completed to confirm payment status
+
+---
+
+## Data Models
+
+### Item
+
+```typescript
+interface Item {
+  id: string;
+  owner_id: string;
+  type?: 'note' | 'link' | 'file' | 'email';
+  title?: string;
+  description?: string;
+  url?: string;
+  attachments?: Array<{
+    filename: string;
+    originalname: string;
+    mimetype: string;
+    size: number;
+    url?: string;
+    id?: string;
+  }>;
+  tags?: string[];
+  notes?: string;
+  source?: string;
+  link_metadata?: {
+    title?: string;
+    description?: string;
+    image?: string;
+    url?: string;
+  };
+  clean?: string; // JSON string for processed/cleaned data
+  raw?: string; // JSON string for raw/original data
+  embedding_id?: string;
+  deleted_at?: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+### User
+
+```typescript
+interface User {
+  id: string;
+  email: string;
+  verified: boolean;
+  is_premium?: boolean;
+  stripe_customer_id?: string;
+  bookmark_import_count?: number;
+  last_bookmark_import_payment?: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+---
+
+## Error Responses
+
+All error responses follow this format:
+
+```json
+{
+  "error": "Error message",
+  "details": "Additional details (development only)"
+}
+```
+
+### HTTP Status Codes
+
+- `200 OK` - Request succeeded
+- `201 Created` - Resource created successfully
+- `202 Accepted` - Request accepted for processing
+- `400 Bad Request` - Invalid request data
+- `401 Unauthorized` - Authentication required or failed
+- `402 Payment Required` - Payment required
+- `403 Forbidden` - Access denied
+- `404 Not Found` - Resource not found
+- `500 Internal Server Error` - Server error
+- `503 Service Unavailable` - Service temporarily unavailable
+
+---
+
+## Rate Limiting
+
+Rate limiting may be applied to prevent abuse. Check response headers for rate limit information:
+- `X-RateLimit-Limit` - Maximum requests per window
+- `X-RateLimit-Remaining` - Remaining requests in current window
+- `X-RateLimit-Reset` - Time when the rate limit resets
+
+---
+
+## File Upload Limits
+
+- Maximum file size: 50MB per file
+- Maximum files per request: 10 files
+- Supported file types: All (images, PDFs, documents, etc.)
+
+---
+
+## Webhooks
+
+### Email Inbound Webhook
+
+The email inbound webhook is called by Resend when emails are received. Configure the webhook URL in your Resend dashboard:
+
+```
+POST https://api.injest.io/api/email/inbound
+```
+
+---
+
+## Examples
+
+### Creating an Item with a URL
+
+```bash
+curl -X POST https://api.injest.io/api/items \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Example Article",
+    "url": "https://example.com/article",
+    "notes": "Interesting read",
+    "tags": ["article", "example"]
+  }'
+```
+
+### Uploading a File
+
+```bash
+curl -X POST https://api.injest.io/api/items \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -F "attachments=@document.pdf" \
+  -F "title=My Document" \
+  -F "notes=Important notes"
+```
+
+### Searching Items
+
+```bash
+curl -X GET "https://api.injest.io/api/search?q=project%20ideas" \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### Generating AI Content
+
+```bash
+curl -X POST https://api.injest.io/api/generate \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a professional email declining a meeting request",
+    "type": "draft_email",
+    "contextQuery": "meeting scheduling"
+  }'
+```
+
+---
+
+## Support
+
+For issues or questions, please contact support or refer to the main project documentation.
