@@ -4,6 +4,7 @@ export interface User {
   id: string;
   email: string;
   verified: boolean;
+  is_premium?: boolean;
 }
 
 let currentUser: User | null = null;

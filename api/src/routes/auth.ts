@@ -75,6 +75,7 @@ router.get('/verify', async (req: express.Request, res: express.Response) => {
         id: user.id,
         email: user.email,
         verified: user.verified,
+        is_premium: user.is_premium || false,
       }
     });
   } catch (error) {
@@ -103,6 +104,7 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: express.Response
         id: user.id,
         email: user.email,
         verified: user.verified,
+        is_premium: user.is_premium || false,
       }
     });
   } catch (error) {

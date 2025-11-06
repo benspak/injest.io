@@ -478,12 +478,26 @@ export default function DashboardPage() {
     return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
   }
 
+  const currentUser = auth.getUser();
+
   return (
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
           <h1 className="text-xl sm:text-2xl font-bold">Injest.io</h1>
           <div className="flex gap-2 sm:gap-4 items-center">
+            {currentUser && (
+              <div className="flex flex-col items-end mr-2 sm:mr-4">
+                <span className="text-xs sm:text-sm text-gray-700 font-medium">
+                  {currentUser.email}
+                </span>
+                {currentUser.is_premium && (
+                  <span className="text-xs text-blue-600 font-semibold">
+                    Pro
+                  </span>
+                )}
+              </div>
+            )}
             <Button
               variant="outline"
               size="sm"
