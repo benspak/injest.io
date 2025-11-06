@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Icon Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin: 10px;
+      background: white;
+    }
+    code {
+      background: #f3f4f6;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+    button {
+      padding: 10px 20px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin: 5px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .instructions {
+      background: #f3f4f6;
+      padding: 15px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Injest Capture Icon Generator</h1>
+  <div class="instructions">
+    <p><strong>Step 1:</strong> Click the blue "Generate Icons" button below to create the icons.</p>
+    <p><strong>Step 2:</strong> Click each "Download" button to save the icon files.</p>
+    <p><strong>Step 3:</strong> Move the downloaded files to your <code>chrome-extension</code> folder.</p>
+  </div>
+  
+  <div style="margin: 20px 0;">
+    <button onclick="generateIcons()" style="font-size: 16px; padding: 12px 24px; font-weight: bold;">Generate Icons</button>
+  </div>
+  
+  <div>
+    <h3>Icon Previews:</h3>
+    <div style="display: flex; gap: 20px; align-items: center; margin: 20px 0;">
+      <div style="text-align: center;">
+        <canvas id="icon16" width="16" height="16" style="border: 2px solid #ccc; image-rendering: pixelated; transform: scale(4); transform-origin: top left; margin-bottom: 8px;"></canvas>
+        <div>16x16</div>
+        <button onclick="downloadIcon(16)" style="margin-top: 10px;">Download icon16.png</button>
+      </div>
+      <div style="text-align: center;">
+        <canvas id="icon48" width="48" height="48" style="border: 2px solid #ccc; image-rendering: pixelated; transform: scale(2); transform-origin: top left; margin-bottom: 8px;"></canvas>
+        <div>48x48</div>
+        <button onclick="downloadIcon(48)" style="margin-top: 10px;">Download icon48.png</button>
+      </div>
+      <div style="text-align: center;">
+        <canvas id="icon128" width="128" height="128" style="border: 2px solid #ccc; margin-bottom: 8px;"></canvas>
+        <div>128x128</div>
+        <button onclick="downloadIcon(128)" style="margin-top: 10px;">Download icon128.png</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function generateIcons() {
+      [16, 48, 128].forEach(size => {
+        const canvas = document.getElementById(`icon${size}`);
+        const ctx = canvas.getContext('2d');
+        
+        // Clear canvas
+        ctx.clearRect(0, 0, size, size);
+        
+        // Draw background
+        ctx.fillStyle = '#3b82f6';
+        ctx.fillRect(0, 0, size, size);
+        
+        // Draw a simple "+" icon
+        ctx.fillStyle = 'white';
+        const lineWidth = Math.max(2, size / 8);
+        const center = size / 2;
+        
+        // Horizontal line
+        ctx.fillRect(center - size / 3, center - lineWidth / 2, size * 2 / 3, lineWidth);
+        // Vertical line
+        ctx.fillRect(center - lineWidth / 2, center - size / 3, lineWidth, size * 2 / 3);
+      });
+    }
+    
+    function downloadIcon(size) {
+      const canvas = document.getElementById(`icon${size}`);
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `icon${size}.png`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+    
+    // Generate icons on load
+    window.addEventListener('load', generateIcons);
+  </script>
+</body>
+</html>
+
