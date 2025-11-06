@@ -311,9 +311,16 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             <p className="text-sm text-red-800 font-medium">
               🚫 You've reached the limit: {itemCount} / {limit} indexed items
             </p>
-            <p className="text-xs text-red-700 mt-1">
+            <p className="text-xs text-red-700 mt-1 mb-3">
               Please subscribe to Premium ($5/month) to create more items.
             </p>
+            <Button
+              onClick={() => setShowSubscriptionDialog(true)}
+              className="w-full sm:w-auto"
+              variant="default"
+            >
+              Subscribe to Premium
+            </Button>
           </div>
         )}
 

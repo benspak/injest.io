@@ -19,6 +19,16 @@ export default function Home() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 py-16 max-w-full">
         <div className="text-center mb-20">
+          <div className="flex justify-center mb-6">
+            <Image
+              src="/injest-logo-white.jpg"
+              alt="Injest.io Logo"
+              width={200}
+              height={200}
+              className="object-contain"
+              priority
+            />
+          </div>
           <h1 className="text-6xl font-bold text-gray-900 mb-6">
             Injest.io
           </h1>
