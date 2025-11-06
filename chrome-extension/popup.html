@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Injest Capture</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Capture New Item</h2>
+      </div>
+      <div class="card-content">
+        <form id="captureForm" class="form">
+          <input
+            type="text"
+            id="title"
+            placeholder="Title (optional)"
+            class="input"
+          />
+
+          <textarea
+            id="description"
+            placeholder="Description (optional)"
+            class="textarea"
+            rows="4"
+          ></textarea>
+
+          <input
+            type="url"
+            id="url"
+            placeholder="URL (optional)"
+            class="input"
+          />
+
+          <div class="file-input-wrapper">
+            <input
+              type="file"
+              id="fileInput"
+              multiple
+              class="file-input"
+            />
+            <label for="fileInput" class="file-label">
+              <span class="file-button">Choose Files</span>
+              <span class="file-name" id="fileName">No file chosen</span>
+            </label>
+          </div>
+
+          <textarea
+            id="notes"
+            placeholder="Notes (optional)"
+            class="textarea"
+            rows="3"
+          ></textarea>
+
+          <button type="submit" id="submitBtn" class="button" disabled>
+            Create Item
+          </button>
+
+          <div id="message" class="message"></div>
+        </form>
+      </div>
+    </div>
+    
+    <div class="footer">
+      <a href="#" id="optionsLink" class="options-link">Settings</a>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+
