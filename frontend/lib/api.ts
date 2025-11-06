@@ -198,7 +198,9 @@ class ApiClient {
         console.error(`[API Error] ${url}:`, error);
       }
 
-      throw new Error(error.error || `Request failed: ${response.status} ${response.statusText}`);
+      // Prefer details field if available (more descriptive), otherwise use error field
+      const errorMessage = error.details || error.error || `Request failed: ${response.status} ${response.statusText}`;
+      throw new Error(errorMessage);
     }
 
     return response.json();

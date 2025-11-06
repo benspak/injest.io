@@ -286,8 +286,6 @@ export default function DashboardPage() {
   }, [hasMore, loading, loadingMore, loadMoreItems]);
 
   const handleDelete = async (itemId: string) => {
-    if (!confirm('Are you sure you want to delete this item?')) return;
-
     try {
       await apiClient.deleteItem(itemId);
       // Reset and reload from beginning
@@ -448,17 +446,19 @@ export default function DashboardPage() {
 
 
   if (authLoading || loading) {
-    return <div className="container mx-auto px-4 py-8">Loading...</div>;
+    return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Injest.io</h1>
-          <div className="flex gap-4 items-center">
+        <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
+          <h1 className="text-xl sm:text-2xl font-bold">Injest.io</h1>
+          <div className="flex gap-2 sm:gap-4 items-center">
             <Button
               variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm"
               onClick={() => {
                 auth.logout();
                 router.push('/login');
@@ -471,14 +471,14 @@ export default function DashboardPage() {
       </header>
 
       {/* Search bar - first thing after nav, bold and wide like Google */}
-      <div className="bg-white border-b py-8">
-        <div className="container mx-auto px-4">
+      <div className="bg-white border-b py-6 sm:py-8">
+        <div className="container mx-auto px-3 sm:px-4 md:px-6 max-w-full">
           <SearchBar />
         </div>
       </div>
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-8">
+      <main className="container mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8 max-w-full">
+        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
           {/* Capture New Item - first column on desktop, first on mobile */}
           <div className="lg:col-span-1 space-y-4">
             <CaptureForm onItemCreated={() => {
@@ -565,26 +565,26 @@ export default function DashboardPage() {
           {/* Item list - second column on desktop, second on mobile */}
           <div className="lg:col-span-2">
             <div className="mb-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                <h2 className="text-xl font-semibold">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
+                <h2 className="text-lg sm:text-xl font-semibold">
                   Your Items
                   {indexedCount !== null && (
-                    <span className="text-sm font-normal text-gray-500 ml-2">
+                    <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
                       ({indexedCount} indexed)
                     </span>
                   )}
                 </h2>
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   {/* Source Filter */}
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="source-filter" className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <label htmlFor="source-filter" className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
                       Source:
                     </label>
                     <select
                       id="source-filter"
                       value={sourceFilter}
                       onChange={(e) => setSourceFilter(e.target.value)}
-                      className="px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">All Sources</option>
                       <option value="web">Web</option>
@@ -593,13 +593,13 @@ export default function DashboardPage() {
                     </select>
                   </div>
                   {/* Attachments Filter */}
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <label className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-700 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={hasAttachmentsFilter}
                         onChange={(e) => setHasAttachmentsFilter(e.target.checked)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                       />
                       <span>With Files</span>
                     </label>

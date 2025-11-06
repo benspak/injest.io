@@ -166,12 +166,17 @@ router.get('/received', authMiddleware, async (req, res) => {
         });
         // Save each email to database and index them (if not already saved)
         for (const email of filteredEmails) {
-            // Check if email already exists in database
+            // Check if email already exists in database (including deleted items)
             const existingItem = await ItemModel.findByResendEmailId(email.id);
             if (!existingItem) {
                 // Save new email to database (indexing happens automatically)
                 await saveEmailFromResend(email, req.user.id);
             }
+            else if (existingItem.deleted_at) {
+                // Email was previously deleted - don't re-index it, just skip
+                console.log(`Skipping previously deleted email: ${email.id}`);
+            }
+            // If item exists and is not deleted, it's already in the database, so skip
         }
         // Get all emails from database (including newly saved ones)
         const allDbItems = await ItemModel.findByOwnerAndType(req.user.id, 'email', limit || 100, 0);
@@ -439,6 +444,11 @@ router.post('/received/:emailId/summary', authMiddleware, async (req, res) => {
             return res.status(400).json({
                 error: 'Email body is empty. Cannot generate summary for an email without content.'
             });
+        }
+        // Check if email is too short to summarize (less than 500 characters)
+        const textContent = emailBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length < 500) {
+            return res.json({ summary: [] });
         }
         // Generate summary
         const summary = await openAIService.generateEmailSummary(emailBody);

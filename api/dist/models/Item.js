@@ -28,11 +28,34 @@ export class ItemModel {
         return result.rows[0];
     }
     static async findById(id) {
-        const result = await pool.query('SELECT * FROM items WHERE id = $1', [id]);
+        const result = await pool.query('SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL', [id]);
         return result.rows[0] || null;
     }
-    static async findByOwner(ownerId, limit = 100, offset = 0) {
-        const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3', [ownerId, limit, offset]);
+    static async findByOwner(ownerId, limit = 100, offset = 0, filters) {
+        let query = 'SELECT * FROM items WHERE owner_id = $1 AND deleted_at IS NULL';
+        const params = [ownerId];
+        let paramCount = 2;
+        // Add source filter if provided
+        if (filters?.source) {
+            // For email sources, match items that start with "email:" or have type='email'
+            if (filters.source === 'email') {
+                query += ` AND (source LIKE $${paramCount} OR type = $${paramCount + 1})`;
+                params.push('email:%');
+                params.push('email');
+                paramCount += 2;
+            }
+            else {
+                query += ` AND source = $${paramCount++}`;
+                params.push(filters.source);
+            }
+        }
+        // Add attachments filter if provided
+        if (filters?.hasAttachments === true) {
+            query += ` AND attachments IS NOT NULL AND jsonb_array_length(attachments) > 0`;
+        }
+        query += ` ORDER BY created_at DESC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
+        params.push(limit, offset);
+        const result = await pool.query(query, params);
         return result.rows;
     }
     static async update(id, updates) {
@@ -84,15 +107,17 @@ export class ItemModel {
             return await this.findById(id);
         }
         values.push(id);
-        const result = await pool.query(`UPDATE items SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`, values);
+        const result = await pool.query(`UPDATE items SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL RETURNING *`, values);
         return result.rows[0];
     }
     static async delete(id) {
-        const result = await pool.query('DELETE FROM items WHERE id = $1', [id]);
+        // Soft delete: set deleted_at timestamp instead of actually deleting
+        const result = await pool.query('UPDATE items SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL', [id]);
         return result.rowCount !== null && result.rowCount > 0;
     }
     static async findByResendEmailId(resendEmailId) {
         // Search for items where raw JSON contains the resend_email_id
+        // Include deleted items to check if email was previously deleted
         const result = await pool.query(`SELECT * FROM items
        WHERE type = 'email'
        AND raw IS NOT NULL
@@ -101,7 +126,7 @@ export class ItemModel {
         return result.rows[0] || null;
     }
     static async findByOwnerAndType(ownerId, type, limit = 100, offset = 0) {
-        const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND type = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4', [ownerId, type, limit, offset]);
+        const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND type = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $3 OFFSET $4', [ownerId, type, limit, offset]);
         return result.rows;
     }
 }

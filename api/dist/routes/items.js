@@ -287,26 +287,41 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
             }
             // Fetch metadata for the URL
             // For paid bookmark imports, we ensure metadata is fetched
+            // Check if we already have metadata for this URL in existing items
             let linkMetadata = null;
-            try {
-                // Use longer timeout for paid imports (30 seconds)
-                linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url, 3, 30000);
+            // First, check if any existing item with the same URL has complete metadata
+            const existingItemWithMetadata = existingItems.find(existing => existing.url === bookmark.url &&
+                existing.link_metadata &&
+                (existing.link_metadata.title || existing.link_metadata.description || existing.link_metadata.image));
+            if (existingItemWithMetadata?.link_metadata) {
+                // Reuse existing metadata - no need to fetch again
+                linkMetadata = existingItemWithMetadata.link_metadata;
                 if (i < 5) {
-                    console.log(`Fetched metadata for: ${bookmark.url}`, {
-                        hasTitle: !!linkMetadata?.title,
-                        hasDescription: !!linkMetadata?.description,
-                        hasImage: !!linkMetadata?.image,
-                    });
+                    console.log(`Reusing existing metadata for: ${bookmark.url}`);
                 }
             }
-            catch (error) {
-                // Log error but continue - metadata fetch is best effort
-                console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error.message);
-                // Still create item with basic metadata
-                linkMetadata = {
-                    url: bookmark.url,
-                    title: bookmark.title || bookmark.url,
-                };
+            else {
+                // Fetch metadata only if we don't have it
+                try {
+                    // Use longer timeout for paid imports (30 seconds)
+                    linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url, 3, 30000);
+                    if (i < 5) {
+                        console.log(`Fetched metadata for: ${bookmark.url}`, {
+                            hasTitle: !!linkMetadata?.title,
+                            hasDescription: !!linkMetadata?.description,
+                            hasImage: !!linkMetadata?.image,
+                        });
+                    }
+                }
+                catch (error) {
+                    // Log error but continue - metadata fetch is best effort
+                    console.warn(`Failed to fetch metadata for ${bookmark.url}:`, error.message);
+                    // Still create item with basic metadata
+                    linkMetadata = {
+                        url: bookmark.url,
+                        title: bookmark.title || bookmark.url,
+                    };
+                }
             }
             // Use metadata title/description if available, otherwise use bookmark title
             const title = linkMetadata?.title || bookmark.title || bookmark.url;
@@ -447,7 +462,7 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
                     message: 'Bookmark import requires payment for non-premium users',
                     requiresPayment: true,
                     bookmarkCount,
-                    amount: 1000, // $10 in cents
+                    amount: 500, // $5 in cents
                     currency: 'usd',
                 });
             }
@@ -501,7 +516,7 @@ router.get('/count', async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL', [req.user.id]);
+        const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL', [req.user.id]);
         res.json({ count: parseInt(result.rows[0].total, 10) });
     }
     catch (error) {
@@ -517,7 +532,16 @@ router.get('/', async (req, res) => {
         }
         const limit = parseInt(req.query.limit) || 100;
         const offset = parseInt(req.query.offset) || 0;
-        const items = await ItemModel.findByOwner(req.user.id, limit, offset);
+        const source = req.query.source;
+        const hasAttachments = req.query.hasAttachments === 'true' || req.query.hasAttachments === true;
+        const filters = {};
+        if (source) {
+            filters.source = source;
+        }
+        if (hasAttachments) {
+            filters.hasAttachments = true;
+        }
+        const items = await ItemModel.findByOwner(req.user.id, limit, offset, filters);
         res.json(items);
     }
     catch (error) {
@@ -561,8 +585,14 @@ router.get('/:id/metadata', async (req, res) => {
         if (!item.url) {
             return res.status(400).json({ error: 'Item does not have a URL' });
         }
-        // If metadata already exists and has content, return it
-        if (item.link_metadata && (item.link_metadata.title || item.link_metadata.description || item.link_metadata.image)) {
+        // If metadata already exists and is complete, return it immediately
+        // We consider metadata complete if it has a meaningful title (not just the URL) AND (description or image)
+        const existingMetadata = item.link_metadata;
+        const hasTitle = existingMetadata?.title && existingMetadata.title !== item.url && existingMetadata.title.length > 0;
+        const hasDescription = existingMetadata?.description && existingMetadata.description.length > 0;
+        const hasImage = existingMetadata?.image && existingMetadata.image.length > 0;
+        const hasCompleteMetadata = hasTitle && (hasDescription || hasImage);
+        if (hasCompleteMetadata) {
             return res.json(item.link_metadata);
         }
         // Fetch metadata and save it to the database
@@ -788,10 +818,16 @@ router.post('/re-enrich-bookmarks', async (req, res) => {
                             console.log(`Skipping ${item.url} - already has complete metadata`);
                         continue;
                     }
-                    // Fetch metadata
+                    // Fetch metadata only if we don't already have complete metadata saved
                     const fetchedMetadata = await linkMetadataService.fetchMetadata(item.url, 3, 30000);
-                    // Only update if we got meaningful metadata
-                    if (fetchedMetadata && (fetchedMetadata.title || fetchedMetadata.description || fetchedMetadata.image)) {
+                    // Only update if we got meaningful metadata that's complete
+                    // Check if fetched metadata is better than what we have
+                    const hasNewMetadata = fetchedMetadata && (fetchedMetadata.title || fetchedMetadata.description || fetchedMetadata.image);
+                    const newHasTitle = fetchedMetadata?.title && fetchedMetadata.title !== item.url && fetchedMetadata.title.length > 0;
+                    const newHasDescription = fetchedMetadata?.description && fetchedMetadata.description.length > 0;
+                    const newHasImage = fetchedMetadata?.image && fetchedMetadata.image.length > 0;
+                    const newIsComplete = newHasTitle && (newHasDescription || newHasImage);
+                    if (hasNewMetadata && newIsComplete) {
                         await ItemModel.update(item.id, { link_metadata: fetchedMetadata });
                         // Also update title/description if they're missing or using URL
                         const updates = {};
@@ -903,6 +939,11 @@ router.post('/:id/email-summary', async (req, res) => {
         }
         if (!emailBody || emailBody.trim().length === 0) {
             return res.status(400).json({ error: 'Email body is empty' });
+        }
+        // Check if email is too short to summarize (less than 500 characters)
+        const textContent = emailBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (textContent.length < 500) {
+            return res.json({ summary: [] });
         }
         // Generate summary using OpenAI
         const { openAIService } = await import('../services/openai.js');

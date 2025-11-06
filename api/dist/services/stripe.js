@@ -40,14 +40,14 @@ export class StripeService {
     }
     /**
      * Create a payment intent for bookmark import
-     * $10 for up to 555 bookmarks
+     * $5 for up to 555 bookmarks
      */
     async createBookmarkImportPaymentIntent(userId, email, bookmarkCount) {
         // Validate bookmark count
         if (bookmarkCount > 555) {
             throw new Error('Bookmark import limit is 555 bookmarks per payment');
         }
-        const amount = 1000; // $10 in cents
+        const amount = 500; // $5 in cents
         const customerId = await this.getOrCreateCustomer(userId, email);
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.create({
@@ -92,7 +92,7 @@ export class StripeService {
                             name: 'Bookmark Import',
                             description: `Import up to ${bookmarkCount} bookmarks`,
                         },
-                        unit_amount: 1000, // $10 in cents
+                        unit_amount: 500, // $5 in cents
                     },
                     quantity: 1,
                 },

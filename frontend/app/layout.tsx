@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import { Toaster } from 'sonner'
 import './globals.css'
@@ -10,6 +10,12 @@ export const metadata: Metadata = {
   description: 'Capture, search, and organize your knowledge with AI-powered search',
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -17,7 +23,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={`${inter.className} overflow-x-hidden`} suppressHydrationWarning>
         {children}
         <Toaster position="top-right" />
       </body>

@@ -104,11 +104,13 @@ export class SearchService {
     END`;
 
     // Build the query (search all items, not just links)
+    // Filter out deleted items
     const query = `
       SELECT *,
         ${similarityCase} as text_similarity
       FROM items
       WHERE owner_id = $1
+        AND deleted_at IS NULL
         AND (${conditions.join(' OR ')})
       ORDER BY text_similarity DESC, created_at DESC
       LIMIT $${++paramCount}

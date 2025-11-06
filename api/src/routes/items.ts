@@ -563,7 +563,7 @@ router.get('/count', async (req: AuthRequest, res: express.Response) => {
     }
 
     const result = await pool.query(
-      'SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL',
+      'SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL',
       [req.user.id]
     );
     res.json({ count: parseInt(result.rows[0].total, 10) });
@@ -1058,6 +1058,12 @@ router.post('/:id/email-summary', async (req: AuthRequest, res: express.Response
 
     if (!emailBody || emailBody.trim().length === 0) {
       return res.status(400).json({ error: 'Email body is empty' });
+    }
+
+    // Check if email is too short to summarize (less than 500 characters)
+    const textContent = emailBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (textContent.length < 500) {
+      return res.json({ summary: [] });
     }
 
     // Generate summary using OpenAI

@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import multer from 'multer';
 import authRoutes from './routes/auth.js';
 import itemsRoutes from './routes/items.js';
 import searchRoutes from './routes/search.js';
@@ -79,6 +80,37 @@ app.get('/health', (req: express.Request, res: express.Response) => {
 
 // Error handling middleware
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  // Handle Multer errors (file upload errors)
+  if (err instanceof multer.MulterError) {
+    console.error('Multer error:', err);
+
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        error: 'File too large',
+        details: 'The file you are trying to upload exceeds the maximum size limit of 50MB. Please choose a smaller file.'
+      });
+    }
+
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({
+        error: 'Too many files',
+        details: 'You can upload a maximum of 10 files at once.'
+      });
+    }
+
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      return res.status(400).json({
+        error: 'Unexpected file field',
+        details: 'The file field name is incorrect. Please use "attachments" for file uploads.'
+      });
+    }
+
+    return res.status(400).json({
+      error: 'File upload error',
+      details: err.message || 'An error occurred while uploading the file.'
+    });
+  }
+
   // Handle body parser errors (wrong Content-Type)
   if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) {
     console.error('Body parsing error:', err.message);

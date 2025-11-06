@@ -62,7 +62,7 @@ export function SearchBar() {
   }, []);
 
   return (
-    <div ref={searchRef} className="relative w-full max-w-3xl mx-auto">
+    <div ref={searchRef} className="relative w-full max-w-full sm:max-w-3xl mx-auto">
       <div className="relative">
         <Input
           type="text"
@@ -70,14 +70,14 @@ export function SearchBar() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => query.length >= 2 && setShowResults(true)}
-          className="w-full h-14 text-lg font-medium px-6 py-4 rounded-full border-2 border-gray-300 shadow-lg hover:shadow-xl focus-visible:border-blue-500 focus-visible:shadow-xl transition-all"
+          className="w-full h-12 sm:h-14 text-base sm:text-lg font-medium px-4 sm:px-6 py-3 sm:py-4 rounded-full border-2 border-gray-300 shadow-lg hover:shadow-xl focus-visible:border-blue-500 focus-visible:shadow-xl transition-all"
           style={{
-            fontSize: '18px',
+            fontSize: '16px',
             fontWeight: '500',
           }}
         />
         {loading && (
-          <div className="absolute right-6 top-1/2 -translate-y-1/2">
+          <div className="absolute right-4 sm:right-6 top-1/2 -translate-y-1/2">
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-600"></div>
           </div>
         )}

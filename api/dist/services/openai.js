@@ -263,6 +263,10 @@ Content: ${contentPreview}`;
         }
         // Strip HTML tags if present and reduce content length (3000 instead of 4000)
         const textContent = emailBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        // Do not summarize emails shorter than 500 characters
+        if (textContent.length < 500) {
+            return [];
+        }
         const contentPreview = textContent.substring(0, 3000);
         const prompt = `Summarize into 3 bullet points (JSON array only):
 ["point 1", "point 2", "point 3"]

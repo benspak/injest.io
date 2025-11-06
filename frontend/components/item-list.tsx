@@ -422,9 +422,9 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
         {items.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">No items yet</p>
+          <p className="text-center text-muted-foreground py-8 md:col-span-2">No items yet</p>
         ) : (
           items.map((item) => {
             const display = getItemDisplay(item);
@@ -500,7 +500,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-blue-600 hover:underline break-all flex items-center gap-1"
+                          className="text-xs text-blue-600 hover:underline break-words overflow-wrap-anywhere flex items-center gap-1"
                         >
                           <svg
                             className="w-3 h-3 flex-shrink-0"
@@ -538,17 +538,17 @@ export function ItemList({ items, onDelete }: ItemListProps) {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden w-[calc(100vw-2rem)] sm:w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl left-4 right-4 sm:left-[50%] sm:right-auto translate-x-0 sm:translate-x-[-50%] top-4 sm:top-[50%] translate-y-0 sm:translate-y-[-50%] p-4 sm:p-6">
           <DialogHeader>
-            <div>
-              <DialogTitle>
+            <div className="overflow-hidden">
+              <DialogTitle className="pr-8 break-words">
                 {loadingDetails
                   ? 'Loading...'
                   : selectedItem && itemDetails
                     ? getItemDisplay(itemDetails).title || itemDetails.title || 'Item Details'
                     : 'Item Details'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="break-words">
                 {loadingDetails
                   ? 'Please wait while we load the item details.'
                   : selectedItem && itemDetails
@@ -562,7 +562,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
           ) : selectedItem && itemDetails ? (
             <>
 
-              <div className="space-y-4 mt-4">
+              <div className="space-y-4 mt-4 overflow-x-hidden">
                 {/* Show URL metadata in dialog if available */}
                 {itemDetails.url && (itemDetails.link_metadata || linkMetadata[itemDetails.id]) && (
                   <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
@@ -607,7 +607,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                               href={metadata?.url || itemDetails.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline break-all flex items-center gap-2 group"
+                              className="text-sm text-blue-600 hover:underline break-words overflow-wrap-anywhere flex items-center gap-2 group"
                             >
                               <svg
                                 className="w-4 h-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform"
@@ -771,7 +771,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                           href={itemDetails.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline break-all"
+                          className="text-sm text-blue-600 hover:underline break-words overflow-wrap-anywhere"
                         >
                           {itemDetails.url}
                         </a>
@@ -931,8 +931,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                     <Button
                       variant="destructive"
                       onClick={() => {
-                        if (selectedItem && confirm('Are you sure you want to delete this item?')) {
-                          onDelete(selectedItem.id);
+                        if (itemDetails && confirm('Are you sure you want to delete this item?')) {
+                          onDelete(itemDetails.id);
                           handleCloseDialog();
                         }
                       }}

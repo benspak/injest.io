@@ -66,7 +66,23 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         onItemCreated();
       }
     } catch (error: any) {
-      setMessage(error.message || 'Failed to create item');
+      // Extract error message from API response
+      let errorMessage = 'Failed to create item';
+
+      if (error.message) {
+        errorMessage = error.message;
+
+        // Provide more user-friendly messages for specific errors
+        if (errorMessage.includes('File too large') || errorMessage.includes('LIMIT_FILE_SIZE')) {
+          errorMessage = 'File too large. Maximum file size is 50MB. Please choose a smaller file.';
+        } else if (errorMessage.includes('Too many files') || errorMessage.includes('LIMIT_FILE_COUNT')) {
+          errorMessage = 'Too many files. You can upload a maximum of 10 files at once.';
+        } else if (errorMessage.includes('File upload error')) {
+          errorMessage = 'File upload failed. Please try again or choose a different file.';
+        }
+      }
+
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -84,7 +100,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         <CardTitle>Capture New Item</CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           <Input
             type="text"
             placeholder="Title (optional)"

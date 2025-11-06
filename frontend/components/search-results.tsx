@@ -472,17 +472,17 @@ export function SearchResults({ results }: SearchResultsProps) {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden w-auto sm:w-full max-w-[calc(100vw-1rem)] sm:max-w-2xl left-2 right-2 sm:left-[50%] sm:right-auto translate-x-0 sm:translate-x-[-50%] top-4 sm:top-[50%] translate-y-0 sm:translate-y-[-50%] p-4 sm:p-6">
           <DialogHeader>
-            <div>
-              <DialogTitle>
+            <div className="overflow-hidden">
+              <DialogTitle className="pr-8 break-words">
                 {loadingDetails
                   ? 'Loading...'
                   : selectedItem && itemDetails
                     ? getItemDisplay(itemDetails).title || itemDetails.title || 'Item Details'
                     : 'Item Details'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="break-words">
                 {loadingDetails
                   ? 'Please wait while we load the item details.'
                   : selectedItem && itemDetails
@@ -496,7 +496,7 @@ export function SearchResults({ results }: SearchResultsProps) {
           ) : selectedItem && itemDetails ? (
             <>
 
-              <div className="space-y-4 mt-4">
+              <div className="space-y-4 mt-4 overflow-x-hidden">
                 {/* Show URL metadata in dialog if available */}
                 {itemDetails.url && (itemDetails.link_metadata || linkMetadata[itemDetails.id]) && (
                   <div className="border rounded-lg overflow-hidden bg-white shadow-sm">

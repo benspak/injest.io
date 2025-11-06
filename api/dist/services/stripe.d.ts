@@ -11,7 +11,7 @@ export declare class StripeService {
     getOrCreateCustomer(userId: string, email: string): Promise<string>;
     /**
      * Create a payment intent for bookmark import
-     * $10 for up to 555 bookmarks
+     * $5 for up to 555 bookmarks
      */
     createBookmarkImportPaymentIntent(userId: string, email: string, bookmarkCount: number): Promise<Stripe.PaymentIntent>;
     /**

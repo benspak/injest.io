@@ -77,6 +77,9 @@ export class RateLimiter {
         return this.queue.length;
     }
 }
-// Create a singleton rate limiter for OpenAI (500 requests per minute)
-export const openAIRateLimiter = new RateLimiter(500, 60000);
+// Create a singleton rate limiter for OpenAI
+// Conservative limit: 400 requests per minute to stay well below OpenAI's limits
+// OpenAI's limits vary by tier, but 400 RPM leaves headroom
+// This is our internal limit - OpenAI's actual limits may be different
+export const openAIRateLimiter = new RateLimiter(400, 60000);
 //# sourceMappingURL=rateLimiter.js.map

@@ -15,6 +15,7 @@ export interface Item {
   embedding_id?: string;
   link_metadata?: any; // JSONB field for link preview metadata
   notes?: string; // User notes
+  deleted_at?: Date | null; // Soft delete timestamp
   created_at: Date;
   updated_at: Date;
 }
@@ -69,7 +70,7 @@ export class ItemModel {
 
   static async findById(id: string): Promise<Item | null> {
     const result = await pool.query(
-      'SELECT * FROM items WHERE id = $1',
+      'SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL',
       [id]
     );
     return result.rows[0] || null;
@@ -81,7 +82,7 @@ export class ItemModel {
     offset: number = 0,
     filters?: { source?: string; hasAttachments?: boolean }
   ): Promise<Item[]> {
-    let query = 'SELECT * FROM items WHERE owner_id = $1';
+    let query = 'SELECT * FROM items WHERE owner_id = $1 AND deleted_at IS NULL';
     const params: any[] = [ownerId];
     let paramCount = 2;
 
@@ -164,15 +165,16 @@ export class ItemModel {
 
     values.push(id);
     const result = await pool.query(
-      `UPDATE items SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`,
+      `UPDATE items SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL RETURNING *`,
       values
     );
     return result.rows[0];
   }
 
   static async delete(id: string): Promise<boolean> {
+    // Soft delete: set deleted_at timestamp instead of actually deleting
     const result = await pool.query(
-      'DELETE FROM items WHERE id = $1',
+      'UPDATE items SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL',
       [id]
     );
     return result.rowCount !== null && result.rowCount > 0;
@@ -180,6 +182,7 @@ export class ItemModel {
 
   static async findByResendEmailId(resendEmailId: string): Promise<Item | null> {
     // Search for items where raw JSON contains the resend_email_id
+    // Include deleted items to check if email was previously deleted
     const result = await pool.query(
       `SELECT * FROM items
        WHERE type = 'email'
@@ -193,7 +196,7 @@ export class ItemModel {
 
   static async findByOwnerAndType(ownerId: string, type: string, limit: number = 100, offset: number = 0): Promise<Item[]> {
     const result = await pool.query(
-      'SELECT * FROM items WHERE owner_id = $1 AND type = $2 ORDER BY created_at DESC LIMIT $3 OFFSET $4',
+      'SELECT * FROM items WHERE owner_id = $1 AND type = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $3 OFFSET $4',
       [ownerId, type, limit, offset]
     );
     return result.rows;

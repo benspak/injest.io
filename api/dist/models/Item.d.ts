@@ -13,6 +13,7 @@ export interface Item {
     embedding_id?: string;
     link_metadata?: any;
     notes?: string;
+    deleted_at?: Date | null;
     created_at: Date;
     updated_at: Date;
 }
@@ -33,7 +34,10 @@ export interface CreateItemInput {
 export declare class ItemModel {
     static create(input: CreateItemInput): Promise<Item>;
     static findById(id: string): Promise<Item | null>;
-    static findByOwner(ownerId: string, limit?: number, offset?: number): Promise<Item[]>;
+    static findByOwner(ownerId: string, limit?: number, offset?: number, filters?: {
+        source?: string;
+        hasAttachments?: boolean;
+    }): Promise<Item[]>;
     static update(id: string, updates: Partial<Item>): Promise<Item>;
     static delete(id: string): Promise<boolean>;
     static findByResendEmailId(resendEmailId: string): Promise<Item | null>;
