@@ -90,6 +90,65 @@ router.get('/:id/files/:filename', async (req, res) => {
     }
 });
 router.use(authMiddleware);
+function decodeOriginalFilename(originalname) {
+    if (!originalname) {
+        return originalname;
+    }
+    try {
+        // Interpret the raw string as latin1/binary, then decode to UTF-8.
+        // This fixes filenames where browsers encoded UTF-8 bytes that were
+        // later interpreted as latin1 (e.g., "â¯" instead of a narrow space).
+        const decoded = Buffer.from(originalname, 'binary').toString('utf8');
+        // If decoding produced replacement characters, keep the original string.
+        if (decoded.includes('\uFFFD')) {
+            return originalname;
+        }
+        return decoded.normalize('NFC');
+    }
+    catch {
+        return originalname;
+    }
+}
+function normalizeAttachments(attachments) {
+    if (!attachments) {
+        return attachments;
+    }
+    let parsedAttachments = attachments;
+    if (typeof attachments === 'string') {
+        try {
+            parsedAttachments = JSON.parse(attachments);
+        }
+        catch {
+            return attachments;
+        }
+    }
+    if (!Array.isArray(parsedAttachments)) {
+        return parsedAttachments;
+    }
+    return parsedAttachments.map((attachment) => {
+        if (!attachment || typeof attachment !== 'object') {
+            return attachment;
+        }
+        if (typeof attachment.originalname === 'string') {
+            const decodedOriginal = decodeOriginalFilename(attachment.originalname);
+            return {
+                ...attachment,
+                originalname: decodedOriginal,
+            };
+        }
+        return attachment;
+    });
+}
+function normalizeItem(item) {
+    const normalizedAttachments = normalizeAttachments(item.attachments);
+    if (normalizedAttachments === item.attachments) {
+        return item;
+    }
+    return {
+        ...item,
+        attachments: normalizedAttachments,
+    };
+}
 // Configure multer for file uploads (Multer 2.x compatible)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -102,6 +161,10 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => {
         // Generate a unique filename using UUID to ensure uniqueness
         // Preserve the original file extension for proper file type detection
+        const decodedOriginalName = decodeOriginalFilename(file.originalname);
+        if (decodedOriginalName !== file.originalname) {
+            file.originalname = decodedOriginalName;
+        }
         const ext = path.extname(file.originalname);
         const baseName = path.basename(file.originalname, ext);
         // Use crypto.randomUUID() if available (Node 14.17+), otherwise fall back to randomBytes
@@ -297,7 +360,7 @@ async function processSingleFile(file, userId, sharedNotes, sharedTags) {
         indexingService.indexItem(item.id).catch((indexError) => {
             console.error(`Background indexing failed for item ${item.id}:`, indexError);
         });
-        return { item };
+        return { item: normalizeItem(item) };
     }
     catch (error) {
         console.error(`Error processing file ${file.originalname}:`, error);
@@ -573,7 +636,7 @@ router.post('/', upload.array('attachments', 500), async (req, res, next) => {
             console.error(`Background indexing failed for item ${item.id}:`, indexError);
             // Don't fail the request if indexing fails
         });
-        res.status(201).json(item);
+        res.status(201).json(normalizeItem(item));
     }
     catch (error) {
         // Handle multer errors
@@ -909,7 +972,7 @@ router.get('/', async (req, res) => {
             filters.fileType = fileType;
         }
         const items = await ItemModel.findByOwner(req.user.id, limit, offset, filters);
-        res.json(items);
+        res.json(items.map((item) => normalizeItem(item)));
     }
     catch (error) {
         console.error('Error listing items:', error);
@@ -929,7 +992,7 @@ router.get('/:id', async (req, res) => {
         if (item.owner_id !== req.user.id) {
             return res.status(403).json({ error: 'Forbidden' });
         }
-        res.json(item);
+        res.json(normalizeItem(item));
     }
     catch (error) {
         console.error('Error getting item:', error);
@@ -1043,7 +1106,7 @@ router.patch('/:id', async (req, res) => {
                 console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
             });
         }
-        res.json(updatedItem);
+        res.json(normalizeItem(updatedItem));
     }
     catch (error) {
         console.error('Error updating item:', error);
@@ -1072,7 +1135,7 @@ router.patch('/:id/notes', async (req, res) => {
         indexingService.indexItem(item.id).catch((indexError) => {
             console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
         });
-        res.json(updatedItem);
+        res.json(normalizeItem(updatedItem));
     }
     catch (error) {
         console.error('Error updating item notes:', error);
