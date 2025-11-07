@@ -55,16 +55,22 @@ router.get('/:id/files/:filename', async (req: AuthRequest, res: express.Respons
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    if (item.owner_id !== req.user.id) {
+    const normalizedItem = normalizeItem(item);
+
+    if (normalizedItem.owner_id !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    if (!item.attachments || !Array.isArray(item.attachments) || item.attachments.length === 0) {
+    if (
+      !normalizedItem.attachments ||
+      !Array.isArray(normalizedItem.attachments) ||
+      normalizedItem.attachments.length === 0
+    ) {
       return res.status(400).json({ error: 'Item does not have attachments' });
     }
 
     // Find file info from attachments array
-    const fileInfo = item.attachments.find((f: any) => f.filename === req.params.filename);
+    const fileInfo = normalizedItem.attachments.find((f: any) => f.filename === req.params.filename);
     if (!fileInfo) {
       return res.status(404).json({ error: 'File not found in item' });
     }

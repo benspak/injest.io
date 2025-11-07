@@ -14,9 +14,9 @@ interface Attachment {
   [key: string]: any;
 }
 
-interface ItemRecord extends Item {
-  attachments: Attachment[] | string | null;
-}
+type ItemRecord = Omit<Item, 'attachments'> & {
+  attachments?: Attachment[] | string | null;
+};
 
 type ScriptOptions = {
   dryRun: boolean;
@@ -87,7 +87,7 @@ function isImageAttachment(attachment: Attachment): boolean {
   return IMAGE_EXTENSIONS.includes(ext);
 }
 
-function parseAttachments(rawAttachments: Attachment[] | string | null): Attachment[] {
+function parseAttachments(rawAttachments: Attachment[] | string | null | undefined): Attachment[] {
   if (!rawAttachments) {
     return [];
   }
