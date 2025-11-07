@@ -501,6 +501,14 @@ export default function DashboardPage() {
                   >
                     Download X (Twitter) Data
                   </a>
+                  <a
+                    href="https://takeout.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                  >
+                    Google Takeout
+                  </a>
                 </div>
               </CardContent>
             </Card>
