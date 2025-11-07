@@ -11,10 +11,20 @@ interface CodeVerifierStore {
   expiresAt: number;
 }
 
+interface PendingXComLink {
+  access_token: string;
+  refresh_token?: string;
+  expires_in?: number;
+  user_id: string;
+  username: string;
+  expiresAt: number;
+}
+
 // In-memory store for code verifiers (keyed by userId or sessionId)
 // In production, consider using Redis for distributed systems
 const codeVerifierStore = new Map<string, CodeVerifierStore>();
 const loginVerifierStore = new Map<string, CodeVerifierStore>();
+const pendingXComLinks = new Map<string, PendingXComLink>();
 
 // Clean up expired verifiers every 10 minutes
 setInterval(() => {
@@ -27,6 +37,11 @@ setInterval(() => {
   for (const [key, store] of loginVerifierStore.entries()) {
     if (store.expiresAt < now) {
       loginVerifierStore.delete(key);
+    }
+  }
+  for (const [key, link] of pendingXComLinks.entries()) {
+    if (link.expiresAt < now) {
+      pendingXComLinks.delete(key);
     }
   }
 }, 10 * 60 * 1000);
@@ -230,6 +245,14 @@ export class XComOAuthService {
     const tokenData = data as { scope?: string; access_token: string; refresh_token?: string; expires_in?: number; token_type?: string };
     if (tokenData.scope) {
       console.log('Token exchange successful. Scopes granted:', tokenData.scope);
+      // Warn if tweet.write scope is missing
+      const grantedScopes = tokenData.scope.split(' ');
+      if (!grantedScopes.includes('tweet.write')) {
+        console.warn('WARNING: tweet.write scope not granted. Scopes granted:', tokenData.scope);
+        console.warn('This will prevent creating tweets. Ensure the X.com app has "Read and write" permissions enabled in the developer portal.');
+      }
+    } else {
+      console.warn('WARNING: No scopes returned in token response');
     }
 
     return tokenData;
@@ -394,6 +417,37 @@ export class XComOAuthService {
       username: userData.data.username || userData.data.name || 'unknown',
       name: userData.data.name,
     };
+  }
+
+  /**
+   * Store pending X.com link data temporarily (for linking to existing accounts)
+   */
+  storePendingXComLink(
+    linkId: string,
+    tokens: { access_token: string; refresh_token?: string; expires_in?: number },
+    userInfo: { id: string; username: string }
+  ): void {
+    pendingXComLinks.set(linkId, {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      expires_in: tokens.expires_in,
+      user_id: userInfo.id,
+      username: userInfo.username,
+      expiresAt: Date.now() + 30 * 60 * 1000, // 30 minutes
+    });
+  }
+
+  /**
+   * Retrieve and remove pending X.com link data
+   */
+  retrievePendingXComLink(linkId: string): PendingXComLink | null {
+    const link = pendingXComLinks.get(linkId);
+    if (!link || link.expiresAt < Date.now()) {
+      pendingXComLinks.delete(linkId);
+      return null;
+    }
+    pendingXComLinks.delete(linkId);
+    return link;
   }
 }
 

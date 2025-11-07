@@ -11,6 +11,7 @@ const router = express.Router();
 /**
  * GET /api/xcom/auth
  * Initiate OAuth 2.0 PKCE flow
+ * Returns JSON with authUrl when called via fetch, redirects when accessed directly
  */
 router.get('/auth', authMiddleware, async (req: AuthRequest, res: express.Response) => {
   try {
@@ -29,7 +30,16 @@ router.get('/auth', authMiddleware, async (req: AuthRequest, res: express.Respon
     // Generate authorization URL
     const authUrl = oauthService.getAuthorizationUrl(req.user.id, codeChallenge, state);
 
-    res.redirect(authUrl);
+    // Check if request wants JSON (via fetch with Accept header or ?format=json)
+    const acceptsJson = req.headers.accept?.includes('application/json') || req.query.format === 'json';
+
+    if (acceptsJson) {
+      // Return JSON for fetch requests
+      res.json({ authUrl });
+    } else {
+      // Redirect for direct browser access (backward compatibility)
+      res.redirect(authUrl);
+    }
   } catch (error: any) {
     console.error('Error initiating X.com OAuth:', error);
     res.status(500).json({

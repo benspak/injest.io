@@ -24,14 +24,19 @@ export declare class XComService {
     constructor(userAccessToken?: string);
     /**
      * Upload media (image) to X.com
-     * Uses OAuth 2.0 v2 API endpoint when user token is available (requires media.write scope),
-     * otherwise falls back to OAuth 1.0a v1.1 endpoint
+     * Note: The v1.1 media upload endpoint requires OAuth 1.0a signing, even with OAuth 2.0 tokens.
+     * We prioritize OAuth 1.0a credentials if available, otherwise try OAuth 2.0 (may fail with 403).
      */
     uploadMedia(imageBuffer: Buffer, mimeType: string): Promise<string>;
     /**
-     * Upload media using OAuth 2.0 and X.com API v2 endpoint
-     * Requires media.write scope in the OAuth token
-     * Uses chunked upload process: INIT -> APPEND -> FINALIZE
+     * Upload media using OAuth 1.0a (required for v1.1 media upload endpoint)
+     */
+    private uploadMediaOAuth1;
+    /**
+     * Upload media using OAuth 2.0 Bearer token (experimental - may not work)
+     * Note: X.com's v1.1 media upload endpoint typically requires OAuth 1.0a signing.
+     * This method attempts OAuth 2.0 but will likely fail with 403 Forbidden.
+     * Use uploadMediaOAuth1 instead when OAuth 1.0a credentials are available.
      */
     private uploadMediaOAuth2;
     /**
@@ -39,6 +44,11 @@ export declare class XComService {
      * Uses OAuth 2.0 Bearer token (user token preferred, falls back to static)
      */
     createPost(text: string, mediaId?: string): Promise<CreatePostResponse>;
+    /**
+     * Verify token is valid and has necessary scopes
+     * This is a helper method to provide better error messages
+     */
+    private verifyTokenScopes;
 }
 /**
  * Get XComService instance for a specific user

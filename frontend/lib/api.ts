@@ -489,8 +489,19 @@ class ApiClient {
 
   // X.com OAuth
   async initiateXComAuth(): Promise<void> {
-    // Redirect to backend auth endpoint which will redirect to X.com
-    window.location.href = `${this.baseUrl}/api/xcom/auth`;
+    // Make authenticated request to get auth URL, then redirect
+    try {
+      const response = await this.request<{ authUrl: string }>('/api/xcom/auth?format=json');
+      if (response.authUrl) {
+        window.location.href = response.authUrl;
+      } else {
+        throw new Error('No authorization URL received');
+      }
+    } catch (error: any) {
+      // Fallback: try direct redirect (may fail if not authenticated)
+      console.error('Error initiating X.com auth:', error);
+      throw error;
+    }
   }
 
   async getXComStatus(): Promise<{ connected: boolean; username?: string; user_id?: string }> {
@@ -515,6 +526,21 @@ class ApiClient {
     return this.request<{ success: boolean; postId: string; text: string }>('/api/xcom/post', {
       method: 'POST',
       body: formData,
+    });
+  }
+
+  // X.com Account Linking
+  async linkXComAccount(linkId: string, email: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/api/auth/xcom/link', {
+      method: 'POST',
+      body: JSON.stringify({ linkId, email }),
+    });
+  }
+
+  async createAccountWithXCom(linkId: string): Promise<{ token: string }> {
+    return this.request<{ token: string }>('/api/auth/xcom/create-account', {
+      method: 'POST',
+      body: JSON.stringify({ linkId }),
     });
   }
 }

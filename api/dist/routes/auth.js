@@ -174,6 +174,7 @@ router.get('/xcom/callback', async (req, res) => {
         const userResult = await pool.query('SELECT * FROM users WHERE xcom_user_id = $1', [userInfo.id]);
         let user;
         if (userResult.rows.length > 0) {
+            // User already exists with this X.com account
             user = userResult.rows[0];
             // Update tokens if they exist
             await UserModel.updateXComTokens(user.id, {
@@ -183,31 +184,178 @@ router.get('/xcom/callback', async (req, res) => {
                 user_id: userInfo.id,
                 username: userInfo.username,
             });
+            // Generate JWT for authenticated session
+            const sessionToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+            // Redirect to frontend with token
+            res.redirect(`${FRONTEND_URL}/auth/verify?token=${sessionToken}`);
         }
         else {
-            // Create new user with X.com username as email placeholder
-            // In production, you might want to request email scope or use a different approach
-            const email = `${userInfo.username}@x.com`; // Placeholder email
-            user = await UserModel.create(email);
-            // Update with X.com info
-            await UserModel.updateXComTokens(user.id, {
-                access_token: tokens.access_token,
-                refresh_token: tokens.refresh_token,
-                expires_in: tokens.expires_in,
-                user_id: userInfo.id,
-                username: userInfo.username,
-            });
-            // Auto-verify users who login via X.com
-            await UserModel.verifyEmail(user.id);
+            // New X.com login - check if user wants to link to existing account
+            // Store X.com tokens temporarily and redirect to linking page
+            const linkId = crypto.randomBytes(16).toString('hex');
+            oauthService.storePendingXComLink(linkId, tokens, userInfo);
+            // Redirect to frontend linking page
+            res.redirect(`${FRONTEND_URL}/auth/xcom-link?linkId=${linkId}&username=${encodeURIComponent(userInfo.username)}`);
         }
-        // Generate JWT for authenticated session
-        const sessionToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        // Redirect to frontend with token
-        res.redirect(`${FRONTEND_URL}/auth/verify?token=${sessionToken}`);
     }
     catch (error) {
         console.error('Error handling X.com login callback:', error);
         res.redirect(`${FRONTEND_URL}/login?error=${encodeURIComponent(error.message || 'xcom_login_failed')}`);
+    }
+});
+/**
+ * POST /api/auth/xcom/link
+ * Link X.com account to existing email account
+ * Sends a magic link to the email to verify and link accounts
+ */
+router.post('/xcom/link', async (req, res) => {
+    try {
+        const { linkId, email } = req.body;
+        if (!linkId || !email) {
+            return res.status(400).json({ error: 'Link ID and email are required' });
+        }
+        const oauthService = getXComOAuthService();
+        const pendingLink = oauthService.retrievePendingXComLink(linkId);
+        if (!pendingLink) {
+            return res.status(400).json({ error: 'Invalid or expired link ID' });
+        }
+        // Check if account with this email exists
+        const existingUser = await UserModel.findByEmail(email);
+        if (!existingUser) {
+            return res.status(404).json({ error: 'No account found with this email address' });
+        }
+        // Check if this X.com account is already linked to another user
+        const existingXComUser = await pool.query('SELECT * FROM users WHERE xcom_user_id = $1 AND id != $2', [pendingLink.user_id, existingUser.id]);
+        if (existingXComUser.rows.length > 0) {
+            return res.status(400).json({ error: 'This X.com account is already linked to another account' });
+        }
+        // Send magic link with linkId embedded in token for verification
+        const linkToken = jwt.sign({
+            userId: existingUser.id,
+            email: existingUser.email,
+            linkId,
+            xcomUserId: pendingLink.user_id,
+        }, JWT_SECRET, { expiresIn: '15m' });
+        // Store pending link data again with the linkToken as key (in case email takes time)
+        oauthService.storePendingXComLink(linkToken, {
+            access_token: pendingLink.access_token,
+            refresh_token: pendingLink.refresh_token,
+            expires_in: pendingLink.expires_in,
+        }, {
+            id: pendingLink.user_id,
+            username: pendingLink.username,
+        });
+        const magicLink = `${FRONTEND_URL}/auth/xcom-verify-link?token=${linkToken}`;
+        await emailService.sendMagicLink(email, magicLink);
+        res.json({
+            message: 'Verification email sent. Please check your email to complete linking your X.com account.',
+        });
+    }
+    catch (error) {
+        console.error('Error linking X.com account:', error);
+        res.status(500).json({ error: 'Failed to link X.com account', details: error.message });
+    }
+});
+/**
+ * GET /api/auth/xcom-verify-link
+ * Verify and complete linking X.com account to existing account
+ */
+router.get('/xcom-verify-link', async (req, res) => {
+    try {
+        const { token } = req.query;
+        if (!token || typeof token !== 'string') {
+            return res.redirect(`${FRONTEND_URL}/login?error=invalid_token`);
+        }
+        const decoded = jwt.verify(token, JWT_SECRET);
+        if (!decoded.linkId && !decoded.xcomUserId) {
+            // Regular magic link token, not for X.com linking
+            return res.redirect(`${FRONTEND_URL}/auth/verify?token=${token}`);
+        }
+        const oauthService = getXComOAuthService();
+        const pendingLink = oauthService.retrievePendingXComLink(token);
+        if (!pendingLink) {
+            return res.redirect(`${FRONTEND_URL}/login?error=expired_link`);
+        }
+        // Get the user
+        const user = await UserModel.findById(decoded.userId);
+        if (!user) {
+            return res.redirect(`${FRONTEND_URL}/login?error=user_not_found`);
+        }
+        // Verify email if not already verified
+        if (!user.verified) {
+            await UserModel.verifyEmail(user.id);
+        }
+        // Link X.com account to this user
+        await UserModel.updateXComTokens(user.id, {
+            access_token: pendingLink.access_token,
+            refresh_token: pendingLink.refresh_token,
+            expires_in: pendingLink.expires_in,
+            user_id: pendingLink.user_id,
+            username: pendingLink.username,
+        });
+        // Generate JWT for authenticated session
+        const sessionToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        // Redirect to verify page to set token, then dashboard
+        res.redirect(`${FRONTEND_URL}/auth/verify?token=${sessionToken}&xcom_linked=true&username=${encodeURIComponent(pendingLink.username)}`);
+    }
+    catch (error) {
+        if (error instanceof jwt.JsonWebTokenError) {
+            return res.redirect(`${FRONTEND_URL}/login?error=invalid_or_expired_token`);
+        }
+        console.error('Error verifying X.com link:', error);
+        res.redirect(`${FRONTEND_URL}/login?error=verification_failed`);
+    }
+});
+/**
+ * POST /api/auth/xcom/create-account
+ * Create a new account with X.com login (skip email linking)
+ */
+router.post('/xcom/create-account', async (req, res) => {
+    try {
+        const { linkId } = req.body;
+        if (!linkId) {
+            return res.status(400).json({ error: 'Link ID is required' });
+        }
+        const oauthService = getXComOAuthService();
+        const pendingLink = oauthService.retrievePendingXComLink(linkId);
+        if (!pendingLink) {
+            return res.status(400).json({ error: 'Invalid or expired link ID' });
+        }
+        // Check if this X.com account is already linked
+        const existingUser = await pool.query('SELECT * FROM users WHERE xcom_user_id = $1', [pendingLink.user_id]);
+        if (existingUser.rows.length > 0) {
+            // Account already exists, just log them in
+            const user = existingUser.rows[0];
+            await UserModel.updateXComTokens(user.id, {
+                access_token: pendingLink.access_token,
+                refresh_token: pendingLink.refresh_token,
+                expires_in: pendingLink.expires_in,
+                user_id: pendingLink.user_id,
+                username: pendingLink.username,
+            });
+            const sessionToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+            return res.json({ token: sessionToken });
+        }
+        // Create new user with X.com username as email placeholder
+        const email = `${pendingLink.username}@x.com`;
+        const user = await UserModel.create(email);
+        // Update with X.com info
+        await UserModel.updateXComTokens(user.id, {
+            access_token: pendingLink.access_token,
+            refresh_token: pendingLink.refresh_token,
+            expires_in: pendingLink.expires_in,
+            user_id: pendingLink.user_id,
+            username: pendingLink.username,
+        });
+        // Auto-verify users who login via X.com
+        await UserModel.verifyEmail(user.id);
+        // Generate JWT for authenticated session
+        const sessionToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        res.json({ token: sessionToken });
+    }
+    catch (error) {
+        console.error('Error creating account with X.com:', error);
+        res.status(500).json({ error: 'Failed to create account', details: error.message });
     }
 });
 export default router;

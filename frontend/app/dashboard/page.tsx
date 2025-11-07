@@ -86,11 +86,17 @@ export default function DashboardPage() {
     // Check for OAuth callback parameters in URL
     const params = new URLSearchParams(window.location.search);
     const xcomConnected = params.get('xcom_connected');
+    const xcomLinked = params.get('xcom_linked');
     const xcomError = params.get('xcom_error');
     const username = params.get('username');
 
     if (xcomConnected === 'true') {
       toast.success(`Successfully connected to X.com as @${username || 'user'}!`);
+      checkXComStatus();
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
+    } else if (xcomLinked === 'true') {
+      toast.success(`Successfully linked X.com account as @${username || 'user'}!`);
       checkXComStatus();
       // Clean up URL
       window.history.replaceState({}, '', '/dashboard');

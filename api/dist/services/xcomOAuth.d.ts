@@ -2,6 +2,14 @@
  * X.com OAuth 2.0 PKCE Service
  * Handles OAuth 2.0 authentication flow with PKCE
  */
+interface PendingXComLink {
+    access_token: string;
+    refresh_token?: string;
+    expires_in?: number;
+    user_id: string;
+    username: string;
+    expiresAt: number;
+}
 export declare class XComOAuthService {
     private clientId;
     private clientSecret;
@@ -85,6 +93,22 @@ export declare class XComOAuthService {
         username: string;
         name?: string;
     }>;
+    /**
+     * Store pending X.com link data temporarily (for linking to existing accounts)
+     */
+    storePendingXComLink(linkId: string, tokens: {
+        access_token: string;
+        refresh_token?: string;
+        expires_in?: number;
+    }, userInfo: {
+        id: string;
+        username: string;
+    }): void;
+    /**
+     * Retrieve and remove pending X.com link data
+     */
+    retrievePendingXComLink(linkId: string): PendingXComLink | null;
 }
 export declare function getXComOAuthService(): XComOAuthService;
+export {};
 //# sourceMappingURL=xcomOAuth.d.ts.map

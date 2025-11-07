@@ -30,18 +30,33 @@ export class XComService {
     }
     /**
      * Upload media (image) to X.com
-     * Uses OAuth 2.0 v2 API endpoint when user token is available (requires media.write scope),
-     * otherwise falls back to OAuth 1.0a v1.1 endpoint
+     * Note: The v1.1 media upload endpoint requires OAuth 1.0a signing, even with OAuth 2.0 tokens.
+     * We prioritize OAuth 1.0a credentials if available, otherwise try OAuth 2.0 (may fail with 403).
      */
     async uploadMedia(imageBuffer, mimeType) {
-        // Use OAuth 2.0 v2 API endpoint if user token is available
+        // Check if we have OAuth 1.0a credentials - use them for media upload (required for v1.1 endpoint)
+        if (this.apiKey && this.apiSecret && this.accessToken && this.accessTokenSecret) {
+            return this.uploadMediaOAuth1(imageBuffer, mimeType);
+        }
+        // If no OAuth 1.0a credentials, try OAuth 2.0 (may not work for v1.1 endpoint)
         if (this.userAccessToken) {
-            return this.uploadMediaOAuth2(imageBuffer, mimeType);
+            try {
+                return await this.uploadMediaOAuth2(imageBuffer, mimeType);
+            }
+            catch (error) {
+                // If OAuth 2.0 fails with 403, it means we need OAuth 1.0a for media uploads
+                if (error.message?.includes('403') || error.message?.includes('Forbidden')) {
+                    throw new Error('Media upload requires OAuth 1.0a credentials. Please configure X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, and X_ACCESS_TOKEN_SECRET environment variables. OAuth 2.0 tokens cannot be used for the v1.1 media upload endpoint.');
+                }
+                throw error;
+            }
         }
-        // Fall back to OAuth 1.0a v1.1 endpoint for static credentials
-        if (!this.apiKey || !this.apiSecret || !this.accessToken || !this.accessTokenSecret) {
-            throw new Error('X.com OAuth credentials are required for media upload. Either user access token (with media.write scope) or OAuth 1.0a credentials (X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, X_ACCESS_TOKEN_SECRET) are required.');
-        }
+        throw new Error('X.com OAuth 1.0a credentials are required for media upload. Please configure X_API_KEY, X_API_SECRET, X_ACCESS_TOKEN, and X_ACCESS_TOKEN_SECRET environment variables.');
+    }
+    /**
+     * Upload media using OAuth 1.0a (required for v1.1 media upload endpoint)
+     */
+    async uploadMediaOAuth1(imageBuffer, mimeType) {
         return new Promise((resolve, reject) => {
             const form = new FormData();
             form.append('media', imageBuffer, {
@@ -115,9 +130,10 @@ export class XComService {
         });
     }
     /**
-     * Upload media using OAuth 2.0 and X.com API v2 endpoint
-     * Requires media.write scope in the OAuth token
-     * Uses chunked upload process: INIT -> APPEND -> FINALIZE
+     * Upload media using OAuth 2.0 Bearer token (experimental - may not work)
+     * Note: X.com's v1.1 media upload endpoint typically requires OAuth 1.0a signing.
+     * This method attempts OAuth 2.0 but will likely fail with 403 Forbidden.
+     * Use uploadMediaOAuth1 instead when OAuth 1.0a credentials are available.
      */
     async uploadMediaOAuth2(imageBuffer, mimeType) {
         if (!this.userAccessToken) {
@@ -132,6 +148,7 @@ export class XComService {
             mediaCategory = 'tweet_gif';
         }
         // Step 1: INIT - Initialize the upload
+        // Use v1.1 endpoint at upload.twitter.com (even with OAuth 2.0 tokens)
         const initForm = new FormData();
         initForm.append('command', 'INIT');
         initForm.append('total_bytes', imageBuffer.length.toString());
@@ -140,8 +157,8 @@ export class XComService {
         const mediaId = await new Promise((resolve, reject) => {
             const formHeaders = initForm.getHeaders();
             const options = {
-                hostname: 'api.x.com',
-                path: '/2/media/upload',
+                hostname: 'upload.twitter.com',
+                path: '/1.1/media/upload.json',
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.userAccessToken}`,
@@ -157,9 +174,24 @@ export class XComService {
                     if (res.statusCode !== 200 && res.statusCode !== 201) {
                         try {
                             const error = JSON.parse(data);
-                            reject(new Error(`INIT failed: ${error.errors?.[0]?.detail || error.title || error.message || data}`));
+                            const errorMessage = error.errors?.[0]?.message || error.errors?.[0]?.detail || error.title || error.message || 'Invalid Request';
+                            console.error('INIT request failed:', {
+                                statusCode: res.statusCode,
+                                error: error,
+                                requestData: {
+                                    command: 'INIT',
+                                    total_bytes: imageBuffer.length,
+                                    media_type: mimeType,
+                                    media_category: mediaCategory,
+                                },
+                            });
+                            reject(new Error(`INIT failed: ${errorMessage}`));
                         }
-                        catch {
+                        catch (parseError) {
+                            console.error('INIT request failed (unparseable response):', {
+                                statusCode: res.statusCode,
+                                responseData: data,
+                            });
                             reject(new Error(`INIT failed: ${res.statusCode} ${data}`));
                         }
                         return;
@@ -168,17 +200,22 @@ export class XComService {
                         const response = JSON.parse(data);
                         const id = response.media_id_string || response.media_id;
                         if (!id) {
+                            console.error('INIT succeeded but no media_id in response:', response);
                             reject(new Error('INIT succeeded but no media_id returned'));
                             return;
                         }
                         resolve(String(id));
                     }
                     catch (error) {
+                        console.error('Failed to parse INIT response:', data);
                         reject(new Error('Failed to parse INIT response'));
                     }
                 });
             });
-            req.on('error', reject);
+            req.on('error', (error) => {
+                console.error('INIT request network error:', error);
+                reject(error);
+            });
             initForm.pipe(req);
         });
         // Step 2: APPEND - Upload the media data
@@ -194,8 +231,8 @@ export class XComService {
         await new Promise((resolve, reject) => {
             const formHeaders = appendForm.getHeaders();
             const options = {
-                hostname: 'api.x.com',
-                path: '/2/media/upload',
+                hostname: 'upload.twitter.com',
+                path: '/1.1/media/upload.json',
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.userAccessToken}`,
@@ -232,8 +269,8 @@ export class XComService {
         await new Promise((resolve, reject) => {
             const formHeaders = finalizeForm.getHeaders();
             const options = {
-                hostname: 'api.x.com',
-                path: '/2/media/upload',
+                hostname: 'upload.twitter.com',
+                path: '/1.1/media/upload.json',
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${this.userAccessToken}`,
@@ -287,7 +324,8 @@ export class XComService {
      * Uses OAuth 2.0 Bearer token (user token preferred, falls back to static)
      */
     async createPost(text, mediaId) {
-        const url = 'https://api.twitter.com/2/tweets';
+        // Use api.x.com for consistency with media upload endpoints
+        const url = 'https://api.x.com/2/tweets';
         const accessToken = this.userAccessToken || this.bearerToken;
         if (!accessToken) {
             throw new Error('No access token available for creating post. Either user access token or X_BEARER_TOKEN is required.');
@@ -297,11 +335,18 @@ export class XComService {
         };
         if (mediaId) {
             // Ensure mediaId is a string (X.com API expects string array)
-            // Note: Media uploaded with OAuth 1.0a may not be usable with OAuth 2.0 tokens
-            // If this fails, we may need to ensure media is uploaded with the same auth method
+            // Media uploaded with OAuth 1.0a is compatible with OAuth 2.0 tweet creation
             body.media = {
                 media_ids: [String(mediaId)],
             };
+        }
+        // First, verify the token is valid and has necessary permissions
+        try {
+            await this.verifyTokenScopes(accessToken);
+        }
+        catch (verifyError) {
+            // If verification fails, log but continue - the actual API call will provide better error
+            console.warn('Token verification warning:', verifyError.message);
         }
         const response = await fetch(url, {
             method: 'POST',
@@ -319,6 +364,9 @@ export class XComService {
                 statusText: response.statusText,
                 data: data,
                 body: body,
+                url: url,
+                tokenPrefix: accessToken?.substring(0, 20) + '...',
+                hasMedia: !!mediaId,
             });
             // Extract detailed error message
             let errorMessage = 'Failed to create post';
@@ -341,9 +389,48 @@ export class XComService {
             else {
                 errorMessage = `Failed to create post: ${response.status} ${response.statusText}`;
             }
+            // Add helpful context for 403 errors
+            if (response.status === 403) {
+                errorMessage += '\n\nTo fix this:\n';
+                errorMessage += '1. Ensure your X.com app has "Read and write" permissions enabled in the developer portal\n';
+                errorMessage += '2. Re-authorize the connection to grant the "tweet.write" scope\n';
+                errorMessage += '3. Check that the OAuth scopes include: tweet.read tweet.write users.read offline.access media.write';
+            }
             throw new Error(errorMessage);
         }
         return data;
+    }
+    /**
+     * Verify token is valid and has necessary scopes
+     * This is a helper method to provide better error messages
+     */
+    async verifyTokenScopes(accessToken) {
+        try {
+            // Try to get user info to verify token is valid
+            const response = await fetch('https://api.x.com/2/users/me', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!response.ok) {
+                if (response.status === 401) {
+                    throw new Error('Token is invalid or expired. Please reconnect your X.com account.');
+                }
+                if (response.status === 403) {
+                    throw new Error('Token lacks required permissions. Please re-authorize with write permissions.');
+                }
+            }
+        }
+        catch (error) {
+            // If verification itself fails, just log it - don't throw
+            // The actual API call will provide better context
+            if (!error.message?.includes('Token')) {
+                throw error;
+            }
+            throw error;
+        }
     }
 }
 /**
