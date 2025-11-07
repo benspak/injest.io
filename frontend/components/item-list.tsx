@@ -13,6 +13,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { apiClient, Item, LinkMetadata } from '@/lib/api';
+import { XComPostDialog } from '@/components/xcom-post-dialog';
+import { toast } from 'sonner';
 
 interface ItemListProps {
   items: Item[];
@@ -37,6 +39,9 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [xcomDialogOpen, setXcomDialogOpen] = useState(false);
+  const [xcomImageUrl, setXcomImageUrl] = useState<string | null>(null);
+  const [xcomImageFilename, setXcomImageFilename] = useState<string | null>(null);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -120,6 +125,36 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     } catch (error) {
       console.error('Error downloading file:', error);
       alert(`Failed to download ${originalname}. Please try again.`);
+    }
+  };
+
+  const hasImageAttachment = (item: Item | null): boolean => {
+    if (!item || !item.attachments || !Array.isArray(item.attachments)) {
+      return false;
+    }
+    return item.attachments.some((file: any) => apiClient.isImageMimetype(file.mimetype));
+  };
+
+  const getFirstImageAttachment = (item: Item | null): { url: string; filename: string } | null => {
+    if (!item || !item.attachments || !Array.isArray(item.attachments)) {
+      return null;
+    }
+    const imageAttachment = item.attachments.find((file: any) => apiClient.isImageMimetype(file.mimetype));
+    if (!imageAttachment) {
+      return null;
+    }
+    return {
+      url: apiClient.getFileUrl(item.id, imageAttachment.filename, true),
+      filename: imageAttachment.originalname || imageAttachment.filename,
+    };
+  };
+
+  const handlePostToXCom = (item: Item) => {
+    const imageInfo = getFirstImageAttachment(item);
+    if (imageInfo) {
+      setXcomImageUrl(imageInfo.url);
+      setXcomImageFilename(imageInfo.filename);
+      setXcomDialogOpen(true);
     }
   };
 
@@ -1084,7 +1119,18 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
 
 
-                <div className="flex gap-2 pt-4 border-t">
+                <div className="flex gap-2 pt-4 border-t flex-wrap">
+                  {!editingItem && hasImageAttachment(itemDetails) && (
+                    <Button
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePostToXCom(itemDetails);
+                      }}
+                    >
+                      Post to X.com
+                    </Button>
+                  )}
                   {!editingItem && !itemDetails.isResendEmail && (
                     <Button
                       variant="outline"
@@ -1117,6 +1163,25 @@ export function ItemList({ items, onDelete }: ItemListProps) {
           ) : null}
         </DialogContent>
       </Dialog>
+
+      <XComPostDialog
+        open={xcomDialogOpen}
+        onOpenChange={(open) => {
+          setXcomDialogOpen(open);
+          if (!open) {
+            setXcomImageUrl(null);
+            setXcomImageFilename(null);
+          }
+        }}
+        imageUrl={xcomImageUrl || undefined}
+        imageFilename={xcomImageFilename || undefined}
+        onSuccess={() => {
+          toast.success('Successfully posted to X.com!');
+          setXcomDialogOpen(false);
+          setXcomImageUrl(null);
+          setXcomImageFilename(null);
+        }}
+      />
     </>
   );
 }

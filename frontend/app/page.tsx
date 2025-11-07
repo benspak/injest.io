@@ -369,6 +369,19 @@ export default function Home() {
             </Button>
           </Link>
         </div>
+
+        {/* Footer */}
+        <footer className="mt-20 py-8 border-t border-gray-200">
+          <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8 text-sm text-gray-600">
+            <Link href="/privacy" className="hover:text-blue-600 transition-colors">
+              Privacy Policy
+            </Link>
+            <span className="hidden sm:inline">•</span>
+            <Link href="/terms" className="hover:text-blue-600 transition-colors">
+              Terms of Service
+            </Link>
+          </div>
+        </footer>
       </div>
     </div>
   );

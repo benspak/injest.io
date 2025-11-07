@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { SearchBar } from '@/components/search-bar';
 import { CaptureForm } from '@/components/capture-form';
 import { ItemList } from '@/components/item-list';
+import { XComConnectDialog } from '@/components/xcom-connect-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
@@ -27,6 +28,8 @@ export default function DashboardPage() {
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('');
+  const [xcomConnectDialogOpen, setXcomConnectDialogOpen] = useState(false);
+  const [xcomStatus, setXcomStatus] = useState<{ connected: boolean; username?: string } | null>(null);
   const BATCH_SIZE = 50;
 
   useEffect(() => {
@@ -46,9 +49,11 @@ export default function DashboardPage() {
       setHasMore(true);
       loadItems(0, true);
       loadIndexedCount();
+      checkXComStatus();
     };
 
     checkAuth();
+    checkXComCallback();
 
     // Cleanup polling interval on unmount
     return () => {
@@ -64,6 +69,35 @@ export default function DashboardPage() {
       setIndexedCount(response.count);
     } catch (error) {
       console.error('Error loading indexed count:', error);
+    }
+  };
+
+  const checkXComStatus = async () => {
+    try {
+      const status = await apiClient.getXComStatus();
+      setXcomStatus(status);
+    } catch (error) {
+      console.error('Error checking X.com status:', error);
+      setXcomStatus({ connected: false });
+    }
+  };
+
+  const checkXComCallback = () => {
+    // Check for OAuth callback parameters in URL
+    const params = new URLSearchParams(window.location.search);
+    const xcomConnected = params.get('xcom_connected');
+    const xcomError = params.get('xcom_error');
+    const username = params.get('username');
+
+    if (xcomConnected === 'true') {
+      toast.success(`Successfully connected to X.com as @${username || 'user'}!`);
+      checkXComStatus();
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
+    } else if (xcomError) {
+      toast.error(`X.com connection failed: ${decodeURIComponent(xcomError)}`);
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
     }
   };
 
@@ -486,6 +520,47 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
+            {/* X.com Connection Status Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>X.com Connection</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {xcomStatus?.connected ? (
+                  <>
+                    <div className="p-2 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-xs font-medium text-green-800">Connected</p>
+                      <p className="text-xs text-green-700">
+                        @{xcomStatus.username}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setXcomConnectDialogOpen(true)}
+                    >
+                      Manage Connection
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="p-2 bg-gray-50 border border-gray-200 rounded-md">
+                      <p className="text-xs text-gray-700">Not connected</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setXcomConnectDialogOpen(true)}
+                    >
+                      Connect X.com
+                    </Button>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Important Links Card */}
             <Card>
               <CardHeader>
@@ -597,6 +672,13 @@ export default function DashboardPage() {
         </div>
       </main>
 
+      <XComConnectDialog
+        open={xcomConnectDialogOpen}
+        onOpenChange={setXcomConnectDialogOpen}
+        onConnected={() => {
+          checkXComStatus();
+        }}
+      />
     </div>
   );
 }

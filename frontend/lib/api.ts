@@ -486,6 +486,37 @@ class ApiClient {
       method: 'POST',
     });
   }
+
+  // X.com OAuth
+  async initiateXComAuth(): Promise<void> {
+    // Redirect to backend auth endpoint which will redirect to X.com
+    window.location.href = `${this.baseUrl}/api/xcom/auth`;
+  }
+
+  async getXComStatus(): Promise<{ connected: boolean; username?: string; user_id?: string }> {
+    return this.request<{ connected: boolean; username?: string; user_id?: string }>('/api/xcom/status', {
+      method: 'GET',
+    });
+  }
+
+  async disconnectXCom(): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/api/xcom/disconnect', {
+      method: 'POST',
+    });
+  }
+
+  // X.com Posting
+  async postToXCom(image: File, description: string): Promise<{ success: boolean; postId: string; text: string }> {
+    const formData = new FormData();
+    formData.append('image', image);
+    formData.append('description', description);
+
+    // Don't set Content-Type header - browser will set it automatically with boundary for FormData
+    return this.request<{ success: boolean; postId: string; text: string }>('/api/xcom/post', {
+      method: 'POST',
+      body: formData,
+    });
+  }
 }
 
 export const apiClient = new ApiClient(API_URL);
