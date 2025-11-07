@@ -132,15 +132,14 @@ const upload = multer({
  * Also returns warning information when approaching the limit
  */
 async function checkItemCreationLimit(userId) {
-    // Get user to check premium status and bookmark import purchase
+    // Get user to check premium status
     const user = await UserModel.findById(userId);
     if (!user) {
         return { status: 404, error: 'User not found', message: 'User not found' };
     }
-    // Premium users and users who bought bookmark imports are exempt from the limit
+    // Premium users are exempt from the limit
     const isPremium = user.is_premium || false;
-    const hasPurchasedBookmarkImport = (user.bookmark_import_count || 0) > 0;
-    if (isPremium || hasPurchasedBookmarkImport) {
+    if (isPremium) {
         return null; // Allowed
     }
     // Check current indexed item count
@@ -151,7 +150,7 @@ async function checkItemCreationLimit(userId) {
         return {
             status: 403,
             error: 'Item limit exceeded',
-            message: 'You have reached the limit of 500 indexed items. Please upgrade to premium ($5/month) or purchase a bookmark import to create more items.',
+            message: 'You have reached the limit of 500 indexed items. Please upgrade to premium ($5/month) to create more items.',
             itemCount,
         };
     }
@@ -170,10 +169,9 @@ async function getItemLimitStatus(userId) {
     // Check current indexed item count (always query the actual count)
     const result = await pool.query('SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND embedding_id IS NOT NULL AND deleted_at IS NULL', [userId]);
     const itemCount = parseInt(result.rows[0].total, 10);
-    // Premium users and users who bought bookmark imports are exempt from the limit
+    // Premium users are exempt from the limit
     const isPremium = user.is_premium || false;
-    const hasPurchasedBookmarkImport = (user.bookmark_import_count || 0) > 0;
-    if (isPremium || hasPurchasedBookmarkImport) {
+    if (isPremium) {
         return { itemCount, isAtLimit: false, isApproachingLimit: false, limit: Infinity };
     }
     const limit = 500;
@@ -655,6 +653,9 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
     }
     const existingUrls = new Set(existingItems.map(item => item.url).filter(Boolean));
     console.log(`Existing URLs set size: ${existingUrls.size}`);
+    // Check user premium status and get current item count for limit checking
+    const user = await UserModel.findById(userId);
+    const isPremium = user?.is_premium || false;
     // Process bookmarks sequentially to avoid overwhelming the system
     for (let i = 0; i < bookmarks.length; i++) {
         const bookmark = bookmarks[i];
@@ -677,8 +678,16 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
                     console.log(`Duplicate URL skipped: ${bookmark.url}`);
                 continue;
             }
+            // For non-premium users, check item limit before creating each item
+            if (!isPremium) {
+                const limitCheck = await checkItemCreationLimit(userId);
+                if (limitCheck && limitCheck.status === 403) {
+                    console.log(`Item limit reached during bookmark import. Stopping at ${i} of ${bookmarks.length} bookmarks.`);
+                    results.errors.push(`Import stopped: ${limitCheck.message}. ${results.imported} bookmarks were successfully imported.`);
+                    break; // Stop importing more bookmarks
+                }
+            }
             // Fetch metadata for the URL
-            // For paid bookmark imports, we ensure metadata is fetched
             // Check if we already have metadata for this URL in existing items
             let linkMetadata = null;
             // First, check if any existing item with the same URL has complete metadata
@@ -695,7 +704,7 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
             else {
                 // Fetch metadata only if we don't have it
                 try {
-                    // Use longer timeout for paid imports (30 seconds)
+                    // Use longer timeout for metadata fetching (30 seconds)
                     linkMetadata = await linkMetadataService.fetchMetadata(bookmark.url, 3, 30000);
                     if (i < 5) {
                         console.log(`Fetched metadata for: ${bookmark.url}`, {
@@ -719,7 +728,6 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
             const title = linkMetadata?.title || bookmark.title || bookmark.url;
             const description = linkMetadata?.description || undefined;
             // Ensure link_metadata is always saved (even if fetch partially failed)
-            // This ensures paid users get metadata enrichment
             const metadataToSave = linkMetadata && (linkMetadata.title || linkMetadata.description || linkMetadata.image)
                 ? linkMetadata
                 : undefined;
@@ -817,15 +825,13 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
             }
             return res.status(400).json({ error: 'No bookmarks found in file' });
         }
-        // Check premium status and payment requirements
+        // Check premium status
         const isPremium = user.is_premium || false;
         const bookmarkCount = bookmarks.length;
-        // paymentIntentId comes from FormData, access it from body
-        const paymentIntentId = req.body?.paymentIntentId || undefined;
-        // Premium users can import for free
+        // For non-premium users, check if they can import more items (500 item limit)
         if (!isPremium) {
-            // Check bookmark count limit
-            if (bookmarkCount > 555) {
+            const limitCheck = await checkItemCreationLimit(req.user.id);
+            if (limitCheck && limitCheck.status === 403) {
                 // Clean up file
                 try {
                     fs.unlinkSync(filePath);
@@ -834,51 +840,11 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req, res)
                     // Ignore cleanup errors
                 }
                 return res.status(403).json({
-                    error: 'Bookmark import limit exceeded',
-                    message: 'You can import up to 555 bookmarks per payment. Please split your bookmarks into smaller files.',
-                    limit: 555,
-                    requested: bookmarkCount,
+                    error: limitCheck.error,
+                    message: limitCheck.message,
+                    itemCount: limitCheck.itemCount,
                 });
             }
-            // Require payment verification for non-premium users
-            if (!paymentIntentId) {
-                // Clean up file
-                try {
-                    fs.unlinkSync(filePath);
-                }
-                catch {
-                    // Ignore cleanup errors
-                }
-                return res.status(402).json({
-                    error: 'Payment required',
-                    message: 'Bookmark import requires payment for non-premium users',
-                    requiresPayment: true,
-                    bookmarkCount,
-                    amount: 500, // $5 in cents
-                    currency: 'usd',
-                });
-            }
-            // Verify payment
-            const { stripeService } = await import('../services/stripe.js');
-            const isPaymentVerified = await stripeService.verifyPaymentIntent(paymentIntentId);
-            if (!isPaymentVerified) {
-                // Clean up file
-                try {
-                    fs.unlinkSync(filePath);
-                }
-                catch {
-                    // Ignore cleanup errors
-                }
-                return res.status(402).json({
-                    error: 'Payment verification failed',
-                    message: 'Please complete payment before importing bookmarks',
-                });
-            }
-            // Update user's bookmark import count after successful payment verification
-            await UserModel.update(req.user.id, {
-                bookmark_import_count: (user.bookmark_import_count || 0) + 1,
-                last_bookmark_import_payment: new Date(),
-            });
         }
         // Start processing in background (don't await)
         console.log(`Starting background processing for ${bookmarks.length} bookmarks (premium: ${isPremium})`);

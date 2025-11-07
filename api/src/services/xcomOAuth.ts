@@ -213,7 +213,7 @@ export class XComOAuthService {
       body: params.toString(),
     });
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
 
     if (!response.ok) {
       console.error('Token exchange error:', {
@@ -221,16 +221,18 @@ export class XComOAuthService {
         statusText: response.statusText,
         data: JSON.stringify(data, null, 2),
       });
-      const errorMessage = data.error_description || data.error || 'Failed to exchange code for tokens';
+      const errorData = data as { error_description?: string; error?: string };
+      const errorMessage = errorData.error_description || errorData.error || 'Failed to exchange code for tokens';
       throw new Error(errorMessage);
     }
 
     // Log the scopes returned (for debugging)
-    if (data.scope) {
-      console.log('Token exchange successful. Scopes granted:', data.scope);
+    const tokenData = data as { scope?: string; access_token: string; refresh_token?: string; expires_in?: number; token_type?: string };
+    if (tokenData.scope) {
+      console.log('Token exchange successful. Scopes granted:', tokenData.scope);
     }
 
-    return data;
+    return tokenData;
   }
 
   /**
@@ -260,14 +262,15 @@ export class XComOAuthService {
       body: params.toString(),
     });
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
 
     if (!response.ok) {
-      const errorMessage = data.error_description || data.error || 'Failed to refresh access token';
+      const errorData = data as { error_description?: string; error?: string };
+      const errorMessage = errorData.error_description || errorData.error || 'Failed to refresh access token';
       throw new Error(errorMessage);
     }
 
-    return data;
+    return data as { access_token: string; refresh_token?: string; expires_in?: number; token_type?: string; scope?: string };
   }
 
   /**
@@ -292,8 +295,9 @@ export class XComOAuthService {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      const errorMessage = data.error_description || data.error || 'Failed to revoke token';
+      const data = await response.json().catch(() => ({})) as unknown;
+      const errorData = data as { error_description?: string; error?: string };
+      const errorMessage = errorData.error_description || errorData.error || 'Failed to revoke token';
       throw new Error(errorMessage);
     }
   }
@@ -321,7 +325,7 @@ export class XComOAuthService {
       },
     });
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
 
     if (!response.ok) {
       // Log the full error for debugging
@@ -346,7 +350,7 @@ export class XComOAuthService {
           },
         });
 
-        const simpleData = await simpleResponse.json();
+        const simpleData = await simpleResponse.json() as unknown;
 
         if (!simpleResponse.ok) {
           console.error('X.com API error (simple request):', {
@@ -354,37 +358,41 @@ export class XComOAuthService {
             statusText: simpleResponse.statusText,
             data: JSON.stringify(simpleData, null, 2),
           });
-          const errorMessage = simpleData.errors?.[0]?.detail || simpleData.errors?.[0]?.title || `Failed to get user info (${simpleResponse.status})`;
+          const errorData = simpleData as { errors?: Array<{ detail?: string; title?: string }> };
+          const errorMessage = errorData.errors?.[0]?.detail || errorData.errors?.[0]?.title || `Failed to get user info (${simpleResponse.status})`;
           throw new Error(errorMessage);
         }
 
         // Use the simple response
-        if (!simpleData.data || !simpleData.data.id) {
+        const userData = simpleData as { data?: { id?: string; username?: string; name?: string } };
+        if (!userData.data || !userData.data.id) {
           console.error('Invalid X.com API response structure:', JSON.stringify(simpleData, null, 2));
           throw new Error('Invalid response format from X.com API');
         }
 
         return {
-          id: simpleData.data.id,
-          username: simpleData.data.username || simpleData.data.name || 'unknown',
-          name: simpleData.data.name,
+          id: userData.data.id,
+          username: userData.data.username || userData.data.name || 'unknown',
+          name: userData.data.name,
         };
       }
 
-      const errorMessage = data.errors?.[0]?.detail || data.errors?.[0]?.title || `Failed to get user info (${response.status})`;
+      const errorData = data as { errors?: Array<{ detail?: string; title?: string }> };
+      const errorMessage = errorData.errors?.[0]?.detail || errorData.errors?.[0]?.title || `Failed to get user info (${response.status})`;
       throw new Error(errorMessage);
     }
 
     // Validate response structure
-    if (!data.data || !data.data.id) {
+    const userData = data as { data?: { id?: string; username?: string; name?: string } };
+    if (!userData.data || !userData.data.id) {
       console.error('Invalid X.com API response structure:', JSON.stringify(data, null, 2));
       throw new Error('Invalid response format from X.com API');
     }
 
     return {
-      id: data.data.id,
-      username: data.data.username || data.data.name || 'unknown',
-      name: data.data.name,
+      id: userData.data.id,
+      username: userData.data.username || userData.data.name || 'unknown',
+      name: userData.data.name,
     };
   }
 }

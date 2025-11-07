@@ -334,7 +334,8 @@ export class XComService {
    * Uses OAuth 2.0 Bearer token (user token preferred, falls back to static)
    */
   async createPost(text: string, mediaId?: string): Promise<CreatePostResponse> {
-    const url = 'https://api.twitter.com/2/tweets';
+    // Use api.x.com for consistency with media upload endpoints
+    const url = 'https://api.x.com/2/tweets';
     const accessToken = this.userAccessToken || this.bearerToken;
 
     if (!accessToken) {
@@ -363,7 +364,7 @@ export class XComService {
       body: JSON.stringify(body),
     });
 
-    const data = await response.json();
+    const data = await response.json() as unknown;
 
     if (!response.ok) {
       // Log full error details for debugging
@@ -372,27 +373,37 @@ export class XComService {
         statusText: response.statusText,
         data: data,
         body: body,
+        url: url,
+        tokenPrefix: accessToken?.substring(0, 20) + '...',
       });
 
       // Extract detailed error message
       let errorMessage = 'Failed to create post';
-      if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
-        const error = data.errors[0];
-        errorMessage = error.detail || error.title || error.message || errorMessage;
-      } else if (data.title) {
-        errorMessage = data.title;
-      } else if (data.detail) {
-        errorMessage = data.detail;
+      if (typeof data === 'object' && data !== null) {
+        const errorData = data as { errors?: Array<{ detail?: string; title?: string; message?: string }>; title?: string; detail?: string };
+        if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+          const error = errorData.errors[0];
+          errorMessage = error.detail || error.title || error.message || errorMessage;
+        } else if (errorData.title) {
+          errorMessage = errorData.title;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        }
       } else if (typeof data === 'string') {
         errorMessage = data;
       } else {
         errorMessage = `Failed to create post: ${response.status} ${response.statusText}`;
       }
 
+      // Add helpful context for 403 errors
+      if (response.status === 403) {
+        errorMessage += '. This usually means: 1) The OAuth token is missing the "tweet.write" scope, 2) The X.com app needs write permissions enabled in the developer portal, or 3) The media was uploaded with different credentials than used for posting.';
+      }
+
       throw new Error(errorMessage);
     }
 
-    return data;
+    return data as CreatePostResponse;
   }
 }
 

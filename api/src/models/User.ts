@@ -167,11 +167,11 @@ export class UserModel {
    */
   static async clearXComTokens(userId: string): Promise<User> {
     return await this.update(userId, {
-      xcom_access_token: null,
-      xcom_refresh_token: null,
-      xcom_token_expires_at: null,
-      xcom_user_id: null,
-      xcom_username: null,
+      xcom_access_token: undefined,
+      xcom_refresh_token: undefined,
+      xcom_token_expires_at: undefined,
+      xcom_user_id: undefined,
+      xcom_username: undefined,
     });
   }
 }

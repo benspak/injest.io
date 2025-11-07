@@ -318,7 +318,7 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
               onChange={handleImageSelect}
               className="hidden"
             />
-            {imagePreview && (
+            {imagePreview && image && (
               <div className="mt-2 overflow-x-auto -mx-1 px-1">
                 <img
                   src={imagePreview}
