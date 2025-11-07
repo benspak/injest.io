@@ -1,11 +1,5 @@
 import { apiClient } from './api';
-
-export interface User {
-  id: string;
-  email: string;
-  verified: boolean;
-  is_premium?: boolean;
-}
+import type { User } from './api';
 
 let currentUser: User | null = null;
 let authRestoring: Promise<void> | null = null;

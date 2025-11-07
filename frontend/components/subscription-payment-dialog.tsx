@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { useState, useEffect, useCallback } from 'react';
+import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
   Dialog,
@@ -50,7 +50,7 @@ function PaymentForm({
       }
 
       // Get payment intent client secret from the element
-      const paymentElement = elements.getElement('payment');
+      const paymentElement = elements.getElement(PaymentElement);
       if (!paymentElement) {
         setError('Payment element not found');
         setProcessing(false);
@@ -75,9 +75,10 @@ function PaymentForm({
       if (paymentIntent && paymentIntent.status === 'succeeded') {
         onPaymentComplete(paymentIntent.id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error processing payment:', err);
-      setError(err.message || 'Payment processing failed');
+      const message = err instanceof Error ? err.message : 'Payment processing failed';
+      setError(message);
     } finally {
       setProcessing(false);
     }
@@ -119,9 +120,8 @@ export function SubscriptionPaymentDialog({
   onPaymentComplete,
   onCancel,
 }: SubscriptionPaymentDialogProps) {
-  const [stripePromise, setStripePromise] = useState<any>(null);
+  const [stripePromise, setStripePromise] = useState<Stripe | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,17 +135,10 @@ export function SubscriptionPaymentDialog({
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
       setStripePromise(stripe);
     };
-    initStripe();
+    void initStripe();
   }, []);
 
-  // Create payment intent when dialog opens
-  useEffect(() => {
-    if (open && stripePromise) {
-      createPaymentIntent();
-    }
-  }, [open, stripePromise]);
-
-  const createPaymentIntent = async () => {
+  const createPaymentIntent = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -154,14 +147,21 @@ export function SubscriptionPaymentDialog({
       const paymentData = await apiClient.createPremiumSubscriptionPaymentIntent();
 
       setClientSecret(paymentData.clientSecret);
-      setPaymentIntentId(paymentData.paymentIntentId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating payment intent:', err);
-      setError(err.message || 'Failed to initialize payment');
+      const message = err instanceof Error ? err.message : 'Failed to initialize payment';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // Create payment intent when dialog opens
+  useEffect(() => {
+    if (open && stripePromise) {
+      void createPaymentIntent();
+    }
+  }, [createPaymentIntent, open, stripePromise]);
 
   const handlePaymentComplete = (id: string) => {
     onPaymentComplete(id);
@@ -179,7 +179,7 @@ export function SubscriptionPaymentDialog({
         <DialogHeader>
           <DialogTitle>Item Limit Exceeded</DialogTitle>
           <DialogDescription>
-            You've reached the limit of 500 indexed items on the free tier.
+            You&apos;ve reached the limit of 500 indexed items on the free tier.
           </DialogDescription>
         </DialogHeader>
 
@@ -214,7 +214,7 @@ export function SubscriptionPaymentDialog({
 
           {typeof window !== 'undefined' && window.location.protocol === 'http:' && (
             <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-sm">
-              <strong>Note:</strong> In development mode, you'll need to manually enter card details.
+              <strong>Note:</strong> In development mode, you&apos;ll need to manually enter card details.
               Use Stripe test card: <code className="bg-blue-100 px-1 rounded">4242 4242 4242 4242</code>
             </div>
           )}

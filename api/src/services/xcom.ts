@@ -503,8 +503,22 @@ export async function getXComServiceForUser(
   onTokenRefresh?: (tokens: { access_token: string; refresh_token?: string; expires_in?: number }) => Promise<void>
 ): Promise<XComService> {
   if (userTokens && userTokens.access_token) {
+    // Normalize expires_at to a Date instance
+    const expiresAt =
+      userTokens.expires_at instanceof Date
+        ? userTokens.expires_at
+        : userTokens.expires_at
+        ? new Date(userTokens.expires_at)
+        : undefined;
+
+    const bufferMs = 60 * 1000; // Refresh tokens one minute before expiry to avoid race conditions
+    const isExpired =
+      expiresAt !== undefined &&
+      !Number.isNaN(expiresAt.getTime()) &&
+      expiresAt.getTime() - bufferMs <= Date.now();
+
     // Check if token is expired and needs refresh
-    if (userTokens.expires_at && userTokens.expires_at < new Date()) {
+    if (isExpired) {
       if (userTokens.refresh_token) {
         // Refresh the token
         const oauthService = getXComOAuthService();

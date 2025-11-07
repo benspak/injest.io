@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -23,13 +23,7 @@ export function XComConnectDialog({ open, onOpenChange, onConnected }: XComConne
   const [status, setStatus] = useState<{ connected: boolean; username?: string } | null>(null);
   const [checking, setChecking] = useState(true);
 
-  useEffect(() => {
-    if (open) {
-      checkStatus();
-    }
-  }, [open]);
-
-  const checkStatus = async () => {
+  const checkStatus = useCallback(async () => {
     setChecking(true);
     try {
       const statusData = await apiClient.getXComStatus();
@@ -40,16 +34,23 @@ export function XComConnectDialog({ open, onOpenChange, onConnected }: XComConne
     } finally {
       setChecking(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      void checkStatus();
+    }
+  }, [checkStatus, open]);
 
   const handleConnect = async () => {
     setLoading(true);
     try {
       await apiClient.initiateXComAuth();
       // The redirect will happen, so we don't need to handle response
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error initiating X.com auth:', error);
-      alert(error.message || 'Failed to connect to X.com');
+      const message = error instanceof Error ? error.message : 'Failed to connect to X.com';
+      alert(message);
       setLoading(false);
     }
   };
@@ -62,9 +63,10 @@ export function XComConnectDialog({ open, onOpenChange, onConnected }: XComConne
       if (onConnected) {
         onConnected();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error disconnecting X.com:', error);
-      alert(error.message || 'Failed to disconnect from X.com');
+      const message = error instanceof Error ? error.message : 'Failed to disconnect from X.com';
+      alert(message);
     } finally {
       setLoading(false);
     }

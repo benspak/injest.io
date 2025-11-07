@@ -26,7 +26,7 @@ function XComLinkForm() {
     }
   }, [linkId, router]);
 
-  const handleLinkToExisting = async (e: React.FormEvent) => {
+  const handleLinkToExisting = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!linkId || !email) return;
 
@@ -35,9 +35,10 @@ function XComLinkForm() {
       await apiClient.linkXComAccount(linkId, email);
       setSubmitted(true);
       toast.success('Verification email sent! Please check your email to complete linking.');
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       console.error('Error linking X.com account:', error);
-      toast.error(error.message || 'Failed to link X.com account');
+      toast.error(err?.message || 'Failed to link X.com account');
     } finally {
       setLoading(false);
     }
@@ -61,9 +62,10 @@ function XComLinkForm() {
           router.push('/dashboard');
         }, 1000);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       console.error('Error creating account:', error);
-      toast.error(error.message || 'Failed to create account');
+      toast.error(err?.message || 'Failed to create account');
       setLoading(false);
     }
   };
@@ -75,7 +77,7 @@ function XComLinkForm() {
           <CardHeader>
             <CardTitle>Check Your Email</CardTitle>
             <CardDescription>
-              We've sent a verification link to {email}. Click the link in the email to complete linking your X.com account.
+              We&apos;ve sent a verification link to {email}. Click the link in the email to complete linking your X.com account.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -98,7 +100,7 @@ function XComLinkForm() {
         <CardHeader>
           <CardTitle>Link X.com Account</CardTitle>
           <CardDescription>
-            You've successfully logged in with X.com as <strong>@{username}</strong>.
+            You&apos;ve successfully logged in with X.com as <strong>@{username}</strong>.
             {linkId && ' Would you like to link this account to an existing email address?'}
           </CardDescription>
         </CardHeader>
@@ -116,7 +118,7 @@ function XComLinkForm() {
                 disabled={loading}
               />
               <p className="text-xs text-muted-foreground">
-                Enter the email address associated with your existing account. We'll send a verification link to confirm.
+                Enter the email address associated with your existing account. We&apos;ll send a verification link to confirm.
               </p>
             </div>
             <Button

@@ -31,6 +31,10 @@ export class ItemModel {
         const result = await pool.query('SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL', [id]);
         return result.rows[0] || null;
     }
+    static async findByIdIncludingDeleted(id) {
+        const result = await pool.query('SELECT * FROM items WHERE id = $1', [id]);
+        return result.rows[0] || null;
+    }
     static async findByOwner(ownerId, limit = 100, offset = 0, filters) {
         let query = 'SELECT * FROM items WHERE owner_id = $1 AND deleted_at IS NULL';
         const params = [ownerId];
@@ -144,6 +148,10 @@ export class ItemModel {
             fields.push(`link_metadata = $${paramCount++}`);
             // PostgreSQL JSONB accepts objects directly, no need to stringify
             values.push(updates.link_metadata || null);
+        }
+        if (updates.type !== undefined) {
+            fields.push(`type = $${paramCount++}`);
+            values.push(updates.type || null);
         }
         if (fields.length === 0) {
             return await this.findById(id);

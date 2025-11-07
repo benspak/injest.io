@@ -62,8 +62,9 @@ function LoginForm() {
     try {
       await auth.login(email);
       setMessage('Magic link sent! Check your email.');
-    } catch (error: any) {
-      setMessage(error.message || 'Failed to send magic link');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to send magic link';
+      setMessage(message);
     } finally {
       setLoading(false);
     }
@@ -73,11 +74,11 @@ function LoginForm() {
     setXcomLoading(true);
     setMessage('');
     try {
-      // Redirect to backend X.com login endpoint
       const apiUrl = getApiUrl();
       window.location.href = `${apiUrl}/api/auth/xcom/login`;
-    } catch (error: any) {
-      setMessage(error.message || 'Failed to initiate X.com login');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to initiate X.com login';
+      setMessage(message);
       setXcomLoading(false);
     }
   };

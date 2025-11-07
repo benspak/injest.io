@@ -36,9 +36,10 @@ function VerifyForm() {
           router.push(redirectUrl);
         }, 2000);
       })
-      .catch((error: any) => {
+      .catch((error: unknown) => {
+        const err = error as { message?: string };
         setStatus('error');
-        setMessage(error.message || 'Invalid or expired token');
+        setMessage(err?.message || 'Invalid or expired token');
       });
   }, [token, router, xcomLinked, username]);
 

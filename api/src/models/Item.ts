@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 export interface Item {
   id: string;
   owner_id: string;
-  type?: 'note' | 'link' | 'file' | 'email'; // Optional for backward compatibility
+  type?: 'note' | 'link' | 'file' | 'email' | 'task'; // Optional for backward compatibility
   raw?: string; // Optional, kept for backward compatibility
   title?: string;
   description?: string;
@@ -30,7 +30,7 @@ export interface CreateItemInput {
   tags?: string[];
   source?: string;
   clean?: string;
-  type?: 'note' | 'link' | 'file' | 'email'; // Optional for backward compatibility
+  type?: 'note' | 'link' | 'file' | 'email' | 'task'; // Optional for backward compatibility
   raw?: string; // Optional, for backward compatibility
   link_metadata?: any; // JSONB field for link preview metadata
 }
@@ -71,6 +71,14 @@ export class ItemModel {
   static async findById(id: string): Promise<Item | null> {
     const result = await pool.query(
       'SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL',
+      [id]
+    );
+    return result.rows[0] || null;
+  }
+
+  static async findByIdIncludingDeleted(id: string): Promise<Item | null> {
+    const result = await pool.query(
+      'SELECT * FROM items WHERE id = $1',
       [id]
     );
     return result.rows[0] || null;
@@ -198,6 +206,11 @@ export class ItemModel {
       fields.push(`link_metadata = $${paramCount++}`);
       // PostgreSQL JSONB accepts objects directly, no need to stringify
       values.push(updates.link_metadata || null);
+    }
+
+    if (updates.type !== undefined) {
+      fields.push(`type = $${paramCount++}`);
+      values.push(updates.type || null);
     }
 
     if (fields.length === 0) {

@@ -3,11 +3,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { SearchResults } from './search-results';
-import { apiClient } from '@/lib/api';
+import { apiClient, type SearchResult } from '@/lib/api';
 
 export function SearchBar() {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -36,7 +36,7 @@ export function SearchBar() {
       setLoading(true);
       try {
         const response = await apiClient.search(query);
-        setResults(response.results || []);
+        setResults(response.results ?? []);
         setShowResults(true);
       } catch (error) {
         console.error('Search error:', error);

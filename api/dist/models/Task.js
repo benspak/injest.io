@@ -5,10 +5,10 @@ export class TaskModel {
        VALUES ($1, $2, $3, $4, $5)
        RETURNING *`, [
             input.item_id,
-            input.title || null,
-            input.description || null,
-            input.status || 'pending',
-            input.due_date || null,
+            input.title ?? null,
+            input.description ?? null,
+            input.status ?? 'pending',
+            input.due_date ?? null,
         ]);
         return result.rows[0];
     }
@@ -42,11 +42,11 @@ export class TaskModel {
         let paramCount = 1;
         if (updates.title !== undefined) {
             fields.push(`title = $${paramCount++}`);
-            values.push(updates.title);
+            values.push(updates.title ?? null);
         }
         if (updates.description !== undefined) {
             fields.push(`description = $${paramCount++}`);
-            values.push(updates.description);
+            values.push(updates.description ?? null);
         }
         if (updates.status !== undefined) {
             fields.push(`status = $${paramCount++}`);
@@ -54,10 +54,14 @@ export class TaskModel {
         }
         if (updates.due_date !== undefined) {
             fields.push(`due_date = $${paramCount++}`);
-            values.push(updates.due_date || null);
+            values.push(updates.due_date ?? null);
         }
         if (fields.length === 0) {
-            return await this.findById(id);
+            const existing = await this.findById(id);
+            if (!existing) {
+                throw new Error('Task not found');
+            }
+            return existing;
         }
         values.push(id);
         const result = await pool.query(`UPDATE tasks SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`, values);

@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { apiClient } from '@/lib/api';
+import { apiClient, type Item } from '@/lib/api';
 import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
 
 interface CaptureFormProps {
@@ -35,7 +35,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load item count and limit status
-  const loadItemLimitStatus = async () => {
+  const loadItemLimitStatus = useCallback(async () => {
     try {
       const response = await apiClient.getIndexedItemCount();
       setItemCount(response.count);
@@ -45,12 +45,12 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     } catch (error) {
       console.error('Error loading item limit status:', error);
     }
-  };
+  }, []);
 
   // Load limit status on mount
   useEffect(() => {
-    loadItemLimitStatus();
-  }, []);
+    void loadItemLimitStatus();
+  }, [loadItemLimitStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,7 +109,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
           total: number;
           created: number;
           failed: number;
-          items?: any[];
+          items?: Item[];
           errors?: Array<{ filename: string; error: string }>;
         };
 
@@ -148,11 +148,11 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       if (onItemCreated) {
         onItemCreated();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Extract error message from API response
       let errorMessage = 'Failed to create item';
 
-      if (error.message) {
+      if (error instanceof Error && error.message) {
         errorMessage = error.message;
 
         // Check for item limit exceeded error
@@ -224,7 +224,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
                 total: number;
                 created: number;
                 failed: number;
-                items?: any[];
+                items?: Item[];
                 errors?: Array<{ filename: string; error: string }>;
               };
 
@@ -263,14 +263,15 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             if (onItemCreated) {
               onItemCreated();
             }
-          } catch (retryError: any) {
-            setMessage(retryError.message || 'Failed to create item after subscription');
+          } catch (retryError: unknown) {
+            const message = retryError instanceof Error ? retryError.message : 'Failed to create item after subscription';
+            setMessage(message);
           } finally {
             setLoading(false);
           }
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       setMessage('Failed to verify subscription. Please try again.');
     }
   };
@@ -297,7 +298,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         {isApproachingLimit && limit !== null && itemCount !== null && (
           <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <p className="text-sm text-amber-800 font-medium">
-              ⚠️ You're approaching the limit: {itemCount} / {limit} indexed items
+              ⚠️ You&apos;re approaching the limit: {itemCount} / {limit} indexed items
             </p>
             <p className="text-xs text-amber-700 mt-1">
               Consider subscribing to Premium ($5/month) for unlimited items.
@@ -309,7 +310,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         {isAtLimit && limit !== null && itemCount !== null && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-sm text-red-800 font-medium">
-              🚫 You've reached the limit: {itemCount} / {limit} indexed items
+              🚫 You&apos;ve reached the limit: {itemCount} / {limit} indexed items
             </p>
             <p className="text-xs text-red-700 mt-1 mb-3">
               Please subscribe to Premium ($5/month) to create more items.

@@ -52,23 +52,55 @@ export interface LinkMetadata {
 export interface Item {
   id: string;
   owner_id: string;
-  type?: 'note' | 'link' | 'file' | 'email';
+  type?: 'note' | 'link' | 'file' | 'email' | 'task';
   raw?: string;
   title?: string;
   description?: string;
   url?: string;
-  attachments?: any[];
+  attachments?: Array<{
+    filename: string;
+    originalname: string;
+    mimetype?: string;
+    size?: number;
+    attachmentId?: string;
+  }>;
   clean?: string;
   tags?: string[];
   source?: string;
   embedding_id?: string;
-  link_metadata?: any;
+  link_metadata?: LinkMetadata;
   notes?: string;
   created_at: string;
   updated_at: string;
   // Flag to indicate if this is a Resend email (not in database)
   isResendEmail?: boolean;
   resendEmailId?: string;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  verified: boolean;
+  is_premium?: boolean;
+}
+
+export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+
+export interface Task {
+  id: string;
+  item_id: string;
+  title?: string | null;
+  description?: string | null;
+  status: TaskStatus;
+  due_date?: string | null;
+  created_at: string;
+  updated_at: string;
+  item?: Item;
+}
+
+export interface TaskifyResponse {
+  task: Task;
+  item?: Item;
 }
 
 export interface SearchResult {
@@ -186,20 +218,24 @@ class ApiClient {
 
     if (!response.ok) {
       const errorText = await response.text();
-      let error: any;
+      let parsedError: unknown;
       try {
-        error = JSON.parse(errorText);
+        parsedError = JSON.parse(errorText);
       } catch {
-        error = { error: `Request failed: ${response.status} ${response.statusText}` };
+        parsedError = null;
       }
 
-      // Log error details in development
       if (process.env.NODE_ENV === 'development') {
-        console.error(`[API Error] ${url}:`, error);
+        console.error(`[API Error] ${url}:`, parsedError ?? errorText);
       }
 
-      // Prefer details field if available (more descriptive), otherwise use error field
-      const errorMessage = error.details || error.error || `Request failed: ${response.status} ${response.statusText}`;
+      const errorObject =
+        typeof parsedError === 'object' && parsedError !== null
+          ? (parsedError as { error?: string; details?: string })
+          : undefined;
+
+      const fallbackMessage = `Request failed: ${response.status} ${response.statusText}`;
+      const errorMessage = errorObject?.details || errorObject?.error || fallbackMessage;
       throw new Error(errorMessage);
     }
 
@@ -215,7 +251,7 @@ class ApiClient {
   }
 
   async verifyToken(token: string) {
-    const response = await this.request<{ token: string; user: any }>(
+    const response = await this.request<{ token: string; user: User }>(
       `/api/auth/verify?token=${token}`,
       { method: 'GET' }
     );
@@ -226,7 +262,7 @@ class ApiClient {
   }
 
   async getCurrentUser() {
-    return this.request<{ user: any }>('/api/auth/me', { method: 'GET' });
+    return this.request<{ user: User }>('/api/auth/me', { method: 'GET' });
   }
 
   // Items
@@ -487,6 +523,34 @@ class ApiClient {
     });
   }
 
+  // Tasks
+  async taskifyItem(itemId: string, dueDate?: string): Promise<TaskifyResponse> {
+    const payload: Record<string, unknown> = {};
+    if (dueDate) {
+      payload.due_date = dueDate;
+    }
+
+    return this.request<TaskifyResponse>(`/api/tasks/taskify/${itemId}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getTasks(status?: TaskStatus): Promise<Task[]> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    return this.request<Task[]>(`/api/tasks${query}`);
+  }
+
+  async updateTask(
+    id: string,
+    updates: { title?: string; description?: string; status?: TaskStatus; due_date?: string | null }
+  ): Promise<Task> {
+    return this.request<Task>(`/api/tasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
   // X.com OAuth
   async initiateXComAuth(): Promise<void> {
     // Make authenticated request to get auth URL, then redirect
@@ -497,10 +561,9 @@ class ApiClient {
       } else {
         throw new Error('No authorization URL received');
       }
-    } catch (error: any) {
-      // Fallback: try direct redirect (may fail if not authenticated)
+    } catch (error: unknown) {
       console.error('Error initiating X.com auth:', error);
-      throw error;
+      throw error instanceof Error ? error : new Error('Failed to initiate X.com auth');
     }
   }
 

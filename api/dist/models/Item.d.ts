@@ -1,7 +1,7 @@
 export interface Item {
     id: string;
     owner_id: string;
-    type?: 'note' | 'link' | 'file' | 'email';
+    type?: 'note' | 'link' | 'file' | 'email' | 'task';
     raw?: string;
     title?: string;
     description?: string;
@@ -27,13 +27,14 @@ export interface CreateItemInput {
     tags?: string[];
     source?: string;
     clean?: string;
-    type?: 'note' | 'link' | 'file' | 'email';
+    type?: 'note' | 'link' | 'file' | 'email' | 'task';
     raw?: string;
     link_metadata?: any;
 }
 export declare class ItemModel {
     static create(input: CreateItemInput): Promise<Item>;
     static findById(id: string): Promise<Item | null>;
+    static findByIdIncludingDeleted(id: string): Promise<Item | null>;
     static findByOwner(ownerId: string, limit?: number, offset?: number, filters?: {
         source?: string;
         hasAttachments?: boolean;

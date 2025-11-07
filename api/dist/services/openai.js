@@ -393,6 +393,19 @@ Email: ${contentPreview}`;
             return [];
         }
     }
+    async processTaskPrompt(prompt, item, task, fileContent) {
+        // Placeholder implementation – extend with OpenAI powered updates as needed
+        console.log('[OpenAI] processTaskPrompt invoked', {
+            prompt,
+            itemId: item?.id,
+            taskId: task?.id,
+            hasFileContent: Boolean(fileContent),
+        });
+        return {
+            itemUpdates: {},
+            taskUpdates: {},
+        };
+    }
 }
 export const openAIService = new OpenAIService();
 //# sourceMappingURL=openai.js.map

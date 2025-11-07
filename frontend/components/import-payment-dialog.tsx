@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { useCallback, useState, useEffect } from 'react';
+import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
   Dialog,
@@ -22,13 +22,9 @@ interface ImportPaymentDialogProps {
 }
 
 function PaymentForm({
-  count,
-  type,
   onPaymentComplete,
   onCancel
 }: {
-  count: number;
-  type: 'bookmark';
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
 }) {
@@ -56,7 +52,7 @@ function PaymentForm({
       }
 
       // Get payment intent client secret from the element
-      const paymentElement = elements.getElement('payment');
+      const paymentElement = elements.getElement(PaymentElement);
       if (!paymentElement) {
         setError('Payment element not found');
         setProcessing(false);
@@ -81,16 +77,14 @@ function PaymentForm({
       if (paymentIntent && paymentIntent.status === 'succeeded') {
         onPaymentComplete(paymentIntent.id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error processing payment:', err);
-      setError(err.message || 'Payment processing failed');
+      const message = err instanceof Error ? err.message : 'Payment processing failed';
+      setError(message);
     } finally {
       setProcessing(false);
     }
   };
-
-  const itemName = 'bookmark';
-  const itemNamePlural = 'bookmarks';
 
   return (
     <form id="payment-form" onSubmit={handleSubmit} className="space-y-4">
@@ -130,14 +124,13 @@ export function ImportPaymentDialog({
   onPaymentComplete,
   onCancel,
 }: ImportPaymentDialogProps) {
-  const [stripePromise, setStripePromise] = useState<any>(null);
+  const [stripePromise, setStripePromise] = useState<Stripe | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const itemName = 'bookmark';
-  const itemNamePlural = 'bookmarks';
+  const itemName = type;
+  const itemNamePlural = `${type}s`;
 
   // Initialize Stripe
   useEffect(() => {
@@ -149,17 +142,11 @@ export function ImportPaymentDialog({
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
       setStripePromise(stripe);
     };
-    initStripe();
+    void initStripe();
   }, []);
 
   // Create payment intent when dialog opens
-  useEffect(() => {
-    if (open && count > 0 && stripePromise) {
-      createPaymentIntent();
-    }
-  }, [open, count, stripePromise]);
-
-  const createPaymentIntent = async () => {
+  const createPaymentIntent = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -168,14 +155,20 @@ export function ImportPaymentDialog({
       const paymentData = await apiClient.createBookmarkImportPaymentIntent(count);
 
       setClientSecret(paymentData.clientSecret);
-      setPaymentIntentId(paymentData.paymentIntentId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating payment intent:', err);
-      setError(err.message || 'Failed to initialize payment');
+      const message = err instanceof Error ? err.message : 'Failed to initialize payment';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [count]);
+
+  useEffect(() => {
+    if (open && count > 0 && stripePromise) {
+      void createPaymentIntent();
+    }
+  }, [count, createPaymentIntent, open, stripePromise]);
 
   const handlePaymentComplete = (id: string) => {
     onPaymentComplete(id);
@@ -214,7 +207,7 @@ export function ImportPaymentDialog({
 
           {typeof window !== 'undefined' && window.location.protocol === 'http:' && (
             <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-sm">
-              <strong>Note:</strong> In development mode, you'll need to manually enter card details.
+              <strong>Note:</strong> In development mode, you&apos;ll need to manually enter card details.
               Use Stripe test card: <code className="bg-blue-100 px-1 rounded">4242 4242 4242 4242</code>
             </div>
           )}
@@ -243,8 +236,6 @@ export function ImportPaymentDialog({
               }}
             >
               <PaymentForm
-                count={count}
-                type={type}
                 onPaymentComplete={handlePaymentComplete}
                 onCancel={handleCancel}
               />

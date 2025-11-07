@@ -288,9 +288,10 @@ export function SearchResults({ results }: SearchResultsProps) {
         // Use saved metadata from details, or fetch if missing
         if (details.url) {
           if (details.link_metadata) {
+            const metadata = details.link_metadata;
             setLinkMetadata((prev) => ({
               ...prev,
-              [details.id]: details.link_metadata,
+              [details.id]: metadata,
             }));
           } else {
             fetchLinkMetadata(details.id, details.url);
@@ -306,9 +307,10 @@ export function SearchResults({ results }: SearchResultsProps) {
       setEditTitle(item.title || display.title || '');
       setEditDescription(item.description || display.description || '');
       if ((item as any).link_metadata) {
+        const metadata = (item as any).link_metadata as LinkMetadata;
         setLinkMetadata((prev) => ({
           ...prev,
-          [item.id]: (item as any).link_metadata,
+          [item.id]: metadata,
         }));
       }
     } finally {

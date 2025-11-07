@@ -6,9 +6,9 @@ import { toast } from 'sonner';
 import { SearchBar } from '@/components/search-bar';
 import { CaptureForm } from '@/components/capture-form';
 import { ItemList } from '@/components/item-list';
-import { XComConnectDialog } from '@/components/xcom-connect-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { AvatarMenu } from '@/components/avatar-menu';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail } from '@/lib/api';
 
@@ -28,86 +28,18 @@ export default function DashboardPage() {
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('');
-  const [xcomConnectDialogOpen, setXcomConnectDialogOpen] = useState(false);
-  const [xcomStatus, setXcomStatus] = useState<{ connected: boolean; username?: string } | null>(null);
   const BATCH_SIZE = 50;
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      // Restore auth from token
-      await auth.restore();
-      setAuthLoading(false);
-
-      if (!auth.isAuthenticated()) {
-        router.push('/login');
-        return;
-      }
-
-      // Reset pagination state and load initial items
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
-      checkXComStatus();
-    };
-
-    checkAuth();
-    checkXComCallback();
-
-    // Cleanup polling interval on unmount
-    return () => {
-      if (bookmarkPollIntervalRef.current) {
-        clearInterval(bookmarkPollIntervalRef.current);
-      }
-    };
-  }, [router]);
-
-  const loadIndexedCount = async () => {
+  const loadIndexedCount = useCallback(async () => {
     try {
       const response = await apiClient.getIndexedItemCount();
       setIndexedCount(response.count);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading indexed count:', error);
     }
-  };
+  }, []);
 
-  const checkXComStatus = async () => {
-    try {
-      const status = await apiClient.getXComStatus();
-      setXcomStatus(status);
-    } catch (error) {
-      console.error('Error checking X.com status:', error);
-      setXcomStatus({ connected: false });
-    }
-  };
-
-  const checkXComCallback = () => {
-    // Check for OAuth callback parameters in URL
-    const params = new URLSearchParams(window.location.search);
-    const xcomConnected = params.get('xcom_connected');
-    const xcomLinked = params.get('xcom_linked');
-    const xcomError = params.get('xcom_error');
-    const username = params.get('username');
-
-    if (xcomConnected === 'true') {
-      toast.success(`Successfully connected to X.com as @${username || 'user'}!`);
-      checkXComStatus();
-      // Clean up URL
-      window.history.replaceState({}, '', '/dashboard');
-    } else if (xcomLinked === 'true') {
-      toast.success(`Successfully linked X.com account as @${username || 'user'}!`);
-      checkXComStatus();
-      // Clean up URL
-      window.history.replaceState({}, '', '/dashboard');
-    } else if (xcomError) {
-      toast.error(`X.com connection failed: ${decodeURIComponent(xcomError)}`);
-      // Clean up URL
-      window.history.replaceState({}, '', '/dashboard');
-    }
-  };
-
-  const loadItems = async (currentOffset: number = 0, reset: boolean = false) => {
+  const loadItems = useCallback(async (currentOffset: number = 0, reset: boolean = false) => {
     try {
       if (reset) {
         setLoading(true);
@@ -129,14 +61,18 @@ export default function DashboardPage() {
       }
 
       // Fetch items with pagination and filters
-      const itemsData = await apiClient.getItems(BATCH_SIZE, currentOffset, filters).catch(() => []);
+      const itemsData = await apiClient
+        .getItems(BATCH_SIZE, currentOffset, filters)
+        .catch((): Item[] => []);
 
       // For emails, we only fetch the first batch to avoid duplicates
       // Subsequent loads will only fetch database items
       let emailItems: Item[] = [];
       // Only fetch email items if no source filter is set, or if filtering for email sources
       if (currentOffset === 0 && (!sourceFilter || sourceFilter === 'email' || sourceFilter.startsWith('email:'))) {
-        const emailsResponse = await apiClient.getReceivedEmails(BATCH_SIZE).catch(() => ({ data: [], has_more: false }));
+        const emailsResponse = await apiClient
+          .getReceivedEmails(BATCH_SIZE)
+          .catch((): { data: ReceivedEmail[]; has_more: boolean } => ({ data: [], has_more: false }));
 
         // Extract resend_email_id from database items to check for duplicates
         const existingResendEmailIds = new Set<string>();
@@ -196,8 +132,9 @@ export default function DashboardPage() {
         if (fileTypeFilter) {
           emailItems = emailItems.filter(item => {
             if (!item.attachments || item.attachments.length === 0) return false;
-            return item.attachments.some((att: any) => {
-              const mimetype = (att.mimetype || '').toLowerCase();
+            return item.attachments.some((attachment) => {
+              const candidate = attachment as { mimetype?: string | null };
+              const mimetype = candidate.mimetype?.toLowerCase() ?? '';
               if (fileTypeFilter === 'image') {
                 return mimetype.startsWith('image/');
               } else if (fileTypeFilter === 'spreadsheet') {
@@ -251,14 +188,40 @@ export default function DashboardPage() {
         setHasMore(hasMoreItems);
         setOffset((prev) => prev + BATCH_SIZE);
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading items:', error);
       setHasMore(false);
     } finally {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, [BATCH_SIZE, fileTypeFilter, hasAttachmentsFilter, sourceFilter]);
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      await auth.restore();
+      setAuthLoading(false);
+
+      if (!auth.isAuthenticated()) {
+        router.push('/login');
+        return;
+      }
+
+      setOffset(0);
+      setItems([]);
+      setHasMore(true);
+      loadItems(0, true);
+      loadIndexedCount();
+    };
+
+    checkAuth();
+
+    return () => {
+      if (bookmarkPollIntervalRef.current) {
+        clearInterval(bookmarkPollIntervalRef.current);
+      }
+    };
+  }, [loadIndexedCount, loadItems, router]);
 
   const loadMoreItems = useCallback(async () => {
     if (loadingMore || !hasMore || loading) return;
@@ -281,7 +244,9 @@ export default function DashboardPage() {
       }
 
       // Fetch items with pagination and filters
-      const itemsData = await apiClient.getItems(BATCH_SIZE, currentOffset, filters).catch(() => []);
+      const itemsData = await apiClient
+        .getItems(BATCH_SIZE, currentOffset, filters)
+        .catch((): Item[] => []);
 
       // Combine items
       const allItems = [...itemsData];
@@ -305,7 +270,7 @@ export default function DashboardPage() {
       });
       setHasMore(hasMoreItems);
       setOffset((prev) => prev + BATCH_SIZE);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error loading more items:', error);
       setHasMore(false);
     } finally {
@@ -321,12 +286,12 @@ export default function DashboardPage() {
       setHasMore(true);
       loadItems(0, true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceFilter, hasAttachmentsFilter, fileTypeFilter]);
+  }, [authLoading, fileTypeFilter, hasAttachmentsFilter, loadItems, sourceFilter]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
-    if (!loadMoreSentinelRef.current || !hasMore || loading || loadingMore) return;
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasMore || loading || loadingMore) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -341,14 +306,12 @@ export default function DashboardPage() {
       }
     );
 
-    observer.observe(loadMoreSentinelRef.current);
+    observer.observe(sentinel);
 
     return () => {
-      if (loadMoreSentinelRef.current) {
-        observer.unobserve(loadMoreSentinelRef.current);
-      }
+      observer.unobserve(sentinel);
     };
-  }, [hasMore, loading, loadingMore, loadMoreItems]);
+  }, [hasMore, loadMoreItems, loading, loadingMore]);
 
   const handleDelete = async (itemId: string) => {
     try {
@@ -359,7 +322,7 @@ export default function DashboardPage() {
       setHasMore(true);
       loadItems(0, true);
       loadIndexedCount();
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error deleting item:', error);
     }
   };
@@ -378,9 +341,10 @@ export default function DashboardPage() {
     try {
       const result = await apiClient.importBookmarks(file);
       handleImportSuccess(result.total);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string };
       console.error('Error importing bookmarks:', error);
-      toast.error(error.message || 'Failed to start bookmark import');
+      toast.error(err?.message || 'Failed to start bookmark import');
       setImportingBookmarks(false);
     }
   };
@@ -437,8 +401,6 @@ export default function DashboardPage() {
     }
   };
 
-
-
   if (authLoading || loading) {
     return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
   }
@@ -450,30 +412,16 @@ export default function DashboardPage() {
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
           <h1 className="text-xl sm:text-2xl font-bold">Injest.io</h1>
-          <div className="flex gap-2 sm:gap-4 items-center">
-            {currentUser && (
-              <div className="flex flex-col items-end mr-2 sm:mr-4">
-                <span className="text-xs sm:text-sm text-gray-700 font-medium">
-                  {currentUser.email}
-                </span>
-                {currentUser.is_premium && (
-                  <span className="text-xs text-blue-600 font-semibold">
-                    Pro
-                  </span>
-                )}
-              </div>
-            )}
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="outline"
               size="sm"
               className="text-xs sm:text-sm"
-              onClick={() => {
-                auth.logout();
-                router.push('/login');
-              }}
+              onClick={() => router.push('/tasks')}
             >
-              Logout
+              Tasks
             </Button>
+            <AvatarMenu user={currentUser} />
           </div>
         </div>
       </header>
@@ -526,73 +474,6 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* X.com Connection Status Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>X.com Connection</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {xcomStatus?.connected ? (
-                  <>
-                    <div className="p-2 bg-green-50 border border-green-200 rounded-md">
-                      <p className="text-xs font-medium text-green-800">Connected</p>
-                      <p className="text-xs text-green-700">
-                        @{xcomStatus.username}
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setXcomConnectDialogOpen(true)}
-                    >
-                      Manage Connection
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="p-2 bg-gray-50 border border-gray-200 rounded-md">
-                      <p className="text-xs text-gray-700">Not connected</p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => setXcomConnectDialogOpen(true)}
-                    >
-                      Connect X.com
-                    </Button>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Important Links Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Important Links</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="space-y-2">
-                  <a
-                    href="https://x.com/settings/download_your_data"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                  >
-                    Download X (Twitter) Data
-                  </a>
-                  <a
-                    href="https://takeout.google.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block text-sm text-blue-600 hover:text-blue-800 hover:underline"
-                  >
-                    Google Takeout
-                  </a>
-                </div>
-              </CardContent>
-            </Card>
           </div>
 
           {/* Item list - second column on desktop, second on mobile */}
@@ -677,14 +558,6 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
-
-      <XComConnectDialog
-        open={xcomConnectDialogOpen}
-        onOpenChange={setXcomConnectDialogOpen}
-        onConnected={() => {
-          checkXComStatus();
-        }}
-      />
     </div>
   );
 }

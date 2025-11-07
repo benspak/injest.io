@@ -440,6 +440,26 @@ Email: ${contentPreview}`;
       return [];
     }
   }
+
+  async processTaskPrompt(
+    prompt: string,
+    item: any,
+    task: any,
+    fileContent?: string
+  ): Promise<{ itemUpdates: Record<string, unknown>; taskUpdates: Record<string, unknown> }> {
+    // Placeholder implementation – extend with OpenAI powered updates as needed
+    console.log('[OpenAI] processTaskPrompt invoked', {
+      prompt,
+      itemId: item?.id,
+      taskId: task?.id,
+      hasFileContent: Boolean(fileContent),
+    });
+
+    return {
+      itemUpdates: {},
+      taskUpdates: {},
+    };
+  }
 }
 
 export const openAIService = new OpenAIService();

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -18,11 +19,9 @@ interface XComPostDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
-  imageUrl?: string;
-  imageFilename?: string;
 }
 
-export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageFilename }: XComPostDialogProps) {
+export function XComPostDialog({ open, onOpenChange, onSuccess }: XComPostDialogProps) {
   const [description, setDescription] = useState('');
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -33,66 +32,7 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
   const [showConnectDialog, setShowConnectDialog] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (open) {
-      checkConnectionStatus();
-      // If imageUrl is provided, load the image
-      if (imageUrl) {
-        loadImageFromUrl(imageUrl, imageFilename);
-      } else {
-        // Reset image state when opening without imageUrl
-        setImage(null);
-        setImagePreview(null);
-        setDescription('');
-      }
-    }
-  }, [open, imageUrl, imageFilename]);
-
-  const loadImageFromUrl = async (url: string, filename?: string) => {
-    try {
-      setError(null);
-      // Fetch the image with credentials
-      // The URL should already include the auth token in query params from getFileUrl
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to load image');
-      }
-
-      const blob = await response.blob();
-
-      // Check if it's an image
-      if (!blob.type.startsWith('image/')) {
-        setError('The file is not an image');
-        return;
-      }
-
-      // Check size
-      if (blob.size > 5 * 1024 * 1024) {
-        setError('Image size must be less than 5MB');
-        return;
-      }
-
-      // Convert blob to File
-      const file = new File([blob], filename || 'image.jpg', { type: blob.type });
-      setImage(file);
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } catch (err: any) {
-      console.error('Error loading image from URL:', err);
-      setError(err.message || 'Failed to load image');
-      setImage(null);
-      setImagePreview(null);
-    }
-  };
-
-  const checkConnectionStatus = async () => {
+  const checkConnectionStatus = useCallback(async () => {
     setChecking(true);
     try {
       const status = await apiClient.getXComStatus();
@@ -103,7 +43,13 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
     } finally {
       setChecking(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      void checkConnectionStatus();
+    }
+  }, [checkConnectionStatus, open]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -167,8 +113,9 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
       if (onSuccess) {
         onSuccess();
       }
-    } catch (err: any) {
-      setError(err.message || 'Failed to post to X.com');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to post to X.com';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -177,17 +124,14 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
   const handleConnected = () => {
     setConnected(true);
     setShowConnectDialog(false);
-    checkConnectionStatus();
+    void checkConnectionStatus();
   };
 
   const handleClose = () => {
     if (!loading) {
-      // Only reset if imageUrl wasn't provided (user-initiated close)
-      if (!imageUrl) {
-        setDescription('');
-        setImage(null);
-        setImagePreview(null);
-      }
+      setDescription('');
+      setImage(null);
+      setImagePreview(null);
       setError(null);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -271,7 +215,7 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
           <div className="space-y-4 py-4">
           <div>
             <Textarea
-              placeholder="What's happening?"
+              placeholder="What&apos;s happening?"
               value={description}
               onChange={(e) => {
                 const value = e.target.value;
@@ -319,14 +263,19 @@ export function XComPostDialog({ open, onOpenChange, onSuccess, imageUrl, imageF
               className="hidden"
             />
             {imagePreview && image && (
-              <div className="mt-2 overflow-x-auto -mx-1 px-1">
-                <img
-                  src={imagePreview}
-                  alt="Preview"
-                  className="max-h-[300px] rounded-md object-contain border"
-                />
+              <div className="mt-2">
+                <div className="relative w-full max-h-[300px]">
+                  <Image
+                    src={imagePreview}
+                    alt="Preview"
+                    width={600}
+                    height={400}
+                    className="h-full max-h-[300px] w-full max-w-full rounded-md border object-contain"
+                    unoptimized
+                  />
+                </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {image.name || imageFilename || 'Image'} ({(image.size / 1024 / 1024).toFixed(2)} MB)
+                  {image.name} ({(image.size / 1024 / 1024).toFixed(2)} MB)
                 </p>
               </div>
             )}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { useState, useEffect, useCallback } from 'react';
+import { loadStripe, type Stripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import {
   Dialog,
@@ -21,11 +21,9 @@ interface BookmarkPaymentDialogProps {
 }
 
 function PaymentForm({
-  bookmarkCount,
   onPaymentComplete,
   onCancel
 }: {
-  bookmarkCount: number;
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
 }) {
@@ -53,7 +51,7 @@ function PaymentForm({
       }
 
       // Get payment intent client secret from the element
-      const paymentElement = elements.getElement('payment');
+      const paymentElement = elements.getElement(PaymentElement);
       if (!paymentElement) {
         setError('Payment element not found');
         setProcessing(false);
@@ -78,9 +76,10 @@ function PaymentForm({
       if (paymentIntent && paymentIntent.status === 'succeeded') {
         onPaymentComplete(paymentIntent.id);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error processing payment:', err);
-      setError(err.message || 'Payment processing failed');
+      const message = err instanceof Error ? err.message : 'Payment processing failed';
+      setError(message);
     } finally {
       setProcessing(false);
     }
@@ -123,9 +122,8 @@ export function BookmarkPaymentDialog({
   onPaymentComplete,
   onCancel,
 }: BookmarkPaymentDialogProps) {
-  const [stripePromise, setStripePromise] = useState<any>(null);
+  const [stripePromise, setStripePromise] = useState<Stripe | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
-  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,17 +137,11 @@ export function BookmarkPaymentDialog({
       const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
       setStripePromise(stripe);
     };
-    initStripe();
+    void initStripe();
   }, []);
 
   // Create payment intent when dialog opens
-  useEffect(() => {
-    if (open && bookmarkCount > 0 && stripePromise) {
-      createPaymentIntent();
-    }
-  }, [open, bookmarkCount, stripePromise]);
-
-  const createPaymentIntent = async () => {
+  const createPaymentIntent = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -158,14 +150,20 @@ export function BookmarkPaymentDialog({
       const paymentData = await apiClient.createBookmarkImportPaymentIntent(bookmarkCount);
 
       setClientSecret(paymentData.clientSecret);
-      setPaymentIntentId(paymentData.paymentIntentId);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error creating payment intent:', err);
-      setError(err.message || 'Failed to initialize payment');
+      const message = err instanceof Error ? err.message : 'Failed to initialize payment';
+      setError(message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [bookmarkCount]);
+
+  useEffect(() => {
+    if (open && bookmarkCount > 0 && stripePromise) {
+      void createPaymentIntent();
+    }
+  }, [bookmarkCount, createPaymentIntent, open, stripePromise]);
 
   const handlePaymentComplete = (id: string) => {
     onPaymentComplete(id);
@@ -201,7 +199,7 @@ export function BookmarkPaymentDialog({
 
           {typeof window !== 'undefined' && window.location.protocol === 'http:' && (
             <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded text-sm">
-              <strong>Note:</strong> In development mode, you'll need to manually enter card details.
+              <strong>Note:</strong> In development mode, you&apos;ll need to manually enter card details.
               Use Stripe test card: <code className="bg-blue-100 px-1 rounded">4242 4242 4242 4242</code>
             </div>
           )}
@@ -230,7 +228,6 @@ export function BookmarkPaymentDialog({
               }}
             >
               <PaymentForm
-                bookmarkCount={bookmarkCount}
                 onPaymentComplete={handlePaymentComplete}
                 onCancel={handleCancel}
               />

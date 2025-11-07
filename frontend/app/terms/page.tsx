@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 export const metadata = {
   title: 'Terms of Service - Injest.io',
@@ -30,10 +30,10 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Agreement to Terms</h2>
               <p className="mb-4">
-                By accessing or using Injest.io ("the Service"), you agree to be bound by these Terms of Service ("Terms"). If you disagree with any part of these Terms, you may not access or use the Service.
+                By accessing or using Injest.io (&ldquo;the Service&rdquo;), you agree to be bound by these Terms of Service (&ldquo;Terms&rdquo;). If you disagree with any part of these Terms, you may not access or use the Service.
               </p>
               <p>
-                These Terms constitute a legally binding agreement between you ("User," "you," or "your") and Injest.io ("we," "us," or "our"). Your use of the Service is also governed by our Privacy Policy, which is incorporated into these Terms by reference.
+                These Terms constitute a legally binding agreement between you (&ldquo;User,&rdquo; &ldquo;you,&rdquo; or &ldquo;your&rdquo;) and Injest.io (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;). Your use of the Service is also governed by our Privacy Policy, which is incorporated into these Terms by reference.
               </p>
             </section>
 
@@ -133,7 +133,7 @@ export default function TermsOfServicePage() {
 
               <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-6">6.2 Your Content</h3>
               <p className="mb-4">
-                You retain ownership of all content you upload, submit, or create through the Service ("Your Content"). By using the Service, you grant us a worldwide, non-exclusive, royalty-free license to:
+                You retain ownership of all content you upload, submit, or create through the Service (&ldquo;Your Content&rdquo;). By using the Service, you grant us a worldwide, non-exclusive, royalty-free license to:
               </p>
               <ul className="list-disc list-inside space-y-2 mb-4">
                 <li>Store, process, and display Your Content as necessary to provide the Service</li>
@@ -146,7 +146,7 @@ export default function TermsOfServicePage() {
 
               <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-6">6.3 AI Processing</h3>
               <p>
-                We use artificial intelligence to process Your Content. This processing is performed solely to provide you with the Service's features and is not used to train general-purpose AI models that would benefit other users or third parties.
+                We use artificial intelligence to process Your Content. This processing is performed solely to provide you with the Service&apos;s features and is not used to train general-purpose AI models that would benefit other users or third parties.
               </p>
             </section>
 
@@ -201,7 +201,7 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">10. Disclaimer of Warranties</h2>
               <p className="mb-4">
-                THE SERVICE IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO:
+                THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO:
               </p>
               <ul className="list-disc list-inside space-y-2 mb-4">
                 <li>Warranties of merchantability, fitness for a particular purpose, or non-infringement</li>
@@ -216,7 +216,7 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">11. Indemnification</h2>
               <p>
-                You agree to indemnify, defend, and hold harmless us and our officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, and expenses (including reasonable attorneys' fees) arising out of or in connection with: (a) your use of the Service, (b) Your Content, (c) your violation of these Terms, or (d) your violation of any third-party rights.
+                You agree to indemnify, defend, and hold harmless us and our officers, directors, employees, and agents from and against any claims, liabilities, damages, losses, and expenses (including reasonable attorneys&apos; fees) arising out of or in connection with: (a) your use of the Service, (b) Your Content, (c) your violation of these Terms, or (d) your violation of any third-party rights.
               </p>
             </section>
 
@@ -252,7 +252,7 @@ export default function TermsOfServicePage() {
               </p>
               <ul className="list-disc list-inside space-y-2 mb-4">
                 <li>Posting the updated Terms on this page</li>
-                <li>Updating the "Last Updated" date</li>
+                <li>Updating the &quot;Last Updated&quot; date</li>
                 <li>Sending an email notification to your registered email address (for significant changes)</li>
               </ul>
               <p>

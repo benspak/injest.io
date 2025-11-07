@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,16 +13,15 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiClient, Item, LinkMetadata } from '@/lib/api';
-import { XComPostDialog } from '@/components/xcom-post-dialog';
-import { toast } from 'sonner';
+import { apiClient, Item, LinkMetadata, TaskifyResponse } from '@/lib/api';
 
 interface ItemListProps {
   items: Item[];
   onDelete?: (itemId: string) => void;
+  onTaskCreated?: (response: TaskifyResponse) => void;
 }
 
-export function ItemList({ items, onDelete }: ItemListProps) {
+export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [itemDetails, setItemDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -39,9 +39,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-  const [xcomDialogOpen, setXcomDialogOpen] = useState(false);
-  const [xcomImageUrl, setXcomImageUrl] = useState<string | null>(null);
-  const [xcomImageFilename, setXcomImageFilename] = useState<string | null>(null);
+  const [taskifyLoading, setTaskifyLoading] = useState<Set<string>>(new Set());
+  const [taskifiedItems, setTaskifiedItems] = useState<Set<string>>(new Set());
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -125,36 +124,6 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     } catch (error) {
       console.error('Error downloading file:', error);
       alert(`Failed to download ${originalname}. Please try again.`);
-    }
-  };
-
-  const hasImageAttachment = (item: Item | null): boolean => {
-    if (!item || !item.attachments || !Array.isArray(item.attachments)) {
-      return false;
-    }
-    return item.attachments.some((file: any) => apiClient.isImageMimetype(file.mimetype));
-  };
-
-  const getFirstImageAttachment = (item: Item | null): { url: string; filename: string } | null => {
-    if (!item || !item.attachments || !Array.isArray(item.attachments)) {
-      return null;
-    }
-    const imageAttachment = item.attachments.find((file: any) => apiClient.isImageMimetype(file.mimetype));
-    if (!imageAttachment) {
-      return null;
-    }
-    return {
-      url: apiClient.getFileUrl(item.id, imageAttachment.filename, true),
-      filename: imageAttachment.originalname || imageAttachment.filename,
-    };
-  };
-
-  const handlePostToXCom = (item: Item) => {
-    const imageInfo = getFirstImageAttachment(item);
-    if (imageInfo) {
-      setXcomImageUrl(imageInfo.url);
-      setXcomImageFilename(imageInfo.filename);
-      setXcomDialogOpen(true);
     }
   };
 
@@ -268,7 +237,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
             // Use saved metadata
             setLinkMetadata((prev) => ({
               ...prev,
-              [details.id]: details.link_metadata,
+              [details.id]: details.link_metadata as LinkMetadata,
             }));
           } else {
             // Fetch metadata if not saved (will also save it)
@@ -286,9 +255,10 @@ export function ItemList({ items, onDelete }: ItemListProps) {
       setEditDescription(item.description || display.description || '');
       // Use saved metadata from item if available
       if (item.link_metadata) {
+        const metadata = item.link_metadata;
         setLinkMetadata((prev) => ({
           ...prev,
-          [item.id]: item.link_metadata,
+          [item.id]: metadata,
         }));
       }
     } finally {
@@ -365,6 +335,56 @@ export function ItemList({ items, onDelete }: ItemListProps) {
       alert('Failed to save item. Please try again.');
     } finally {
       setSavingItem(false);
+    }
+  };
+
+
+
+  const handleTaskifyItem = async (item: Item) => {
+    if (item.isResendEmail) {
+      toast.error('Import the email as an item before turning it into a task.');
+      return;
+    }
+
+    if (taskifyLoading.has(item.id)) {
+      return;
+    }
+
+    setTaskifyLoading((prev) => {
+      const next = new Set(prev);
+      next.add(item.id);
+      return next;
+    });
+
+    try {
+      const defaultDue = new Date();
+      defaultDue.setDate(defaultDue.getDate() + 1);
+      const dueISOString = defaultDue.toISOString();
+
+      const response = await apiClient.taskifyItem(item.id, dueISOString);
+
+      setTaskifiedItems((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+
+      if (selectedItem?.id === item.id && response.item) {
+        setItemDetails(response.item);
+        setSelectedItem(response.item);
+      }
+
+      onTaskCreated?.(response);
+      toast.success('Task created. Manage it on the Tasks page.');
+    } catch (error: any) {
+      console.error('Error creating task:', error);
+      toast.error(error?.message || 'Failed to create task');
+    } finally {
+      setTaskifyLoading((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
     }
   };
 
@@ -548,6 +568,21 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                         {item.isResendEmail && ' • Resend'}
                       </p>
                     </div>
+                    {!item.isResendEmail && !taskifiedItems.has(item.id) && item.type !== 'task' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTaskifyItem(item);
+                        }}
+                        disabled={taskifyLoading.has(item.id)}
+                      >
+                        {taskifyLoading.has(item.id) ? 'Taskifying…' : 'Taskify'}
+                      </Button>
+                    ) : (!item.isResendEmail ? (
+                      <span className="text-xs text-green-600 font-medium ml-2">Task ready</span>
+                    ) : null)}
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1119,17 +1154,19 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
 
 
-                <div className="flex gap-2 pt-4 border-t flex-wrap">
-                  {!editingItem && hasImageAttachment(itemDetails) && (
+                <div className="flex gap-2 pt-4 border-t">
+                  {!itemDetails.isResendEmail && !(taskifiedItems.has(itemDetails.id) || itemDetails.type === 'task') && (
                     <Button
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePostToXCom(itemDetails);
-                      }}
+                      onClick={() => handleTaskifyItem(itemDetails)}
+                      disabled={taskifyLoading.has(itemDetails.id)}
                     >
-                      Post to X.com
+                      {taskifyLoading.has(itemDetails.id) ? 'Taskifying…' : 'Taskify'}
                     </Button>
+                  )}
+                  {!itemDetails.isResendEmail && (taskifiedItems.has(itemDetails.id) || itemDetails.type === 'task') && (
+                    <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
+                      Task ready
+                    </span>
                   )}
                   {!editingItem && !itemDetails.isResendEmail && (
                     <Button
@@ -1163,25 +1200,6 @@ export function ItemList({ items, onDelete }: ItemListProps) {
           ) : null}
         </DialogContent>
       </Dialog>
-
-      <XComPostDialog
-        open={xcomDialogOpen}
-        onOpenChange={(open) => {
-          setXcomDialogOpen(open);
-          if (!open) {
-            setXcomImageUrl(null);
-            setXcomImageFilename(null);
-          }
-        }}
-        imageUrl={xcomImageUrl || undefined}
-        imageFilename={xcomImageFilename || undefined}
-        onSuccess={() => {
-          toast.success('Successfully posted to X.com!');
-          setXcomDialogOpen(false);
-          setXcomImageUrl(null);
-          setXcomImageFilename(null);
-        }}
-      />
     </>
   );
 }

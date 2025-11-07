@@ -83,7 +83,7 @@ export default function Home() {
                 <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
                   <div className="text-xs text-gray-500 mb-2">Example: LinkedIn News Item</div>
                   <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-sm mb-1">Nvidia CEO Jensen Huang touted the company's latest advancements...</div>
+                    <div className="font-semibold text-sm mb-1">Nvidia CEO Jensen Huang touted the company&apos;s latest advancements...</div>
                     <div className="text-xs text-blue-600 mb-2">linkedin.com/news/story/nvidia...</div>
                     <div className="text-xs text-gray-500">Source: web</div>
                   </div>
@@ -112,7 +112,7 @@ export default function Home() {
                     <div className="font-semibold text-sm mb-2">Fwd: Your seed FOMO is costing you</div>
                     <div className="text-xs text-gray-600 mb-2">Nov 5, 2025, 01:38 PM • email</div>
                     <div className="text-xs text-gray-700 space-y-1">
-                      <div>• The concept of a fundraising 'round' is becoming obsolete...</div>
+                      <div>• The concept of a fundraising &lsquo;round&rsquo; is becoming obsolete...</div>
                       <div>• Following top-tier VCs into early-stage investments...</div>
                       <div>• Investing alongside prominent VCs in late-stage rounds...</div>
                     </div>
@@ -150,8 +150,8 @@ export default function Home() {
                     <div className="text-xs text-gray-500 mb-2">Attachments: news_data (1).csv (219 KB)</div>
                     <div className="text-xs text-gray-700">
                       <div>date,title,url</div>
-                      <div>2025-03-18,"No title","linkedin.com/news/story/..."</div>
-                      <div>2025-03-18,"Google to acquire Wiz for $32B","linkedin.com/news/story/..."</div>
+                      <div>2025-03-18,&quot;No title&quot;,&quot;linkedin.com/news/story/...&quot;</div>
+                      <div>2025-03-18,&quot;Google to acquire Wiz for $32B&quot;,&quot;linkedin.com/news/story/...&quot;</div>
                     </div>
                   </div>
                 </div>
@@ -218,7 +218,7 @@ export default function Home() {
                   <div className="text-xs text-gray-500 mb-2">Example: Image with OCR</div>
                   <div className="bg-gray-50 p-3 rounded border">
                     <div className="font-semibold text-sm mb-1">Auto-generated title from image content</div>
-                    <div className="text-xs text-gray-600 mb-2">Extracted text: "Meeting notes: Q4 planning session..."</div>
+                    <div className="text-xs text-gray-600 mb-2">Extracted text: &quot;Meeting notes: Q4 planning session...&quot;</div>
                     <div className="text-xs text-gray-500">Source: image • OCR processed</div>
                   </div>
                 </div>

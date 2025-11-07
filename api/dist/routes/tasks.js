@@ -25,10 +25,8 @@ router.post('/taskify/:itemId', async (req, res) => {
             return res.status(400).json({ error: 'Task already exists for this item' });
         }
         // Parse item content for task title/description
-        // Prioritize structured fields (title/description) over raw data
         let title = item.title || '';
         let description = item.description || '';
-        // If structured fields are missing, try to parse or use raw data
         if (!title && !description && item.raw) {
             try {
                 const parsed = JSON.parse(item.raw);
@@ -36,26 +34,32 @@ router.post('/taskify/:itemId', async (req, res) => {
                 description = parsed.description || parsed.body || parsed.text || description;
             }
             catch {
-                // If parsing fails, use raw as fallback
                 title = item.raw.substring(0, 100);
                 description = item.raw;
             }
         }
-        // Final fallback: ensure we have at least something
         if (!title && !description) {
             title = 'Untitled Task';
             description = '';
         }
-        // Create task
+        let dueDate = null;
+        if (req.body?.due_date) {
+            const parsedDue = new Date(req.body.due_date);
+            if (!Number.isNaN(parsedDue.getTime())) {
+                dueDate = parsedDue;
+            }
+        }
         const task = await TaskModel.create({
             item_id: item.id,
             title,
             description,
             status: 'pending',
+            due_date: dueDate,
         });
         // Update item type to task
         await ItemModel.update(item.id, { type: 'task' });
-        res.status(201).json(task);
+        const refreshedItem = await ItemModel.findById(item.id);
+        res.status(201).json({ task, item: refreshedItem });
     }
     catch (error) {
         console.error('Error creating task:', error);
@@ -70,7 +74,6 @@ router.get('/', async (req, res) => {
         }
         const status = typeof req.query.status === 'string' ? req.query.status : undefined;
         const tasks = await TaskModel.findByOwner(req.user.id, status);
-        // Fetch items for each task
         const tasksWithItems = await Promise.all(tasks.map(async (task) => {
             const item = await ItemModel.findById(task.item_id);
             return {
@@ -92,21 +95,21 @@ router.patch('/:id', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const { title, description, status, due_date } = req.body;
-        // Verify task ownership
         const task = await TaskModel.findById(req.params.id);
         if (!task) {
             return res.status(404).json({ error: 'Task not found' });
         }
-        const item = await ItemModel.findById(task.item_id);
+        const item = await ItemModel.findByIdIncludingDeleted(task.item_id);
         if (!item || item.owner_id !== req.user.id) {
             return res.status(403).json({ error: 'Forbidden' });
         }
-        const updates = {
-            title,
-            description,
-            status,
-        };
-        // Handle due_date: if provided, convert to Date; if explicitly null, set to null
+        const updates = {};
+        if (title !== undefined)
+            updates.title = title;
+        if (description !== undefined)
+            updates.description = description;
+        if (status !== undefined)
+            updates.status = status;
         if (due_date !== undefined) {
             updates.due_date = due_date ? new Date(due_date) : null;
         }
@@ -124,12 +127,11 @@ router.delete('/:id', async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        // Verify task ownership
         const task = await TaskModel.findById(req.params.id);
         if (!task) {
             return res.status(404).json({ error: 'Task not found' });
         }
-        const item = await ItemModel.findById(task.item_id);
+        const item = await ItemModel.findByIdIncludingDeleted(task.item_id);
         if (!item || item.owner_id !== req.user.id) {
             return res.status(403).json({ error: 'Forbidden' });
         }
@@ -154,16 +156,14 @@ router.post('/:id/prompt', async (req, res) => {
         if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
             return res.status(400).json({ error: 'Prompt is required' });
         }
-        // Get task and verify ownership
         const task = await TaskModel.findById(req.params.id);
         if (!task) {
             return res.status(404).json({ error: 'Task not found' });
         }
-        const item = await ItemModel.findById(task.item_id);
+        const item = await ItemModel.findByIdIncludingDeleted(task.item_id);
         if (!item || item.owner_id !== req.user.id) {
             return res.status(403).json({ error: 'Forbidden' });
         }
-        // Try to parse file content if item has attachments
         let fileContent;
         if (item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0) {
             try {
@@ -173,22 +173,17 @@ router.post('/:id/prompt', async (req, res) => {
                     fileContent = parsed.text;
                 }
             }
-            catch (error) {
-                console.warn('Could not parse file content:', error);
-                // Continue without file content
+            catch (parseError) {
+                console.warn('Could not parse file content:', parseError);
             }
         }
-        // Process prompt with OpenAI
         const updates = await openAIService.processTaskPrompt(prompt.trim(), item, task, fileContent);
-        // Apply updates to item if any
         if (Object.keys(updates.itemUpdates).length > 0) {
             await ItemModel.update(item.id, updates.itemUpdates);
         }
-        // Apply updates to task if any
         if (Object.keys(updates.taskUpdates).length > 0) {
             await TaskModel.update(task.id, updates.taskUpdates);
         }
-        // Fetch updated task and item
         const updatedTask = await TaskModel.findById(task.id);
         const updatedItem = await ItemModel.findById(item.id);
         res.json({

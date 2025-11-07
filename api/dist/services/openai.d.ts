@@ -43,6 +43,10 @@ export declare class OpenAIService {
      * Generate email summary as 3 bullet points
      */
     generateEmailSummary(emailBody: string): Promise<string[]>;
+    processTaskPrompt(prompt: string, item: any, task: any, fileContent?: string): Promise<{
+        itemUpdates: Record<string, unknown>;
+        taskUpdates: Record<string, unknown>;
+    }>;
 }
 export declare const openAIService: OpenAIService;
 //# sourceMappingURL=openai.d.ts.map
