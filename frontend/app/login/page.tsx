@@ -9,7 +9,11 @@ import { auth } from '@/lib/auth';
 
 // Get API URL (same logic as api.ts)
 function getApiUrl(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
+  let url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
+
+  // Remove trailing slashes
+  url = url.trim().replace(/\/+$/, '');
+
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     return typeof window !== 'undefined' && window.location.protocol === 'https:'
       ? `https://${url}`
@@ -70,7 +74,8 @@ function LoginForm() {
     setMessage('');
     try {
       // Redirect to backend X.com login endpoint
-      window.location.href = `${getApiUrl()}/api/auth/xcom/login`;
+      const apiUrl = getApiUrl();
+      window.location.href = `${apiUrl}/api/auth/xcom/login`;
     } catch (error: any) {
       setMessage(error.message || 'Failed to initiate X.com login');
       setXcomLoading(false);
