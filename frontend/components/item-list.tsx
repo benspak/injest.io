@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { MouseEvent, useState } from 'react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,17 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [taskifyLoading, setTaskifyLoading] = useState<Set<string>>(new Set());
   const [taskifiedItems, setTaskifiedItems] = useState<Set<string>>(new Set());
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{
+    src: string;
+    alt: string;
+    filename: string;
+    originalname: string;
+    size?: number;
+    attachmentId?: string;
+    itemId: string;
+    resendEmailId?: string;
+  } | null>(null);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -281,6 +292,8 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
       setEmailSummary([]);
       setEmailBodyExpanded(false);
       setDescriptionExpanded(false);
+      setImageDialogOpen(false);
+      setSelectedImage(null);
     }
   };
 
@@ -338,7 +351,31 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
     }
   };
 
-
+  const handleImageAttachmentClick = (
+    event: MouseEvent<HTMLImageElement>,
+    file: {
+      filename: string;
+      originalname: string;
+      size?: number;
+      attachmentId?: string;
+      mimetype?: string;
+    },
+    itemId: string,
+    resendEmailId?: string
+  ) => {
+    event.stopPropagation();
+    setSelectedImage({
+      src: apiClient.getFileUrl(itemId, file.filename, true),
+      alt: file.originalname,
+      filename: file.filename,
+      originalname: file.originalname,
+      size: file.size,
+      attachmentId: file.attachmentId,
+      itemId,
+      resendEmailId,
+    });
+    setImageDialogOpen(true);
+  };
 
   const handleTaskifyItem = async (item: Item) => {
     if (item.isResendEmail) {
@@ -1024,7 +1061,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                                     <img
                                       src={apiClient.getFileUrl(itemDetails.id, file.filename, true)}
                                       alt={file.originalname}
-                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96"
+                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96 cursor-zoom-in"
                                       onError={(e) => {
                                         // Fallback to download button if image fails to load
                                         const target = e.target as HTMLImageElement;
@@ -1037,6 +1074,9 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                                           }
                                         }
                                       }}
+                                      onClick={(e) =>
+                                        handleImageAttachmentClick(e, file, itemDetails.id, itemDetails.resendEmailId)
+                                      }
                                     />
                                     <div className="image-fallback hidden flex items-center justify-between w-full">
                                       <div className="flex-1">
@@ -1157,6 +1197,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                 <div className="flex gap-2 pt-4 border-t">
                   {!itemDetails.isResendEmail && !(taskifiedItems.has(itemDetails.id) || itemDetails.type === 'task') && (
                     <Button
+                      variant="outline"
                       onClick={() => handleTaskifyItem(itemDetails)}
                       disabled={taskifyLoading.has(itemDetails.id)}
                     >
@@ -1198,6 +1239,54 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
               </div>
             </>
           ) : null}
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={imageDialogOpen}
+        onOpenChange={(open) => {
+          setImageDialogOpen(open);
+          if (!open) {
+            setSelectedImage(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] sm:w-full sm:max-w-5xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{selectedImage?.originalname || 'Image preview'}</DialogTitle>
+            {selectedImage?.size && (
+              <DialogDescription>
+                {(selectedImage.size / 1024).toFixed(1)} KB
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {selectedImage && (
+            <div className="space-y-4">
+              <div className="relative w-full">
+                <img
+                  src={selectedImage.src}
+                  alt={selectedImage.alt}
+                  className="w-full h-auto max-h-[80vh] object-contain rounded-md bg-black/5"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownloadFile(
+                      selectedImage.itemId,
+                      selectedImage.filename,
+                      selectedImage.originalname,
+                      selectedImage.attachmentId,
+                      selectedImage.resendEmailId
+                    );
+                  }}
+                >
+                  Download
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </>
