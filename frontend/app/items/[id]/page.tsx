@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { AvatarMenu } from '@/components/avatar-menu';
+import { FeedbackDialog } from '@/components/feedback-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient, Item } from '@/lib/api';
@@ -112,9 +113,20 @@ export default function ItemDetailPage() {
             <h1 className="text-xl font-semibold">Item Details</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
-            <Button variant="outline" size="sm" onClick={() => router.push('/dashboard')}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm"
+              onClick={() => router.push('/dashboard')}
+            >
               Dashboard
             </Button>
+            <FeedbackDialog
+              userEmail={currentUser?.email}
+              buttonVariant="outline"
+              buttonSize="sm"
+              triggerClassName="text-xs sm:text-sm"
+            />
             <AvatarMenu user={currentUser} />
           </div>
         </div>

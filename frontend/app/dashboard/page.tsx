@@ -9,6 +9,7 @@ import { ItemList } from '@/components/item-list';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AvatarMenu } from '@/components/avatar-menu';
+import { FeedbackDialog } from '@/components/feedback-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail, API_URL } from '@/lib/api';
 
@@ -503,6 +504,12 @@ export default function DashboardPage() {
             >
               Tasks
             </Button>
+            <FeedbackDialog
+              userEmail={currentUser?.email}
+              buttonVariant="outline"
+              buttonSize="sm"
+              triggerClassName="text-xs sm:text-sm"
+            />
             <AvatarMenu user={currentUser} />
           </div>
         </div>

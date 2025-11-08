@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { AvatarMenu } from '@/components/avatar-menu';
+import { FeedbackDialog } from '@/components/feedback-dialog';
 import { XComConnectDialog } from '@/components/xcom-connect-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -114,6 +115,12 @@ export default function SettingsPage() {
             >
               <Link href="/tasks">Tasks</Link>
             </Button>
+            <FeedbackDialog
+              userEmail={currentUser?.email}
+              buttonVariant="outline"
+              buttonSize="sm"
+              triggerClassName="text-xs sm:text-sm"
+            />
             <AvatarMenu user={currentUser} />
           </div>
         </div>

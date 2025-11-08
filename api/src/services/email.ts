@@ -77,6 +77,72 @@ export class EmailService {
     });
   }
 
+  async sendFeedbackEmail(params: {
+    title: string;
+    message: string;
+    userEmail?: string;
+    to?: string;
+    image?: {
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+    };
+  }): Promise<void> {
+    const { title, message, userEmail, to, image } = params;
+
+    const escapeHtml = (value: string) =>
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
+    const feedbackTitle = title.trim();
+    const feedbackMessage = message.trim();
+    const sender = userEmail ?? 'Unknown user';
+
+    const htmlBody = `
+      <p>You have received new feedback from <strong>${escapeHtml(sender)}</strong>.</p>
+      <p><strong>Title:</strong> ${escapeHtml(feedbackTitle)}</p>
+      <p><strong>Message:</strong></p>
+      <p>${escapeHtml(feedbackMessage).replace(/\n/g, '<br />')}</p>
+      ${image ? `<p><em>An image attachment is included.</em></p>` : ''}
+    `;
+
+    const textBody = [
+      `New feedback from: ${sender}`,
+      `Title: ${feedbackTitle}`,
+      'Message:',
+      feedbackMessage,
+      image ? '\nAn image attachment is included.' : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const attachments = image
+      ? [
+          {
+            filename: image.originalname,
+            content: image.buffer.toString('base64'),
+            contentType: image.mimetype,
+          },
+        ]
+      : undefined;
+
+    const fromAddress = process.env.FEEDBACK_FROM_EMAIL || 'Injest Feedback <noreply@injest.io>';
+    const toAddress = to || process.env.FEEDBACK_RECIPIENT_EMAIL || 'benvspak@gmail.com';
+
+    await this.resend.emails.send({
+      from: fromAddress,
+      to: toAddress,
+      subject: `Feedback: ${feedbackTitle}`,
+      html: htmlBody,
+      text: textBody,
+      attachments,
+    });
+  }
+
   async listReceivedEmails(limit?: number, after?: string, before?: string): Promise<ReceivedEmailListResponse> {
     const params = new URLSearchParams();
     if (limit) params.append('limit', limit.toString());

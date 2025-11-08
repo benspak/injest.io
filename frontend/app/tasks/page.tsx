@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { AvatarMenu } from '@/components/avatar-menu';
+import { FeedbackDialog } from '@/components/feedback-dialog';
 import { TaskList } from '@/components/task-list';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -109,6 +110,12 @@ export default function TasksPage() {
             >
               <Link href="/dashboard">Dashboard</Link>
             </Button>
+            <FeedbackDialog
+              userEmail={currentUser?.email}
+              buttonVariant="outline"
+              buttonSize="sm"
+              triggerClassName="text-xs sm:text-sm"
+            />
             <AvatarMenu user={currentUser} />
           </div>
         </div>

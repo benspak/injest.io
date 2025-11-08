@@ -33,6 +33,17 @@ export declare class EmailService {
     constructor();
     sendMagicLink(email: string, magicLink: string): Promise<void>;
     sendApprovalEmail(email: string): Promise<void>;
+    sendFeedbackEmail(params: {
+        title: string;
+        message: string;
+        userEmail?: string;
+        to?: string;
+        image?: {
+            buffer: Buffer;
+            originalname: string;
+            mimetype: string;
+        };
+    }): Promise<void>;
     listReceivedEmails(limit?: number, after?: string, before?: string): Promise<ReceivedEmailListResponse>;
     getReceivedEmail(emailId: string): Promise<ReceivedEmail>;
     listEmailAttachments(emailId: string): Promise<{

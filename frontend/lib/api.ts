@@ -544,6 +544,21 @@ class ApiClient {
     });
   }
 
+  // Feedback
+  async submitFeedback(data: { title: string; message: string; image?: File }): Promise<{ success: boolean; message: string }> {
+    const formData = new FormData();
+    formData.append('title', data.title);
+    formData.append('message', data.message);
+    if (data.image) {
+      formData.append('image', data.image);
+    }
+
+    return this.request<{ success: boolean; message: string }>('/api/feedback', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
   // Tasks
   async taskifyItem(itemId: string, dueDate?: string): Promise<TaskifyResponse> {
     const payload: Record<string, unknown> = {};
