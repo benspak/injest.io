@@ -1,4 +1,14 @@
+import { PoolClient } from 'pg';
 import pool from '../config/database.js';
+
+export interface AttachmentMetadata {
+  filename: string;
+  originalname?: string;
+  mimetype?: string;
+  size?: number;
+  checksum?: string;
+  [key: string]: any;
+}
 
 export interface Item {
   id: string;
@@ -8,7 +18,7 @@ export interface Item {
   title?: string;
   description?: string;
   url?: string;
-  attachments?: any[]; // JSONB array of file metadata
+  attachments?: AttachmentMetadata[]; // JSONB array of file metadata
   clean?: string;
   tags?: string[];
   source?: string;
@@ -25,7 +35,7 @@ export interface CreateItemInput {
   title?: string;
   description?: string;
   url?: string;
-  attachments?: any[]; // Array of file metadata
+  attachments?: AttachmentMetadata[]; // Array of file metadata
   notes?: string;
   tags?: string[];
   source?: string;
@@ -36,7 +46,7 @@ export interface CreateItemInput {
 }
 
 export class ItemModel {
-  static async create(input: CreateItemInput): Promise<Item> {
+  static async create(input: CreateItemInput, client?: PoolClient): Promise<Item> {
     // For new unified items, generate raw from structured data for backward compatibility
     let rawContent = input.raw;
     if (!rawContent && (input.title || input.description)) {
@@ -46,7 +56,9 @@ export class ItemModel {
       });
     }
 
-    const result = await pool.query(
+    const executor = client ?? pool;
+
+    const result = await executor.query(
       `INSERT INTO items (owner_id, type, raw, title, description, url, attachments, notes, clean, tags, source, link_metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`,
@@ -65,7 +77,38 @@ export class ItemModel {
         input.link_metadata || null,
       ]
     );
-    return result.rows[0];
+    const item = result.rows[0] as Item;
+
+    if (input.attachments?.length) {
+      for (const attachment of input.attachments) {
+        if (attachment.checksum) {
+          try {
+            await executor.query(
+              `INSERT INTO user_file_hashes (owner_id, checksum, item_id, attachment_filename)
+               VALUES ($1, $2, $3, $4)`,
+              [input.owner_id, attachment.checksum, item.id, attachment.filename]
+            );
+          } catch (error: any) {
+            // Propagate unique violations so callers can translate to HTTP 409
+            if (error?.code === '23505') {
+              error.duplicate_checksum = attachment.checksum;
+            }
+
+            if (error?.code === '42P01') {
+              console.warn('[Items] user_file_hashes table missing; skipping hash tracking for attachment', {
+                ownerId: input.owner_id,
+                itemId: item.id,
+              });
+              continue;
+            }
+
+            throw error;
+          }
+        }
+      }
+    }
+
+    return item;
   }
 
   static async findById(id: string): Promise<Item | null> {
@@ -159,6 +202,32 @@ export class ItemModel {
 
     const result = await pool.query(query, params);
     return result.rows;
+  }
+
+  static async findByAttachmentChecksum(
+    ownerId: string,
+    checksum: string,
+    client?: PoolClient
+  ): Promise<Item | null> {
+    const executor = client ?? pool;
+    const result = await executor.query(
+      `
+        SELECT *
+        FROM items
+        WHERE owner_id = $1
+          AND deleted_at IS NULL
+          AND attachments IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(attachments) AS attachment
+            WHERE attachment->>'checksum' = $2
+          )
+        LIMIT 1
+      `,
+      [ownerId, checksum]
+    );
+
+    return result.rows[0] || null;
   }
 
   static async update(id: string, updates: Partial<Item>): Promise<Item> {

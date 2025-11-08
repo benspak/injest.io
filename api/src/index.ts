@@ -98,7 +98,7 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
     if (err.code === 'LIMIT_FILE_COUNT') {
       return res.status(400).json({
         error: 'Too many files',
-        details: 'You can upload a maximum of 500 files at once.'
+        details: 'You can upload a maximum of 1000 files at once.'
       });
     }
 

@@ -35,7 +35,19 @@ function normalizeApiUrl(url: string): string {
   return url;
 }
 
-const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555');
+export const API_URL = normalizeApiUrl(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555');
+
+export class ApiError<TData = unknown> extends Error {
+  status: number;
+  data?: TData;
+
+  constructor(message: string, status: number, data?: TData) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.data = data;
+  }
+}
 
 export interface ApiResponse<T> {
   data?: T;
@@ -63,6 +75,7 @@ export interface Item {
     mimetype?: string;
     size?: number;
     attachmentId?: string;
+    checksum?: string;
   }>;
   clean?: string;
   tags?: string[];
@@ -76,6 +89,24 @@ export interface Item {
   isResendEmail?: boolean;
   resendEmailId?: string;
 }
+
+export interface UploadAcknowledgementFile {
+  filename: string;
+  storedFilename: string;
+  mimetype?: string;
+  size?: number;
+}
+
+export interface UploadAcknowledgement {
+  queued: true;
+  uploadedCount: number;
+  duplicateCount: number;
+  message: string;
+  files: UploadAcknowledgementFile[];
+  duplicates?: Array<{ filename: string; itemId: string; title?: string | null }>;
+}
+
+export type CreateItemResponse = Item | UploadAcknowledgement;
 
 export interface User {
   id: string;
@@ -229,14 +260,18 @@ class ApiClient {
         console.error(`[API Error] ${url}:`, parsedError ?? errorText);
       }
 
-      const errorObject =
+      const errorData =
         typeof parsedError === 'object' && parsedError !== null
-          ? (parsedError as { error?: string; details?: string })
+          ? (parsedError as Record<string, unknown>)
           : undefined;
 
       const fallbackMessage = `Request failed: ${response.status} ${response.statusText}`;
-      const errorMessage = errorObject?.details || errorObject?.error || fallbackMessage;
-      throw new Error(errorMessage);
+      const errorMessage =
+        (errorData?.details as string | undefined) ||
+        (errorData?.error as string | undefined) ||
+        fallbackMessage;
+
+      throw new ApiError(errorMessage, response.status, errorData);
     }
 
     return response.json();
@@ -266,23 +301,9 @@ class ApiClient {
   }
 
   // Items
-  async createItem(data: FormData): Promise<Item | {
-    batch: boolean;
-    total: number;
-    created: number;
-    failed: number;
-    items?: Item[];
-    errors?: Array<{ filename: string; error: string }>;
-  }> {
+  async createItem(data: FormData): Promise<CreateItemResponse> {
     // Don't set Content-Type header - browser will set it automatically with boundary for FormData
-    return this.request<Item | {
-      batch: boolean;
-      total: number;
-      created: number;
-      failed: number;
-      items?: Item[];
-      errors?: Array<{ filename: string; error: string }>;
-    }>('/api/items', {
+    return this.request<CreateItemResponse>('/api/items', {
       method: 'POST',
       body: data,
     });

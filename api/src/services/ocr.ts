@@ -12,15 +12,19 @@ export class OCRService {
         throw new Error(`Image file not found: ${imagePath}`);
       }
 
-      // Perform OCR on the image
-      const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', {
-        logger: (m) => {
-          // Only log progress for debugging if needed
-          if (process.env.NODE_ENV === 'development' && m.status === 'recognizing text') {
-            console.log(`[OCR] Progress: ${Math.round(m.progress * 100)}%`);
+      const shouldLogProgress = process.env.OCR_LOG_PROGRESS === 'true';
+      const logger =
+        shouldLogProgress
+          ? (m: Tesseract.LoggerMessage) => {
+            if (m.status === 'recognizing text') {
+              console.log(`[OCR] Progress: ${Math.round(m.progress * 100)}%`);
+            }
           }
-        },
-      });
+          : undefined;
+
+      // Perform OCR on the image
+      const recognitionOptions = logger ? { logger } : undefined;
+      const { data: { text } } = await Tesseract.recognize(imagePath, 'eng', recognitionOptions);
 
       // Clean up the extracted text
       const cleanedText = text.trim().replace(/\n{3,}/g, '\n\n'); // Replace multiple newlines with double newline

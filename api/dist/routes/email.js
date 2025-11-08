@@ -48,7 +48,7 @@ async function saveEmailFromResend(email, userId) {
         source: `email:${normalizedFromEmail}`,
     });
     // Trigger indexing in background for auto-tagging and categorization
-    indexingService.indexItem(item.id).catch(console.error);
+    indexingService.indexItem(item).catch(console.error);
     return item;
 }
 // Resend inbound webhook
@@ -129,7 +129,7 @@ router.post('/inbound', async (req, res) => {
             source: `email:${normalizedFromEmail}`,
         });
         // Trigger indexing in background
-        indexingService.indexItem(item.id).catch(console.error);
+        indexingService.indexItem(item).catch(console.error);
         res.json({
             message: 'Email processed successfully',
             itemId: item.id,

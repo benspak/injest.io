@@ -132,9 +132,34 @@ Create a new item (note, link, file, or email). Supports file uploads via multip
 
 **Note:** At least one of `title`, `description`, `url`, or `attachments` must be provided.
 
-**Batch Processing:** If multiple files are uploaded without `title`, `description`, or `url`, each file is processed as a separate item with full enrichment (OCR, metadata extraction, etc.).
+**Asynchronous File Uploads:** When attachments are provided, the API quickly uploads all non-duplicate files, skips duplicates, and responds within seconds. OCR, enrichment, and indexing then run in the background. You’ll receive an acknowledgement payload describing what was queued.
 
-**Response:** `201 Created`
+**Response (attachments present):** `202 Accepted`
+```json
+{
+  "queued": true,
+  "uploadedCount": 3,
+  "duplicateCount": 1,
+  "message": "Queued 3 file(s). Skipped 1 duplicate(s). Processing may take a few minutes while we complete enrichment.",
+  "files": [
+    {
+      "filename": "receipt.jpg",
+      "storedFilename": "c4f8a0b4-uploads-receipt.jpg",
+      "mimetype": "image/jpeg",
+      "size": 234567
+    }
+  ],
+  "duplicates": [
+    {
+      "filename": "summary.pdf",
+      "itemId": "existing-item-id",
+      "title": "Quarterly Summary"
+    }
+  ]
+}
+```
+
+**Response (no attachments):** `201 Created`
 
 Single item:
 ```json
@@ -165,23 +190,6 @@ Single item:
 }
 ```
 
-Batch processing:
-```json
-{
-  "batch": true,
-  "total": 5,
-  "created": 4,
-  "failed": 1,
-  "items": [...],
-  "errors": [
-    {
-      "filename": "failed-file.pdf",
-      "error": "Error message"
-    }
-  ]
-}
-```
-
 **Error Responses:**
 - `400 Bad Request` - Invalid item data or file upload error
 - `401 Unauthorized` - Not authenticated
@@ -192,6 +200,23 @@ Batch processing:
 - Auto-fetches link metadata when URL is provided
 - Auto-generates tags using AI if not provided
 - Automatically indexes items for search
+- Images are processed sequentially in the background: OCR → metadata generation → embeddings/indexing. Progress messages are logged server-side; no per-image progress is streamed to the client.
+- Duplicate files are detected via file hash before enrichment
+
+#### Item Stream
+
+Receive a real-time stream of newly indexed items for the authenticated user.
+
+- **Endpoint:** `GET /api/items/stream`
+- **Authentication:** Required (send `Authorization: Bearer <token>` header or append `?token=<token>` to the URL)
+- **Response:** Server-Sent Events (SSE). Each indexed item is emitted as:
+
+```
+event: indexed
+data: {"type":"indexed","item":{...}}
+```
+
+Listening on the stream is optional but recommended when you want to surface items immediately after indexing finishes.
 
 ---
 

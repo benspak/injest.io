@@ -16,6 +16,9 @@ import { UserModel } from '../models/User.js';
 import pool from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/auth.js';
+import { computeFileChecksum } from '../utils/checksum.js';
+import { decodeOriginalFilename, normalizeItem } from '../utils/itemNormalization.js';
+import { itemStreamService } from '../services/itemStream.js';
 const router = express.Router();
 // Download file or serve inline (for images)
 // Note: This route is defined before authMiddleware to allow token in query string for images
@@ -67,14 +70,15 @@ router.get('/:id/files/:filename', async (req, res) => {
             // Check if this is an image and should be served inline
             const isImage = fileInfo.mimetype && fileInfo.mimetype.startsWith('image/');
             const inline = req.query.inline === 'true' || req.query.inline === '1';
+            const downloadName = fileInfo.originalname ?? fileInfo.filename;
             // Set appropriate headers
             if (isImage && inline) {
                 // Serve image inline for display
-                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(fileInfo.originalname)}"`);
+                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(downloadName)}"`);
             }
             else {
                 // Force download for non-images or when inline is not requested
-                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileInfo.originalname)}"`);
+                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
             }
             res.setHeader('Content-Type', fileInfo.mimetype || 'application/octet-stream');
             // Pipe file to response
@@ -92,66 +96,55 @@ router.get('/:id/files/:filename', async (req, res) => {
         res.status(500).json({ error: 'Failed to download file' });
     }
 });
-router.use(authMiddleware);
-function decodeOriginalFilename(originalname) {
-    if (!originalname) {
-        return originalname;
-    }
+router.get('/stream', async (req, res) => {
     try {
-        // Interpret the raw string as latin1/binary, then decode to UTF-8.
-        // This fixes filenames where browsers encoded UTF-8 bytes that were
-        // later interpreted as latin1 (e.g., "â¯" instead of a narrow space).
-        const decoded = Buffer.from(originalname, 'binary').toString('utf8');
-        // If decoding produced replacement characters, keep the original string.
-        if (decoded.includes('\uFFFD')) {
-            return originalname;
+        let token = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
         }
-        return decoded.normalize('NFC');
-    }
-    catch {
-        return originalname;
-    }
-}
-function normalizeAttachments(attachments) {
-    if (!attachments) {
-        return attachments;
-    }
-    let parsedAttachments = attachments;
-    if (typeof attachments === 'string') {
+        else if (req.query.token && typeof req.query.token === 'string') {
+            token = req.query.token;
+        }
+        if (!token) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        let decoded;
         try {
-            parsedAttachments = JSON.parse(attachments);
+            decoded = jwt.verify(token, JWT_SECRET);
         }
         catch {
-            return attachments;
+            res.status(401).json({ error: 'Invalid token' });
+            return;
+        }
+        const user = await UserModel.findById(decoded.userId);
+        if (!user || !user.verified) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        if (req.socket && typeof req.socket.setKeepAlive === 'function') {
+            req.socket.setKeepAlive(true);
+        }
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders?.();
+        const client = itemStreamService.addClient(user.id, res);
+        const cleanup = () => {
+            itemStreamService.removeClient(user.id, client);
+        };
+        req.on('close', cleanup);
+        req.on('end', cleanup);
+    }
+    catch (error) {
+        console.error('[SSE] Failed to establish item stream:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to establish stream' });
         }
     }
-    if (!Array.isArray(parsedAttachments)) {
-        return parsedAttachments;
-    }
-    return parsedAttachments.map((attachment) => {
-        if (!attachment || typeof attachment !== 'object') {
-            return attachment;
-        }
-        if (typeof attachment.originalname === 'string') {
-            const decodedOriginal = decodeOriginalFilename(attachment.originalname);
-            return {
-                ...attachment,
-                originalname: decodedOriginal,
-            };
-        }
-        return attachment;
-    });
-}
-function normalizeItem(item) {
-    const normalizedAttachments = normalizeAttachments(item.attachments);
-    if (normalizedAttachments === item.attachments) {
-        return item;
-    }
-    return {
-        ...item,
-        attachments: normalizedAttachments,
-    };
-}
+});
+router.use(authMiddleware);
 // Configure multer for file uploads (Multer 2.x compatible)
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -248,77 +241,113 @@ async function getItemLimitStatus(userId) {
         limit,
     };
 }
-/**
- * Helper function to process a single file and create an item with full enrichment
- * Handles all file types: images (OCR/Vision API), PDFs, text files, etc.
- */
-async function processSingleFile(file, userId, sharedNotes, sharedTags) {
+function buildTagList(input) {
+    if (!input) {
+        return undefined;
+    }
+    if (Array.isArray(input)) {
+        return input;
+    }
+    return input
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+}
+async function deleteFileSafe(filename, logger) {
     try {
+        await fileStorageService.deleteFile(filename);
+    }
+    catch (cleanupError) {
+        const msg = `[UPLOAD] Failed to delete file ${filename} during cleanup: ${cleanupError?.message ?? cleanupError}`;
+        if (logger) {
+            logger(msg);
+        }
+        else {
+            console.warn(msg);
+        }
+    }
+}
+async function processSingleFile(file, userId, options = {}) {
+    const { sharedNotes, sharedTags, providedTitle, providedDescription, providedUrl, loggerPrefix, } = options;
+    const stagePrefix = loggerPrefix ?? `[PROCESS][${file.originalname}]`;
+    const log = (message) => console.log(`${stagePrefix} ${message}`);
+    const warn = (message) => console.warn(`${stagePrefix} ${message}`);
+    const logError = (message, error) => {
+        if (error) {
+            console.error(`${stagePrefix} ${message}`, error);
+        }
+        else {
+            console.error(`${stagePrefix} ${message}`);
+        }
+    };
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
         const isImageFile = ocrService.isImage(file.mimetype, file.originalname);
-        // Parse the file to extract content (OCR/Vision API for images, text extraction for other types)
+        log('Stage 1/4: Extracting text content (OCR/Vision)');
         const parsedContent = await fileParserService.parseFile(file.filename, file.mimetype);
-        let finalTitle;
-        let finalDescription;
-        if (parsedContent.text && parsedContent.text.trim().length > 0) {
+        const extractionSource = parsedContent.metadata?.source || (isImageFile ? 'ocr' : 'text');
+        log(`Stage 1/4 complete (${extractionSource.toUpperCase()})`);
+        log('Stage 2/4: Generating metadata (title, description)');
+        let finalTitle = providedTitle || undefined;
+        let finalDescription = providedDescription || undefined;
+        const hasExtractedText = parsedContent.text && parsedContent.text.trim().length > 0;
+        if ((!finalTitle || !finalDescription) && hasExtractedText) {
             if (isImageFile) {
-                // Check if description came from Vision API (when OCR found no text)
                 const isVisionSource = parsedContent.metadata?.source === 'vision';
                 if (isVisionSource) {
-                    // If Vision API was used, use the title and description from parsed content
-                    if (parsedContent.title) {
+                    if (!finalTitle && parsedContent.title) {
                         finalTitle = parsedContent.title;
                     }
-                    if (parsedContent.text) {
+                    if (!finalDescription && parsedContent.text) {
                         finalDescription = parsedContent.text;
                     }
-                    // Fallback if title wasn't set
                     if (!finalTitle) {
                         finalTitle = path.basename(file.originalname, path.extname(file.originalname));
                     }
                 }
                 else {
-                    // OCR found text - use OCR text as description, then generate title from OCR text
-                    if (parsedContent.text) {
+                    if (!finalDescription && parsedContent.text) {
                         finalDescription = parsedContent.text;
                     }
-                    // Generate a concise title from the OCR text
-                    if (parsedContent.text) {
+                    if (!finalTitle && parsedContent.text) {
                         try {
                             const generated = await openAIService.generateTitleAndDescription(parsedContent.text, file.originalname);
                             finalTitle = generated.title;
                         }
                         catch (titleError) {
-                            // If title generation fails, fallback to filename
-                            console.error('Error generating title from OCR text:', titleError);
+                            logError('Error generating title from OCR text', titleError);
                             finalTitle = path.basename(file.originalname, path.extname(file.originalname));
                         }
                     }
                 }
             }
-            else {
-                // For non-image files: generate both title and description from content
+            else if (!finalTitle || !finalDescription) {
                 try {
                     const generated = await openAIService.generateTitleAndDescription(parsedContent.text, file.originalname);
-                    finalTitle = generated.title;
-                    finalDescription = generated.description;
+                    if (!finalTitle) {
+                        finalTitle = generated.title;
+                    }
+                    if (!finalDescription) {
+                        finalDescription = generated.description;
+                    }
                 }
                 catch (titleError) {
-                    // If title generation fails, fallback to filename and use content as description
-                    console.error('Error generating title/description from file content:', titleError);
-                    finalTitle = path.basename(file.originalname, path.extname(file.originalname));
-                    // Use first 500 chars of content as description if available
-                    if (parsedContent.text) {
+                    logError('Error generating title/description from file content', titleError);
+                    if (!finalTitle) {
+                        finalTitle = path.basename(file.originalname, path.extname(file.originalname));
+                    }
+                    if (!finalDescription && parsedContent.text) {
                         finalDescription = parsedContent.text.substring(0, 500) +
                             (parsedContent.text.length > 500 ? '...' : '');
                     }
                 }
             }
         }
-        else {
-            // No text extracted - use filename as title
+        if (!finalTitle) {
             finalTitle = path.basename(file.originalname, path.extname(file.originalname));
         }
-        // Auto-generate tags from content
+        log(`Stage 2/4 complete (title: "${finalTitle}"${finalDescription ? ', description generated' : ''})`);
         let parsedTags = sharedTags;
         if (!parsedTags) {
             try {
@@ -329,7 +358,7 @@ async function processSingleFile(file, userId, sharedNotes, sharedTags) {
                     contentForTagging.push(finalDescription);
                 if (sharedNotes)
                     contentForTagging.push(sharedNotes);
-                if (parsedContent.text) {
+                if (hasExtractedText && parsedContent.text) {
                     contentForTagging.push(parsedContent.text.substring(0, 500));
                 }
                 if (contentForTagging.length > 0) {
@@ -338,43 +367,112 @@ async function processSingleFile(file, userId, sharedNotes, sharedTags) {
                 }
             }
             catch (error) {
-                // Log error but don't fail - tags are optional
-                console.error('Error auto-generating tags:', error);
+                warn(`Error auto-generating tags: ${error?.message ?? error}`);
             }
         }
-        // Create attachment array for this single file
         const attachments = [{
                 filename: file.filename,
                 originalname: file.originalname,
                 mimetype: file.mimetype,
                 size: file.size,
+                checksum: file.checksum,
             }];
-        // Create item in database
+        log('Stage 3/4: Persisting item record');
         const item = await ItemModel.create({
             owner_id: userId,
             title: finalTitle || undefined,
             description: finalDescription || undefined,
+            url: providedUrl || undefined,
             attachments: attachments,
             notes: sharedNotes || undefined,
             tags: parsedTags,
             source: 'web',
-        });
-        // Trigger indexing in background
-        indexingService.indexItem(item.id).catch((indexError) => {
-            console.error(`Background indexing failed for item ${item.id}:`, indexError);
-        });
+        }, client);
+        await client.query('COMMIT');
+        log(`Stage 3/4 complete (item ${item.id})`);
+        log('Stage 4/4: Generating embeddings and indexing');
+        try {
+            const indexed = await indexingService.indexItem(item);
+            if (indexed) {
+                log(`Stage 4/4 complete (indexed item ${item.id})`);
+            }
+            else {
+                warn(`Stage 4/4 skipped (item ${item.id} was not found during indexing)`);
+            }
+        }
+        catch (indexError) {
+            logError(`Stage 4/4 failed for item ${item.id}`, indexError);
+            throw indexError;
+        }
         return { item: normalizeItem(item) };
     }
     catch (error) {
-        console.error(`Error processing file ${file.originalname}:`, error);
+        await client.query('ROLLBACK').catch((rollbackError) => {
+            logError('Failed to rollback transaction after error', rollbackError);
+        });
+        logError(`Error processing file ${file.originalname}`, error);
+        const message = error?.code === '23505' && error?.duplicate_checksum
+            ? 'Duplicate file upload detected for this user'
+            : error?.message || 'Failed to process file';
+        await deleteFileSafe(file.filename, warn);
         return {
             item: null,
-            error: error.message || 'Failed to process file'
+            error: message
         };
     }
+    finally {
+        client.release();
+    }
+}
+function scheduleUploadProcessing(job, loggerPrefix = '[UPLOAD]') {
+    setImmediate(() => {
+        void processQueuedUpload(job, loggerPrefix).catch((error) => {
+            console.error(`${loggerPrefix} Failed queued upload for user ${job.userId}:`, error);
+        });
+    });
+}
+async function processQueuedUpload(job, loggerPrefix = '[UPLOAD]') {
+    const { files, userId, notes, tags, title, description, url } = job;
+    if (!files.length) {
+        return;
+    }
+    const sharedTags = buildTagList(tags);
+    console.log(`${loggerPrefix} Processing ${files.length} queued file(s) for user ${userId}`);
+    for (let index = 0; index < files.length; index++) {
+        const file = files[index];
+        const filePrefix = `${loggerPrefix} [${index + 1}/${files.length}] ${file.originalname ?? file.filename}`;
+        console.log(`${filePrefix} Starting background processing`);
+        const limitCheck = await checkItemCreationLimit(userId);
+        if (limitCheck) {
+            console.warn(`${filePrefix} Skipping due to item limit: ${limitCheck.message}`);
+            await deleteFileSafe(file.filename);
+            continue;
+        }
+        try {
+            const result = await processSingleFile(file, userId, {
+                sharedNotes: notes,
+                sharedTags,
+                providedTitle: title,
+                providedDescription: description,
+                providedUrl: url,
+                loggerPrefix: filePrefix,
+            });
+            if (result.item) {
+                console.log(`${filePrefix} Processing complete (item ${result.item.id})`);
+            }
+            else {
+                console.warn(`${filePrefix} Processing failed: ${result.error ?? 'Unknown error'}`);
+            }
+        }
+        catch (error) {
+            console.error(`${filePrefix} Unhandled error during processing`, error);
+            await deleteFileSafe(file.filename);
+        }
+    }
+    console.log(`${loggerPrefix} Completed queued processing for user ${userId}`);
 }
 // Create item (unified structure)
-router.post('/', upload.array('attachments', 500), async (req, res, next) => {
+router.post('/', upload.array('attachments', 1000), async (req, res, next) => {
     try {
         // Log incoming request for debugging
         console.log('[DEBUG] Creating item - body:', req.body);
@@ -403,74 +501,78 @@ router.post('/', upload.array('attachments', 500), async (req, res, next) => {
                 details: 'Must provide at least title, description, URL, or attachments'
             });
         }
-        // Check if we have multiple files (batch processing scenario)
-        const files = req.files && Array.isArray(req.files) ? req.files : [];
-        // Batch processing: If we have multiple files, no URL, no title/description
-        // Process each file as a separate item with full enrichment
-        if (files.length > 1 && !url && !title && !description) {
-            console.log(`[BATCH] Processing ${files.length} files as separate items`);
-            const results = {
-                created: [],
-                failed: [],
-            };
-            // Parse shared tags if provided
-            let sharedTags = undefined;
-            if (tags) {
-                if (typeof tags === 'string') {
-                    sharedTags = tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
-                }
-                else if (Array.isArray(tags)) {
-                    sharedTags = tags;
-                }
-            }
-            // Process each file separately with full enrichment
+        const rawFiles = req.files && Array.isArray(req.files) ? req.files : [];
+        const files = await Promise.all(rawFiles.map(async (file) => {
+            const checksum = await computeFileChecksum(fileStorageService.getFilePath(file.filename));
+            return Object.assign(file, { checksum });
+        }));
+        if (files.length > 0) {
+            const acceptedFiles = [];
+            const duplicateFiles = [];
             for (const file of files) {
-                // Check limit before processing each file in batch
-                // This ensures we don't create items if limit was reached during batch processing
-                const limitCheck = await checkItemCreationLimit(req.user.id);
-                if (limitCheck) {
-                    results.failed.push({
+                const existingItem = await ItemModel.findByAttachmentChecksum(req.user.id, file.checksum);
+                if (existingItem) {
+                    duplicateFiles.push({
+                        checksum: file.checksum,
                         filename: file.originalname,
-                        error: limitCheck.message,
+                        itemId: existingItem.id,
+                        title: existingItem.title,
                     });
-                    continue;
-                }
-                const result = await processSingleFile(file, req.user.id, notes, sharedTags);
-                if (result.item) {
-                    results.created.push(result.item);
+                    try {
+                        await fileStorageService.deleteFile(file.filename);
+                    }
+                    catch (cleanupError) {
+                        console.warn(`Failed to delete duplicate upload ${file.filename}:`, cleanupError);
+                    }
                 }
                 else {
-                    results.failed.push({
-                        filename: file.originalname,
-                        error: result.error || 'Unknown error',
-                    });
+                    acceptedFiles.push(file);
                 }
             }
-            // Return batch processing results
-            if (results.created.length > 0) {
-                return res.status(201).json({
-                    batch: true,
-                    total: files.length,
-                    created: results.created.length,
-                    failed: results.failed.length,
-                    items: results.created,
-                    errors: results.failed.length > 0 ? results.failed : undefined,
-                });
+            const duplicateSummaries = duplicateFiles.map((duplicate) => ({
+                filename: duplicate.filename,
+                itemId: duplicate.itemId,
+                title: duplicate.title,
+            }));
+            if (acceptedFiles.length === 0) {
+                const acknowledgement = {
+                    queued: true,
+                    uploadedCount: 0,
+                    duplicateCount: duplicateFiles.length,
+                    message: duplicateFiles.length > 0
+                        ? 'All files were duplicates and have been skipped. No new processing was started.'
+                        : 'No files were queued for processing.',
+                    files: [],
+                    duplicates: duplicateSummaries.length > 0 ? duplicateSummaries : undefined,
+                };
+                return res.status(200).json(acknowledgement);
             }
-            else {
-                // All failed
-                return res.status(500).json({
-                    error: 'Failed to process all files',
-                    batch: true,
-                    total: files.length,
-                    created: 0,
-                    failed: results.failed.length,
-                    errors: results.failed,
-                });
-            }
+            scheduleUploadProcessing({
+                files: acceptedFiles,
+                userId: req.user.id,
+                title,
+                description,
+                url,
+                notes,
+                tags,
+            });
+            const acknowledgement = {
+                queued: true,
+                uploadedCount: acceptedFiles.length,
+                duplicateCount: duplicateFiles.length,
+                message: duplicateFiles.length > 0
+                    ? `Queued ${acceptedFiles.length} file(s). Skipped ${duplicateFiles.length} duplicate(s). Processing may take a few minutes while we finish enrichment.`
+                    : `Queued ${acceptedFiles.length} file(s) for enrichment. Processing may take a few minutes.`,
+                files: acceptedFiles.map((file) => ({
+                    filename: file.originalname,
+                    storedFilename: file.filename,
+                    mimetype: file.mimetype,
+                    size: file.size,
+                })),
+                duplicates: duplicateSummaries.length > 0 ? duplicateSummaries : undefined,
+            };
+            return res.status(202).json(acknowledgement);
         }
-        // Standard processing: single file, mixed files, or files with URL/title/description
-        // Process file attachments if present
         let attachments = [];
         if (files.length > 0) {
             attachments = files.map((file) => ({
@@ -478,6 +580,7 @@ router.post('/', upload.array('attachments', 500), async (req, res, next) => {
                 originalname: file.originalname,
                 mimetype: file.mimetype,
                 size: file.size,
+                checksum: file.checksum,
             }));
         }
         // Auto-fill title and description from file content if missing
@@ -622,20 +725,56 @@ router.post('/', upload.array('attachments', 500), async (req, res, next) => {
                 console.error('Error auto-generating tags:', error);
             }
         }
-        // Create item in database with unified structure
-        const item = await ItemModel.create({
-            owner_id: req.user.id,
-            title: finalTitle || undefined,
-            description: finalDescription || undefined,
-            url: url || undefined,
-            attachments: attachments.length > 0 ? attachments : undefined,
-            notes: notes || undefined,
-            tags: parsedTags,
-            source: 'web',
-            link_metadata: linkMetadata || undefined,
-        });
+        let item = null;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            item = await ItemModel.create({
+                owner_id: req.user.id,
+                title: finalTitle || undefined,
+                description: finalDescription || undefined,
+                url: url || undefined,
+                attachments: attachments.length > 0 ? attachments : undefined,
+                notes: notes || undefined,
+                tags: parsedTags,
+                source: 'web',
+                link_metadata: linkMetadata || undefined,
+            }, client);
+            await client.query('COMMIT');
+        }
+        catch (error) {
+            await client.query('ROLLBACK').catch((rollbackError) => {
+                console.error('Failed to rollback transaction after error:', rollbackError);
+            });
+            if (error?.code === '23505' && error?.duplicate_checksum) {
+                await Promise.all(files.map(async (file) => {
+                    try {
+                        await fileStorageService.deleteFile(file.filename);
+                    }
+                    catch (cleanupError) {
+                        console.warn(`Failed to delete duplicate upload ${file.filename}:`, cleanupError);
+                    }
+                }));
+                return res.status(409).json({
+                    error: 'Duplicate file upload detected',
+                    duplicates: attachments
+                        .filter((attachment) => attachment.checksum === error.duplicate_checksum)
+                        .map((attachment) => ({
+                        filename: attachment.originalname || attachment.filename,
+                        checksum: attachment.checksum,
+                    })),
+                });
+            }
+            throw error;
+        }
+        finally {
+            client.release();
+        }
+        if (!item) {
+            return;
+        }
         // Trigger indexing in background (don't await - let it run async)
-        indexingService.indexItem(item.id).catch((indexError) => {
+        indexingService.indexItem(item).catch((indexError) => {
             console.error(`Background indexing failed for item ${item.id}:`, indexError);
             // Don't fail the request if indexing fails
         });
@@ -812,7 +951,7 @@ async function processBookmarksInBackground(userId, bookmarks, filePath) {
             // Add to existing URLs set to avoid duplicates within this batch
             existingUrls.add(bookmark.url);
             // Trigger indexing in background (don't await - let it run async)
-            indexingService.indexItem(item.id).catch((indexError) => {
+            indexingService.indexItem(item).catch((indexError) => {
                 console.error(`Background indexing failed for bookmark item ${item.id}:`, indexError);
             });
             results.imported++;
@@ -1036,7 +1175,7 @@ router.get('/:id/metadata', async (req, res) => {
             // Save metadata to database
             await ItemModel.update(item.id, { link_metadata: metadata });
             // Re-index item to include metadata in search
-            indexingService.indexItem(item.id).catch((indexError) => {
+            indexingService.indexItem(item).catch((indexError) => {
                 console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
             });
         }
@@ -1060,7 +1199,7 @@ router.post('/:id/index', async (req, res) => {
         if (item.owner_id !== req.user.id) {
             return res.status(403).json({ error: 'Forbidden' });
         }
-        await indexingService.indexItem(item.id);
+        await indexingService.indexItem(item);
         res.json({ message: 'Indexing started' });
     }
     catch (error) {
@@ -1105,7 +1244,7 @@ router.patch('/:id', async (req, res) => {
         const updatedItem = await ItemModel.update(item.id, updates);
         // Re-index item if content was updated
         if (title !== undefined || description !== undefined || url !== undefined || notes !== undefined) {
-            indexingService.indexItem(item.id).catch((indexError) => {
+            indexingService.indexItem(updatedItem).catch((indexError) => {
                 console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
             });
         }
@@ -1135,7 +1274,7 @@ router.patch('/:id/notes', async (req, res) => {
         }
         const updatedItem = await ItemModel.update(item.id, { notes: notes || null });
         // Re-index item to include notes in search
-        indexingService.indexItem(item.id).catch((indexError) => {
+        indexingService.indexItem(updatedItem).catch((indexError) => {
             console.error(`Background re-indexing failed for item ${item.id}:`, indexError);
         });
         res.json(normalizeItem(updatedItem));

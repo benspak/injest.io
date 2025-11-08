@@ -1,3 +1,12 @@
+import { PoolClient } from 'pg';
+export interface AttachmentMetadata {
+    filename: string;
+    originalname?: string;
+    mimetype?: string;
+    size?: number;
+    checksum?: string;
+    [key: string]: any;
+}
 export interface Item {
     id: string;
     owner_id: string;
@@ -6,7 +15,7 @@ export interface Item {
     title?: string;
     description?: string;
     url?: string;
-    attachments?: any[];
+    attachments?: AttachmentMetadata[];
     clean?: string;
     tags?: string[];
     source?: string;
@@ -22,7 +31,7 @@ export interface CreateItemInput {
     title?: string;
     description?: string;
     url?: string;
-    attachments?: any[];
+    attachments?: AttachmentMetadata[];
     notes?: string;
     tags?: string[];
     source?: string;
@@ -32,7 +41,7 @@ export interface CreateItemInput {
     link_metadata?: any;
 }
 export declare class ItemModel {
-    static create(input: CreateItemInput): Promise<Item>;
+    static create(input: CreateItemInput, client?: PoolClient): Promise<Item>;
     static findById(id: string): Promise<Item | null>;
     static findByIdIncludingDeleted(id: string): Promise<Item | null>;
     static findByOwner(ownerId: string, limit?: number, offset?: number, filters?: {
@@ -40,6 +49,7 @@ export declare class ItemModel {
         hasAttachments?: boolean;
         fileType?: string;
     }): Promise<Item[]>;
+    static findByAttachmentChecksum(ownerId: string, checksum: string, client?: PoolClient): Promise<Item | null>;
     static update(id: string, updates: Partial<Item>): Promise<Item>;
     static delete(id: string): Promise<boolean>;
     static findByResendEmailId(resendEmailId: string): Promise<Item | null>;

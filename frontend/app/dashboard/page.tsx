@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { auth } from '@/lib/auth';
-import { apiClient, Item, ReceivedEmail } from '@/lib/api';
+import { apiClient, Item, ReceivedEmail, API_URL } from '@/lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -28,6 +28,8 @@ export default function DashboardPage() {
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('');
+  const itemStreamRef = useRef<EventSource | null>(null);
+  const [itemStreamRetry, setItemStreamRetry] = useState(0);
   const BATCH_SIZE = 50;
 
   const loadIndexedCount = useCallback(async () => {
@@ -312,6 +314,86 @@ export default function DashboardPage() {
       observer.unobserve(sentinel);
     };
   }, [hasMore, loadMoreItems, loading, loadingMore]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (authLoading) {
+      return;
+    }
+
+    if (!auth.isAuthenticated()) {
+      if (itemStreamRef.current) {
+        itemStreamRef.current.close();
+        itemStreamRef.current = null;
+      }
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return;
+    }
+
+    const apiUrl = API_URL.replace(/\/+$/, '');
+    const streamUrl = `${apiUrl}/api/items/stream?token=${encodeURIComponent(token)}`;
+    const eventSource = new EventSource(streamUrl);
+    itemStreamRef.current = eventSource;
+
+    const handleIndexed = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const newItem = payload?.item as Item | undefined;
+        if (!newItem || !newItem.id) {
+          return;
+        }
+
+        if (sourceFilter || hasAttachmentsFilter || fileTypeFilter) {
+          return;
+        }
+
+        setItems((prevItems) => {
+          const existingIndex = prevItems.findIndex((item) => item.id === newItem.id);
+          const updated = existingIndex >= 0
+            ? prevItems.map((item, index) => (index === existingIndex ? { ...item, ...newItem } : item))
+            : [newItem, ...prevItems];
+
+          const uniqueMap = new Map<string, Item>();
+          updated.forEach((item) => {
+            uniqueMap.set(item.id, item);
+          });
+
+          return Array.from(uniqueMap.values()).sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            return dateB - dateA;
+          });
+        });
+
+        void loadIndexedCount();
+      } catch (error) {
+        console.error('Failed to handle indexed item event:', error);
+      }
+    };
+
+    eventSource.addEventListener('indexed', handleIndexed);
+    eventSource.onerror = (error) => {
+      console.error('Item stream error:', error);
+      eventSource.close();
+      itemStreamRef.current = null;
+      setTimeout(() => {
+        setItemStreamRetry((retry) => retry + 1);
+      }, 3000);
+    };
+
+    return () => {
+      eventSource.removeEventListener('indexed', handleIndexed);
+      eventSource.close();
+      itemStreamRef.current = null;
+    };
+  }, [authLoading, hasAttachmentsFilter, itemStreamRetry, loadIndexedCount, sourceFilter, fileTypeFilter]);
 
   const handleDelete = async (itemId: string) => {
     try {

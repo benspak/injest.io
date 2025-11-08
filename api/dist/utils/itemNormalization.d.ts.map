@@ -1,0 +1,1 @@
+{"version":3,"file":"itemNormalization.d.ts","sourceRoot":"","sources":["../../src/utils/itemNormalization.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,IAAI,EAAE,kBAAkB,EAAE,MAAM,mBAAmB,CAAC;AAElE,wBAAgB,sBAAsB,CAAC,YAAY,EAAE,MAAM,GAAG,MAAM,CAcnE;AAED,wBAAgB,oBAAoB,CAAC,WAAW,EAAE,GAAG,GAAG,kBAAkB,EAAE,GAAG,IAAI,CAiClF;AAED,wBAAgB,aAAa,CAAC,IAAI,EAAE,IAAI,GAAG,IAAI,CAW9C"}

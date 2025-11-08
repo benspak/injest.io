@@ -56,7 +56,7 @@ async function saveEmailFromResend(email: any, userId: string): Promise<any> {
   });
 
   // Trigger indexing in background for auto-tagging and categorization
-  indexingService.indexItem(item.id).catch(console.error);
+  indexingService.indexItem(item).catch(console.error);
 
   return item;
 }
@@ -157,7 +157,7 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
     });
 
     // Trigger indexing in background
-    indexingService.indexItem(item.id).catch(console.error);
+    indexingService.indexItem(item).catch(console.error);
 
     res.json({
       message: 'Email processed successfully',

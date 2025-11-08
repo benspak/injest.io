@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { apiClient, type Item } from '@/lib/api';
+import { apiClient, type Item, type UploadAcknowledgement, ApiError } from '@/lib/api';
 import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
 
 interface CaptureFormProps {
   onItemCreated?: () => void;
 }
+
+const isUploadAcknowledgement = (value: unknown): value is UploadAcknowledgement => {
+  return typeof value === 'object' && value !== null && 'queued' in value;
+};
 
 export function CaptureForm({ onItemCreated }: CaptureFormProps) {
   const [title, setTitle] = useState('');
@@ -20,6 +24,9 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [duplicateConflicts, setDuplicateConflicts] = useState<
+    Array<{ filename: string; itemId: string; title?: string | null }>
+  >([]);
   const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
   const [pendingFormValues, setPendingFormValues] = useState<{
     title: string;
@@ -56,6 +63,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     e.preventDefault();
     setLoading(true);
     setMessage('');
+    setDuplicateConflicts([]);
 
     // Validate that at least one field is provided
     if (!title && !description && !url && files.length === 0) {
@@ -102,31 +110,33 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     try {
       const response = await apiClient.createItem(formData);
 
-      // Check if this is a batch processing response
-      if (response && typeof response === 'object' && 'batch' in response && response.batch === true) {
-        const batchResponse = response as {
-          batch: boolean;
-          total: number;
-          created: number;
-          failed: number;
-          items?: Item[];
-          errors?: Array<{ filename: string; error: string }>;
-        };
+      if (isUploadAcknowledgement(response)) {
+        const duplicates = response.duplicates ?? [];
+        setDuplicateConflicts(duplicates);
 
-        if (batchResponse.created > 0) {
-          if (batchResponse.failed > 0) {
-            setMessage(
-              `Successfully created ${batchResponse.created} item(s). ${batchResponse.failed} file(s) failed to process.`
-            );
-          } else {
-            setMessage(`Successfully created ${batchResponse.created} item(s)!`);
+        const fallbackMessage = (() => {
+          if (response.uploadedCount > 0) {
+            const duplicateNote =
+              response.duplicateCount > 0
+                ? ` Skipped ${response.duplicateCount} duplicate(s).`
+                : '';
+            return `Queued ${response.uploadedCount} file(s) for processing.${duplicateNote} Processing may take a few minutes.`;
           }
-        } else {
-          setMessage(`Failed to process all ${batchResponse.total} file(s).`);
-        }
+          if (duplicates.length > 0) {
+            return 'All selected files are already saved.';
+          }
+          return 'No files were queued for processing.';
+        })();
+
+        setMessage(response.message || fallbackMessage);
       } else {
-        // Single item response
-        setMessage('Item created successfully!');
+        setDuplicateConflicts([]);
+        setMessage('Upload successful! Processing may take a few minutes.');
+
+        // Notify parent component to refresh items list
+        if (onItemCreated) {
+          onItemCreated();
+        }
       }
 
       // Reset form
@@ -143,42 +153,68 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
 
       // Reload limit status after successful creation
       await loadItemLimitStatus();
-
-      // Notify parent component to refresh items list
-      if (onItemCreated) {
-        onItemCreated();
-      }
     } catch (error: unknown) {
-      // Extract error message from API response
+      setDuplicateConflicts([]);
+
       let errorMessage = 'Failed to create item';
+      let duplicateList: Array<{ filename: string; itemId: string; title?: string | null }> = [];
+      const originalMessage =
+        error instanceof Error && typeof error.message === 'string'
+          ? error.message
+          : '';
 
-      if (error instanceof Error && error.message) {
-        errorMessage = error.message;
+      if (error instanceof ApiError) {
+        const data = error.data as { duplicates?: Array<{ filename: string; itemId: string; title?: string | null }> } | undefined;
+        if (error.status === 409 && data?.duplicates && Array.isArray(data.duplicates)) {
+          duplicateList = data.duplicates;
+          setDuplicateConflicts(duplicateList);
 
-        // Check for item limit exceeded error
-        if (errorMessage.includes('Item limit exceeded') || errorMessage.includes('item limit')) {
-          // Store form values for retry after subscription (FormData can't be stored in state)
-          setPendingFormValues({
-            title,
-            description,
-            url,
-            notes,
-            files: [...files], // Create a copy of the files array
-          });
-          setShowSubscriptionDialog(true);
-          setMessage('');
-          setLoading(false);
-          return;
+          if (duplicateList.length === 1) {
+            const [duplicate] = duplicateList;
+            errorMessage = `Looks like "${duplicate.filename}" is already saved${duplicate.title ? ` as "${duplicate.title}"` : ''}.`;
+          } else if (duplicateList.length > 1) {
+            errorMessage = `We found ${duplicateList.length} files that are already saved in your workspace.`;
+          } else {
+            errorMessage = 'Duplicate file upload detected. These files are already saved.';
+          }
+        } else {
+          errorMessage = error.message || errorMessage;
         }
+      } else if (error instanceof Error) {
+        errorMessage = error.message || errorMessage;
+      }
 
-        // Provide more user-friendly messages for specific errors
-        if (errorMessage.includes('File too large') || errorMessage.includes('LIMIT_FILE_SIZE')) {
-          errorMessage = 'File too large. Maximum file size is 50MB. Please choose a smaller file.';
-        } else if (errorMessage.includes('Too many files') || errorMessage.includes('LIMIT_FILE_COUNT')) {
-          errorMessage = 'Too many files. You can upload a maximum of 500 files at once.';
-        } else if (errorMessage.includes('File upload error')) {
-          errorMessage = 'File upload failed. Please try again or choose a different file.';
-        }
+      const lowerMessage = errorMessage.toLowerCase();
+      if (lowerMessage.includes('item limit exceeded') || lowerMessage.includes('item limit')) {
+        setPendingFormValues({
+          title,
+          description,
+          url,
+          notes,
+          files: [...files],
+        });
+        setShowSubscriptionDialog(true);
+        setMessage('');
+        return;
+      }
+
+      if (
+        errorMessage.includes('File too large') ||
+        originalMessage.includes('File too large') ||
+        originalMessage.includes('LIMIT_FILE_SIZE')
+      ) {
+        errorMessage = 'File too large. Maximum file size is 50MB. Please choose a smaller file.';
+      } else if (
+        errorMessage.includes('Too many files') ||
+        originalMessage.includes('Too many files') ||
+        originalMessage.includes('LIMIT_FILE_COUNT')
+      ) {
+        errorMessage = 'Too many files. You can upload a maximum of 1000 files at once.';
+      } else if (
+        errorMessage.includes('File upload error') ||
+        originalMessage.includes('File upload error')
+      ) {
+        errorMessage = 'File upload failed. Please try again or choose a different file.';
       }
 
       setMessage(errorMessage);
@@ -217,30 +253,28 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
 
             const response = await apiClient.createItem(retryFormData);
 
-            // Check if this is a batch processing response
-            if (response && typeof response === 'object' && 'batch' in response && response.batch === true) {
-              const batchResponse = response as {
-                batch: boolean;
-                total: number;
-                created: number;
-                failed: number;
-                items?: Item[];
-                errors?: Array<{ filename: string; error: string }>;
-              };
+            if (isUploadAcknowledgement(response)) {
+              const duplicates = response.duplicates ?? [];
+              setDuplicateConflicts(duplicates);
 
-              if (batchResponse.created > 0) {
-                if (batchResponse.failed > 0) {
-                  setMessage(
-                    `Successfully created ${batchResponse.created} item(s). ${batchResponse.failed} file(s) failed to process.`
-                  );
-                } else {
-                  setMessage(`Successfully created ${batchResponse.created} item(s)!`);
+              const fallbackMessage = (() => {
+                if (response.uploadedCount > 0) {
+                  const duplicateNote =
+                    response.duplicateCount > 0
+                      ? ` Skipped ${response.duplicateCount} duplicate(s).`
+                      : '';
+                  return `Queued ${response.uploadedCount} file(s) for processing.${duplicateNote} Processing may take a few minutes.`;
                 }
-              } else {
-                setMessage(`Failed to process all ${batchResponse.total} file(s).`);
-              }
+                if (duplicates.length > 0) {
+                  return 'All selected files are already saved.';
+                }
+                return 'No files were queued for processing.';
+              })();
+
+              setMessage(response.message || fallbackMessage);
             } else {
-              setMessage('Item created successfully!');
+              setDuplicateConflicts([]);
+              setMessage('Upload successful! Processing may take a few minutes.');
             }
 
             // Reset form
@@ -259,8 +293,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             // Reload limit status after successful creation
             await loadItemLimitStatus();
 
-            // Notify parent component to refresh items list
-            if (onItemCreated) {
+            if (!isUploadAcknowledgement(response) && onItemCreated) {
               onItemCreated();
             }
           } catch (retryError: unknown) {
@@ -394,12 +427,12 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                Processing
+                Uploading
               </span>
             ) : isAtLimit && limit !== null ? (
               'Limit Reached - Subscribe to Continue'
             ) : files.length > 1 ? (
-              'Process Uploads'
+              'Upload'
             ) : (
               'Create Item'
             )}
@@ -409,6 +442,24 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             <p className={`text-sm ${message.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
               {message}
             </p>
+          )}
+
+          {duplicateConflicts.length > 0 && (
+            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm font-medium text-amber-900">Already saved</p>
+              <p className="mt-1 text-xs text-amber-900">
+                The following file{duplicateConflicts.length > 1 ? 's are' : ' is'} already in your workspace:
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-amber-800">
+                {duplicateConflicts.map((duplicate) => (
+                  <li key={`${duplicate.itemId}-${duplicate.filename}`}>
+                    <span className="font-medium">{duplicate.filename}</span>
+                    {duplicate.title ? ` · ${duplicate.title}` : null}
+                    <span className="text-[11px] text-amber-700 block">Item ID: {duplicate.itemId}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </form>
       </CardContent>

@@ -88,7 +88,7 @@ async function reEnrichBookmarks(userId, force = false, allUsers = false) {
                             await ItemModel.update(item.id, updates);
                         }
                         // Re-index item to include metadata in search
-                        indexingService.indexItem(item.id).catch((indexError) => {
+                        indexingService.indexItem(item).catch((indexError) => {
                             console.error(`    Warning: Background re-indexing failed for item ${item.id}:`, indexError);
                         });
                         results.enriched++;
