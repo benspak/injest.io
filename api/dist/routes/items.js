@@ -17,7 +17,7 @@ import pool from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/auth.js';
 import { computeFileChecksum } from '../utils/checksum.js';
-import { decodeOriginalFilename, normalizeItem } from '../utils/itemNormalization.js';
+import { decodeOriginalFilename, normalizeItem, sanitizeOriginalFilename } from '../utils/itemNormalization.js';
 import { itemStreamService } from '../services/itemStream.js';
 const router = express.Router();
 // Download file or serve inline (for images)
@@ -70,7 +70,7 @@ router.get('/:id/files/:filename', async (req, res) => {
             // Check if this is an image and should be served inline
             const isImage = fileInfo.mimetype && fileInfo.mimetype.startsWith('image/');
             const inline = req.query.inline === 'true' || req.query.inline === '1';
-            const downloadName = fileInfo.originalname ?? fileInfo.filename;
+            const downloadName = sanitizeOriginalFilename(fileInfo.originalname ?? fileInfo.filename);
             // Set appropriate headers
             if (isImage && inline) {
                 // Serve image inline for display
@@ -158,8 +158,9 @@ const storage = multer.diskStorage({
         // Generate a unique filename using UUID to ensure uniqueness
         // Preserve the original file extension for proper file type detection
         const decodedOriginalName = decodeOriginalFilename(file.originalname);
-        if (decodedOriginalName !== file.originalname) {
-            file.originalname = decodedOriginalName;
+        const sanitizedOriginalName = sanitizeOriginalFilename(decodedOriginalName);
+        if (sanitizedOriginalName !== file.originalname) {
+            file.originalname = sanitizedOriginalName;
         }
         const ext = path.extname(file.originalname);
         const baseName = path.basename(file.originalname, ext);
@@ -174,7 +175,7 @@ const storage = multer.diskStorage({
         }
         // Create unique filename: {uuid}-{sanitized-original-name}{ext}
         // Sanitize original name to remove special characters that might cause issues
-        const sanitizedName = baseName.replace(/[^a-zA-Z0-9-_]/g, '_').substring(0, 50);
+        const sanitizedName = sanitizeOriginalFilename(baseName).replace(/[^a-zA-Z0-9-_]/g, '_').substring(0, 50);
         const uniqueFilename = `${uniqueId}-${sanitizedName}${ext}`;
         cb(null, uniqueFilename);
     },

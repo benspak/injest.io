@@ -1,3 +1,15 @@
+export function sanitizeOriginalFilename(originalname) {
+    if (!originalname) {
+        return originalname;
+    }
+    // Replace any path separators to prevent directory traversal or invalid file paths
+    let sanitized = originalname.replace(/[\\/]+/g, '_');
+    // Remove control characters that can cause issues on some filesystems or headers
+    sanitized = sanitized.replace(/[\u0000-\u001F\u007F]/g, '');
+    // Trim leading/trailing whitespace which is often added inadvertently
+    sanitized = sanitized.trim();
+    return sanitized;
+}
 export function decodeOriginalFilename(originalname) {
     if (!originalname) {
         return originalname;
@@ -5,12 +17,12 @@ export function decodeOriginalFilename(originalname) {
     try {
         const decoded = Buffer.from(originalname, 'binary').toString('utf8');
         if (decoded.includes('\uFFFD')) {
-            return originalname;
+            return sanitizeOriginalFilename(originalname);
         }
-        return decoded.normalize('NFC');
+        return sanitizeOriginalFilename(decoded.normalize('NFC'));
     }
     catch {
-        return originalname;
+        return sanitizeOriginalFilename(originalname);
     }
 }
 export function normalizeAttachments(attachments) {
@@ -35,9 +47,10 @@ export function normalizeAttachments(attachments) {
         }
         if (typeof attachment.originalname === 'string') {
             const decodedOriginal = decodeOriginalFilename(attachment.originalname);
+            const sanitizedOriginal = sanitizeOriginalFilename(decodedOriginal);
             return {
                 ...attachment,
-                originalname: decodedOriginal,
+                originalname: sanitizedOriginal,
             };
         }
         return attachment;

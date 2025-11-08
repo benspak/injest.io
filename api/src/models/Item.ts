@@ -295,12 +295,38 @@ export class ItemModel {
   }
 
   static async delete(id: string): Promise<boolean> {
-    // Soft delete: set deleted_at timestamp instead of actually deleting
-    const result = await pool.query(
-      'UPDATE items SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL',
-      [id]
-    );
-    return result.rowCount !== null && result.rowCount > 0;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        `
+          UPDATE items
+          SET deleted_at = CURRENT_TIMESTAMP
+          WHERE id = $1
+            AND deleted_at IS NULL
+          RETURNING id
+        `,
+        [id]
+      );
+
+      if (!result.rowCount) {
+        await client.query('ROLLBACK');
+        return false;
+      }
+
+      await client.query('DELETE FROM user_file_hashes WHERE item_id = $1', [id]);
+
+      await client.query('COMMIT');
+      return true;
+    } catch (error) {
+      await client.query('ROLLBACK').catch((rollbackError: unknown) => {
+        console.error('[Items] Failed to rollback item delete transaction:', rollbackError);
+      });
+      throw error;
+    } finally {
+      client.release();
+    }
   }
 
   static async findByResendEmailId(resendEmailId: string): Promise<Item | null> {
