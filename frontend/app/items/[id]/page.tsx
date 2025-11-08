@@ -9,6 +9,13 @@ import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { apiClient, Item } from '@/lib/api';
 import { auth } from '@/lib/auth';
 
@@ -26,6 +33,8 @@ export default function ItemDetailPage() {
   const [item, setItem] = useState<Item | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -94,6 +103,11 @@ export default function ItemDetailPage() {
       console.error('Error downloading attachment:', err);
       toast.error(`Failed to download ${attachment.originalname}.`);
     }
+  };
+
+  const handleImagePreview = (attachment: Attachment) => {
+    setSelectedImage(attachment);
+    setImageDialogOpen(true);
   };
 
   if (!auth.isAuthenticated() && !loading) {
@@ -176,10 +190,11 @@ export default function ItemDetailPage() {
                         <img
                           src={apiClient.getFileUrl(item.id, attachment.filename, true)}
                           alt={attachment.originalname}
-                          className="h-auto w-full object-contain"
+                          className="h-auto w-full cursor-zoom-in object-contain"
                           onError={(event) => {
                             (event.target as HTMLImageElement).style.display = 'none';
                           }}
+                          onClick={() => handleImagePreview(attachment)}
                         />
                         <div className="border-t bg-white px-3 py-2">
                           <p className="text-sm font-medium">{attachment.originalname}</p>
@@ -279,6 +294,43 @@ export default function ItemDetailPage() {
           </Card>
         ) : null}
       </main>
+
+      <Dialog
+        open={imageDialogOpen}
+        onOpenChange={(open) => {
+          setImageDialogOpen(open);
+          if (!open) {
+            setSelectedImage(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] sm:w-full sm:max-w-5xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>{selectedImage?.originalname || 'Image preview'}</DialogTitle>
+            {selectedImage?.size && (
+              <DialogDescription>
+                {(selectedImage.size / 1024).toFixed(1)} KB
+              </DialogDescription>
+            )}
+          </DialogHeader>
+          {item && selectedImage && (
+            <div className="space-y-4">
+              <div className="relative w-full">
+                <img
+                  src={apiClient.getFileUrl(item.id, selectedImage.filename, true)}
+                  alt={selectedImage.originalname}
+                  className="h-auto w-full max-h-[80vh] rounded-md object-contain bg-black/5"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => handleDownload(selectedImage)}>
+                  Download
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
