@@ -29,22 +29,45 @@ export class ItemModel {
         const item = result.rows[0];
         if (input.attachments?.length) {
             for (const attachment of input.attachments) {
-                if (attachment.checksum) {
+                if (!attachment.checksum) {
+                    continue;
+                }
+                let attempt = 0;
+                // Allow a single retry in case we encounter a stale hash entry from a previously deleted item.
+                while (attempt < 2) {
                     try {
                         await executor.query(`INSERT INTO user_file_hashes (owner_id, checksum, item_id, attachment_filename)
                VALUES ($1, $2, $3, $4)`, [input.owner_id, attachment.checksum, item.id, attachment.filename]);
+                        break; // Insert succeeded; proceed to next attachment
                     }
                     catch (error) {
                         // Propagate unique violations so callers can translate to HTTP 409
                         if (error?.code === '23505') {
-                            error.duplicate_checksum = attachment.checksum;
+                            // On first failure, check if the existing hash belongs to a soft-deleted item.
+                            if (attempt === 0) {
+                                const existing = await executor.query(`SELECT item_id
+                   FROM user_file_hashes
+                   WHERE owner_id = $1 AND checksum = $2
+                   LIMIT 1`, [input.owner_id, attachment.checksum]);
+                                if (existing.rowCount) {
+                                    const existingItemId = existing.rows[0].item_id;
+                                    const existingItem = await executor.query(`SELECT deleted_at FROM items WHERE id = $1`, [existingItemId]);
+                                    const isSoftDeleted = existingItem.rows[0]?.deleted_at != null;
+                                    if (isSoftDeleted) {
+                                        await executor.query(`DELETE FROM user_file_hashes WHERE owner_id = $1 AND checksum = $2`, [input.owner_id, attachment.checksum]);
+                                        attempt += 1;
+                                        continue; // Retry insert after cleaning stale hash
+                                    }
+                                }
+                                error.duplicate_checksum = attachment.checksum;
+                            }
                         }
                         if (error?.code === '42P01') {
                             console.warn('[Items] user_file_hashes table missing; skipping hash tracking for attachment', {
                                 ownerId: input.owner_id,
                                 itemId: item.id,
                             });
-                            continue;
+                            break;
                         }
                         throw error;
                     }
