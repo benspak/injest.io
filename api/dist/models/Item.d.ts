@@ -49,6 +49,7 @@ export declare class ItemModel {
         hasAttachments?: boolean;
         fileType?: string;
     }): Promise<Item[]>;
+    static findAllByOwner(ownerId: string): Promise<Item[]>;
     static findByAttachmentChecksum(ownerId: string, checksum: string, client?: PoolClient): Promise<Item | null>;
     static update(id: string, updates: Partial<Item>): Promise<Item>;
     static delete(id: string): Promise<boolean>;

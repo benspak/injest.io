@@ -14,6 +14,12 @@ import { FeedbackDialog } from '@/components/feedback-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail, API_URL } from '@/lib/api';
 
+type ApiKeyInfoState = {
+  hasKey: boolean;
+  createdAt: string | null;
+  lastUsedAt: string | null;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
@@ -23,6 +29,12 @@ export default function DashboardPage() {
   const [offset, setOffset] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
   const [importingBookmarks, setImportingBookmarks] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<'json' | 'csv' | null>(null);
+  const [apiKeyInfo, setApiKeyInfo] = useState<ApiKeyInfoState | null>(null);
+  const [apiKeyInfoLoading, setApiKeyInfoLoading] = useState(true);
+  const [apiKeyActionLoading, setApiKeyActionLoading] = useState(false);
+  const [apiKeyActionType, setApiKeyActionType] = useState<'generate' | 'revoke' | null>(null);
+  const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
   const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -33,6 +45,37 @@ export default function DashboardPage() {
   const itemStreamRef = useRef<EventSource | null>(null);
   const [itemStreamRetry, setItemStreamRetry] = useState(0);
   const BATCH_SIZE = 50;
+  const externalApiBaseUrl = `${API_URL.replace(/\/+$/, '')}/api/external`;
+
+  const formatTimestamp = useCallback((value: string | null | undefined) => {
+    if (!value) {
+      return 'Never';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Never';
+    }
+    return date.toLocaleString();
+  }, []);
+
+  const loadApiKeyInfo = useCallback(async () => {
+    if (!auth.isAuthenticated()) {
+      setApiKeyInfo(null);
+      setApiKeyInfoLoading(false);
+      return;
+    }
+
+    setApiKeyInfoLoading(true);
+    try {
+      const info = await apiClient.getApiKeyInfo();
+      setApiKeyInfo(info);
+    } catch (error) {
+      console.error('Error loading API key info:', error);
+      setApiKeyInfo(null);
+    } finally {
+      setApiKeyInfoLoading(false);
+    }
+  }, []);
 
   const loadIndexedCount = useCallback(async () => {
     try {
@@ -216,6 +259,7 @@ export default function DashboardPage() {
       setHasMore(true);
       loadItems(0, true);
       loadIndexedCount();
+      await loadApiKeyInfo();
     };
 
     checkAuth();
@@ -225,7 +269,7 @@ export default function DashboardPage() {
         clearInterval(bookmarkPollIntervalRef.current);
       }
     };
-  }, [loadIndexedCount, loadItems, router]);
+  }, [loadApiKeyInfo, loadIndexedCount, loadItems, router]);
 
   const loadMoreItems = useCallback(async () => {
     if (loadingMore || !hasMore || loading) return;
@@ -485,6 +529,67 @@ export default function DashboardPage() {
     }
   };
 
+  const handleExportItems = async (format: 'json' | 'csv') => {
+    try {
+      setExportingFormat(format);
+      await apiClient.downloadItemsExport(format);
+      toast.success(`Export started in ${format.toUpperCase()} format`);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      toast.error(err?.message || 'Failed to export items');
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
+  const handleGenerateApiKey = async () => {
+    try {
+      setApiKeyActionLoading(true);
+      setApiKeyActionType('generate');
+      setGeneratedApiKey(null);
+      const response = await apiClient.createApiKey();
+      setGeneratedApiKey(response.apiKey);
+      setApiKeyInfo({
+        hasKey: true,
+        createdAt: response.createdAt ?? new Date().toISOString(),
+        lastUsedAt: response.lastUsedAt ?? null,
+      });
+      toast.success('New API key generated. Copy it now.');
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      toast.error(err?.message || 'Failed to generate API key');
+    } finally {
+      setApiKeyActionLoading(false);
+      setApiKeyActionType(null);
+    }
+  };
+
+  const handleRevokeApiKey = async () => {
+    if (!apiKeyInfo?.hasKey) {
+      toast.error('No API key to revoke');
+      return;
+    }
+
+    if (!confirm('Revoke your API key? Existing integrations will stop working.')) {
+      return;
+    }
+
+    try {
+      setApiKeyActionLoading(true);
+      setApiKeyActionType('revoke');
+      await apiClient.revokeApiKey();
+      setGeneratedApiKey(null);
+      await loadApiKeyInfo();
+      toast.success('API key revoked.');
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      toast.error(err?.message || 'Failed to revoke API key');
+    } finally {
+      setApiKeyActionLoading(false);
+      setApiKeyActionType(null);
+    }
+  };
+
   if (authLoading || loading) {
     return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
   }
@@ -562,6 +667,114 @@ export default function DashboardPage() {
                 <p className="text-xs text-muted-foreground">
                   Export your browser bookmarks as HTML and import them here.
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Downloads</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Export all enriched items as structured data. Hosted attachments are not included.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => handleExportItems('json')}
+                    disabled={exportingFormat !== null}
+                  >
+                    {exportingFormat === 'json' ? 'Preparing JSON...' : 'Download JSON'}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => handleExportItems('csv')}
+                    disabled={exportingFormat !== null}
+                  >
+                    {exportingFormat === 'csv' ? 'Preparing CSV...' : 'Download CSV'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>External API Access</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Generate an API key to query your enriched data via REST without sharing your account token.
+                </p>
+
+                {apiKeyInfoLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading API key details...</p>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm">
+                      <p>
+                        Key status:{' '}
+                        <span className="font-semibold">
+                          {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
+                        </span>
+                      </p>
+                      <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
+                      <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
+                    </div>
+
+                    {generatedApiKey && (
+                      <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
+                        <p className="text-xs font-semibold uppercase text-amber-800 tracking-wide">
+                          Your new API key
+                        </p>
+                        <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
+                        <p className="mt-2 text-xs text-amber-700">
+                          Copy this key now—you won&apos;t be able to see it again.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button
+                        onClick={handleGenerateApiKey}
+                        disabled={apiKeyActionLoading}
+                      >
+                        {apiKeyActionLoading && apiKeyActionType === 'generate'
+                          ? 'Generating...'
+                          : apiKeyInfo?.hasKey
+                            ? 'Regenerate API Key'
+                            : 'Generate API Key'}
+                      </Button>
+                      {apiKeyInfo?.hasKey && (
+                        <Button
+                          variant="destructive"
+                          onClick={handleRevokeApiKey}
+                          disabled={apiKeyActionLoading}
+                        >
+                          {apiKeyActionLoading && apiKeyActionType === 'revoke'
+                            ? 'Revoking...'
+                            : 'Revoke Key'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    Example requests
+                  </p>
+                  <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
+{`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items?limit=25"`}
+                  </pre>
+                  <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
+{`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/search?q=meeting"`}
+                  </pre>
+                  <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
+{`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items/ITEM_ID"`}
+                  </pre>
+                </div>
               </CardContent>
             </Card>
 

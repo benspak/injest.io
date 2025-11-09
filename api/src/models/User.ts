@@ -10,6 +10,9 @@ export interface User {
   stripe_customer_id?: string;
   bookmark_import_count?: number;
   last_bookmark_import_payment?: Date;
+  api_key_hash?: string | null;
+  api_key_created_at?: Date | null;
+  api_key_last_used_at?: Date | null;
   xcom_access_token?: string;
   xcom_refresh_token?: string;
   xcom_token_expires_at?: Date;
@@ -93,6 +96,18 @@ export class UserModel {
     if (updates.last_bookmark_import_payment !== undefined) {
       fields.push(`last_bookmark_import_payment = $${paramCount++}`);
       values.push(updates.last_bookmark_import_payment);
+    }
+    if (updates.api_key_hash !== undefined) {
+      fields.push(`api_key_hash = $${paramCount++}`);
+      values.push(updates.api_key_hash);
+    }
+    if (updates.api_key_created_at !== undefined) {
+      fields.push(`api_key_created_at = $${paramCount++}`);
+      values.push(updates.api_key_created_at);
+    }
+    if (updates.api_key_last_used_at !== undefined) {
+      fields.push(`api_key_last_used_at = $${paramCount++}`);
+      values.push(updates.api_key_last_used_at);
     }
     if (updates.xcom_access_token !== undefined) {
       fields.push(`xcom_access_token = $${paramCount++}`);
@@ -179,5 +194,33 @@ export class UserModel {
       xcom_user_id: undefined,
       xcom_username: undefined,
     });
+  }
+
+  static async setApiKey(userId: string, apiKeyHash: string): Promise<User> {
+    return await this.update(userId, {
+      api_key_hash: apiKeyHash,
+      api_key_created_at: new Date(),
+      api_key_last_used_at: null,
+    });
+  }
+
+  static async clearApiKey(userId: string): Promise<User> {
+    return await this.update(userId, {
+      api_key_hash: null,
+      api_key_created_at: null,
+      api_key_last_used_at: null,
+    });
+  }
+
+  static async updateApiKeyLastUsed(userId: string): Promise<void> {
+    await pool.query('UPDATE users SET api_key_last_used_at = NOW() WHERE id = $1', [userId]);
+  }
+
+  static async findByApiKeyHash(apiKeyHash: string): Promise<User | null> {
+    const result = await pool.query(
+      'SELECT * FROM users WHERE api_key_hash = $1 AND api_key_hash IS NOT NULL',
+      [apiKeyHash]
+    );
+    return result.rows[0] || null;
   }
 }

@@ -307,6 +307,22 @@ class ApiClient {
     return this.request<{ user: User }>('/api/auth/me', { method: 'GET' });
   }
 
+  async getApiKeyInfo(): Promise<{ hasKey: boolean; createdAt: string | null; lastUsedAt: string | null }> {
+    return this.request<{ hasKey: boolean; createdAt: string | null; lastUsedAt: string | null }>('/api/auth/api-key', {
+      method: 'GET',
+    });
+  }
+
+  async createApiKey(): Promise<{ apiKey: string; createdAt: string | null; lastUsedAt: string | null }> {
+    return this.request<{ apiKey: string; createdAt: string | null; lastUsedAt: string | null }>('/api/auth/api-key', {
+      method: 'POST',
+    });
+  }
+
+  async revokeApiKey(): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/api/auth/api-key', { method: 'DELETE' });
+  }
+
   // Items
   async createItem(data: FormData): Promise<CreateItemResponse> {
     // Don't set Content-Type header - browser will set it automatically with boundary for FormData
@@ -478,6 +494,52 @@ class ApiClient {
     }
 
     link.download = downloadFilename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  async downloadItemsExport(format: 'json' | 'csv' = 'json') {
+    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+
+    const params = new URLSearchParams();
+    if (format) {
+      params.append('format', format);
+    }
+
+    const url = `${this.baseUrl}/api/items/export?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Export failed' }));
+      throw new Error(error.error || 'Export failed');
+    }
+
+    const blob = await response.blob();
+    const downloadUrl = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = contentDisposition ? contentDisposition.match(/filename="?([^"]+)"?/)?.[1] : undefined;
+    if (filename) {
+      filename = decodeURIComponent(filename);
+    } else {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      filename = `items-export-${timestamp}.${format}`;
+    }
+
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

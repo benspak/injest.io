@@ -11,6 +11,7 @@ import feedbackRoutes from './routes/feedback.js';
 import paymentRoutes from './routes/payment.js';
 import tasksRoutes from './routes/tasks.js';
 import xcomRoutes from './routes/xcom.js';
+import externalRoutes from './routes/external.js';
 import './config/database.js';
 
 dotenv.config();
@@ -78,6 +79,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/xcom', xcomRoutes);
+app.use('/api/external', externalRoutes);
 
 // Health check
 app.get('/health', (req: express.Request, res: express.Response) => {

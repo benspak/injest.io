@@ -8,6 +8,9 @@ export interface User {
     stripe_customer_id?: string;
     bookmark_import_count?: number;
     last_bookmark_import_payment?: Date;
+    api_key_hash?: string | null;
+    api_key_created_at?: Date | null;
+    api_key_last_used_at?: Date | null;
     xcom_access_token?: string;
     xcom_refresh_token?: string;
     xcom_token_expires_at?: Date;
@@ -47,5 +50,9 @@ export declare class UserModel {
      * Clear X.com tokens (disconnect)
      */
     static clearXComTokens(userId: string): Promise<User>;
+    static setApiKey(userId: string, apiKeyHash: string): Promise<User>;
+    static clearApiKey(userId: string): Promise<User>;
+    static updateApiKeyLastUsed(userId: string): Promise<void>;
+    static findByApiKeyHash(apiKeyHash: string): Promise<User | null>;
 }
 //# sourceMappingURL=User.d.ts.map

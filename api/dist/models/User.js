@@ -49,6 +49,18 @@ export class UserModel {
             fields.push(`last_bookmark_import_payment = $${paramCount++}`);
             values.push(updates.last_bookmark_import_payment);
         }
+        if (updates.api_key_hash !== undefined) {
+            fields.push(`api_key_hash = $${paramCount++}`);
+            values.push(updates.api_key_hash);
+        }
+        if (updates.api_key_created_at !== undefined) {
+            fields.push(`api_key_created_at = $${paramCount++}`);
+            values.push(updates.api_key_created_at);
+        }
+        if (updates.api_key_last_used_at !== undefined) {
+            fields.push(`api_key_last_used_at = $${paramCount++}`);
+            values.push(updates.api_key_last_used_at);
+        }
         if (updates.xcom_access_token !== undefined) {
             fields.push(`xcom_access_token = $${paramCount++}`);
             values.push(updates.xcom_access_token);
@@ -118,6 +130,27 @@ export class UserModel {
             xcom_user_id: undefined,
             xcom_username: undefined,
         });
+    }
+    static async setApiKey(userId, apiKeyHash) {
+        return await this.update(userId, {
+            api_key_hash: apiKeyHash,
+            api_key_created_at: new Date(),
+            api_key_last_used_at: null,
+        });
+    }
+    static async clearApiKey(userId) {
+        return await this.update(userId, {
+            api_key_hash: null,
+            api_key_created_at: null,
+            api_key_last_used_at: null,
+        });
+    }
+    static async updateApiKeyLastUsed(userId) {
+        await pool.query('UPDATE users SET api_key_last_used_at = NOW() WHERE id = $1', [userId]);
+    }
+    static async findByApiKeyHash(apiKeyHash) {
+        const result = await pool.query('SELECT * FROM users WHERE api_key_hash = $1 AND api_key_hash IS NOT NULL', [apiKeyHash]);
+        return result.rows[0] || null;
     }
 }
 //# sourceMappingURL=User.js.map

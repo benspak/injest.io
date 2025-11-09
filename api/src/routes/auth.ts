@@ -7,6 +7,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { getXComOAuthService } from '../services/xcomOAuth.js';
 import pool from '../config/database.js';
 import crypto from 'crypto';
+import { generateApiKey, hashApiKey } from '../utils/apiKeys.js';
 import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
 
 const router = express.Router();
@@ -116,6 +117,64 @@ router.get('/me', authMiddleware, async (req: AuthRequest, res: express.Response
   } catch (error) {
     console.error('Error getting current user:', error);
     res.status(500).json({ error: 'Failed to get current user' });
+  }
+});
+
+router.get('/api-key', authMiddleware, async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const user = await UserModel.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      hasKey: Boolean(user.api_key_hash),
+      createdAt: user.api_key_created_at || null,
+      lastUsedAt: user.api_key_last_used_at || null,
+    });
+  } catch (error) {
+    console.error('Error fetching API key metadata:', error);
+    res.status(500).json({ error: 'Failed to fetch API key information' });
+  }
+});
+
+router.post('/api-key', authMiddleware, async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const apiKey = generateApiKey();
+    const apiKeyHash = hashApiKey(apiKey);
+
+    const updatedUser = await UserModel.setApiKey(req.user.id, apiKeyHash);
+
+    res.json({
+      apiKey,
+      createdAt: updatedUser.api_key_created_at,
+      lastUsedAt: updatedUser.api_key_last_used_at,
+    });
+  } catch (error) {
+    console.error('Error generating API key:', error);
+    res.status(500).json({ error: 'Failed to generate API key' });
+  }
+});
+
+router.delete('/api-key', authMiddleware, async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    await UserModel.clearApiKey(req.user.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error revoking API key:', error);
+    res.status(500).json({ error: 'Failed to revoke API key' });
   }
 });
 

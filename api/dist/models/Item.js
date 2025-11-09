@@ -153,6 +153,16 @@ export class ItemModel {
         const result = await pool.query(query, params);
         return result.rows;
     }
+    static async findAllByOwner(ownerId) {
+        const result = await pool.query(`
+        SELECT *
+        FROM items
+        WHERE owner_id = $1
+          AND deleted_at IS NULL
+        ORDER BY created_at DESC
+      `, [ownerId]);
+        return result.rows;
+    }
     static async findByAttachmentChecksum(ownerId, checksum, client) {
         const executor = client ?? pool;
         const result = await executor.query(`

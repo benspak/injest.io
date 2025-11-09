@@ -1319,6 +1319,117 @@ router.get('/count', async (req: AuthRequest, res: express.Response) => {
   }
 });
 
+router.get('/export', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const formatParam = (req.query.format as string | undefined)?.toLowerCase();
+    const format = formatParam === 'csv' ? 'csv' : 'json';
+
+    const items = await ItemModel.findAllByOwner(req.user.id);
+    const exportItems = items.map((item) => {
+      const normalized = normalizeItem(item);
+      const safeItem: Record<string, unknown> = {
+        ...normalized,
+        created_at: normalized.created_at instanceof Date ? normalized.created_at.toISOString() : normalized.created_at,
+        updated_at: normalized.updated_at instanceof Date ? normalized.updated_at.toISOString() : normalized.updated_at,
+        deleted_at: normalized.deleted_at instanceof Date ? normalized.deleted_at.toISOString() : normalized.deleted_at,
+      };
+
+      if (safeItem.attachments && typeof safeItem.attachments === 'string') {
+        try {
+          safeItem.attachments = JSON.parse(safeItem.attachments);
+        } catch {
+          // leave as-is if parsing fails
+        }
+      }
+
+      if (!safeItem.attachments) {
+        safeItem.attachments = [];
+      }
+
+      if (safeItem.tags && typeof safeItem.tags === 'string') {
+        try {
+          safeItem.tags = JSON.parse(safeItem.tags);
+        } catch {
+          // leave as-is if parsing fails
+        }
+      }
+
+      return safeItem;
+    });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    if (format === 'json') {
+      const filename = `items-export-${timestamp}.json`;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(JSON.stringify(exportItems, null, 2));
+      return;
+    }
+
+    const columns = Array.from(
+      exportItems.reduce((acc, item) => {
+        Object.keys(item).forEach((key) => acc.add(key));
+        return acc;
+      }, new Set<string>())
+    );
+
+    if (columns.length === 0) {
+      columns.push('id');
+    }
+
+    const serializeValue = (value: unknown): string => {
+      if (value === null || value === undefined) {
+        return '';
+      }
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (typeof value === 'object') {
+        try {
+          return JSON.stringify(value);
+        } catch {
+          return String(value);
+        }
+      }
+      return String(value);
+    };
+
+    const escapeCsvValue = (value: string): string => {
+      if (value.includes('"')) {
+        value = value.replace(/"/g, '""');
+      }
+      if (/[",\n\r]/.test(value)) {
+        return `"${value}"`;
+      }
+      return value;
+    };
+
+    const csvLines = [
+      columns.map((col) => escapeCsvValue(col)).join(','),
+      ...exportItems.map((item) =>
+        columns
+          .map((col) => {
+            const rawValue = Object.prototype.hasOwnProperty.call(item, col) ? item[col] : '';
+            return escapeCsvValue(serializeValue(rawValue));
+          })
+          .join(',')
+      ),
+    ];
+
+    const filename = `items-export-${timestamp}.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvLines.join('\n'));
+  } catch (error) {
+    console.error('Error exporting items:', error);
+    res.status(500).json({ error: 'Failed to export items' });
+  }
+});
+
 // List items
 router.get('/', async (req: AuthRequest, res: express.Response) => {
   try {
