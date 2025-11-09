@@ -1,8 +1,10 @@
+import type { SubscriptionTier } from '../utils/subscriptionPlans.js';
 export interface User {
     id: string;
     email: string;
     verified: boolean;
     is_premium?: boolean;
+    subscription_tier?: SubscriptionTier;
     stripe_customer_id?: string;
     bookmark_import_count?: number;
     last_bookmark_import_payment?: Date;

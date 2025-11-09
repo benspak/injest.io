@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import pool from '../config/database.js';
 import { UserModel } from '../models/User.js';
+import { getPlan, coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
 // Stripe is optional - throw error only when actually used
 // This allows the app to start without Stripe in development
 // Initialize Stripe lazily to avoid errors if key is not set
@@ -67,18 +68,24 @@ export class StripeService {
      * Create a payment intent for premium subscription
      * $5/month for unlimited items
      */
-    async createPremiumSubscriptionPaymentIntent(userId, email) {
-        const amount = 500; // $5 in cents
+    async createSubscriptionPaymentIntent(userId, email, requestedTier) {
+        const tier = coerceSubscriptionTier(requestedTier);
+        const plan = getPlan(tier);
+        if (plan.monthlyPriceCents <= 0) {
+            throw new Error('Cannot create payment intent for free tier');
+        }
+        const amount = plan.monthlyPriceCents;
         const customerId = await this.getOrCreateCustomer(userId, email);
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.create({
             amount,
             currency: 'usd',
             customer: customerId,
-            description: 'Premium subscription - $5/month',
+            description: `${plan.name} subscription`,
             metadata: {
                 userId,
                 type: 'premium_subscription',
+                subscription_tier: tier,
             },
         });
         return paymentIntent;

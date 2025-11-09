@@ -33,6 +33,10 @@ export class UserModel {
             fields.push(`is_premium = $${paramCount++}`);
             values.push(updates.is_premium);
         }
+        if (updates.subscription_tier !== undefined) {
+            fields.push(`subscription_tier = $${paramCount++}`);
+            values.push(updates.subscription_tier);
+        }
         if (updates.stripe_customer_id !== undefined) {
             fields.push(`stripe_customer_id = $${paramCount++}`);
             values.push(updates.stripe_customer_id);

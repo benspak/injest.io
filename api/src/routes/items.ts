@@ -239,6 +239,7 @@ async function checkItemCreationLimit(
 ): Promise<null | { status: number; error: string; message: string; warning?: boolean; itemCount?: number; limit?: number; subscriptionTier?: SubscriptionTier }> {
   // Get user to check subscription tier
   const user = await UserModel.findById(userId);
+  const subscriptionTier: SubscriptionTier = user ? coerceSubscriptionTier(user.subscription_tier) : 'free';
   if (!user) {
     return { status: 404, error: 'User not found', message: 'User not found' };
   }
@@ -1072,8 +1073,10 @@ async function processBookmarksInBackground(
   const existingUrls = new Set(existingItems.map(item => item.url).filter(Boolean));
   console.log(`Existing URLs set size: ${existingUrls.size}`);
 
-  // Check user premium status and get current item count for limit checking
+  // Check user subscription tier for logging purposes
   const user = await UserModel.findById(userId);
+  const subscriptionTier = user ? coerceSubscriptionTier(user.subscription_tier) : 'free';
+  console.log(`Starting background processing for ${bookmarks.length} bookmarks (plan: ${subscriptionTier})`);
 
   // Process bookmarks sequentially to avoid overwhelming the system
   for (let i = 0; i < bookmarks.length; i++) {
@@ -1273,7 +1276,6 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req: Auth
     }
 
     // Start processing in background (don't await)
-    console.log(`Starting background processing for ${bookmarks.length} bookmarks (premium: ${isPremium})`);
     processBookmarksInBackground(req.user.id, bookmarks, filePath).catch((error) => {
       console.error('Background bookmark processing error:', error);
       console.error('Error stack:', error.stack);

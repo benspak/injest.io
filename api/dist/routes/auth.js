@@ -7,6 +7,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { getXComOAuthService } from '../services/xcomOAuth.js';
 import pool from '../config/database.js';
 import crypto from 'crypto';
+import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
 const router = express.Router();
 // Send magic link
 router.post('/magic-link', async (req, res) => {
@@ -57,6 +58,7 @@ router.get('/verify', async (req, res) => {
                 email: user.email,
                 verified: user.verified,
                 is_premium: user.is_premium || false,
+                subscription_tier: coerceSubscriptionTier(user.subscription_tier),
             }
         });
     }
@@ -84,6 +86,7 @@ router.get('/me', authMiddleware, async (req, res) => {
                 email: user.email,
                 verified: user.verified,
                 is_premium: user.is_premium || false,
+                subscription_tier: coerceSubscriptionTier(user.subscription_tier),
             }
         });
     }

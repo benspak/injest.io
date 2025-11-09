@@ -18,7 +18,7 @@ export declare class StripeService {
      * Create a payment intent for premium subscription
      * $5/month for unlimited items
      */
-    createPremiumSubscriptionPaymentIntent(userId: string, email: string): Promise<Stripe.PaymentIntent>;
+    createSubscriptionPaymentIntent(userId: string, email: string, requestedTier: string | undefined): Promise<Stripe.PaymentIntent>;
     /**
      * Verify payment intent was successful
      */

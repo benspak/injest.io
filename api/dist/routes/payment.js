@@ -3,6 +3,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { stripeService } from '../services/stripe.js';
 import { UserModel } from '../models/User.js';
 import Stripe from 'stripe';
+import { coerceSubscriptionTier, getPlan, isPaidTier, } from '../utils/subscriptionPlans.js';
 const router = express.Router();
 router.use(authMiddleware);
 /**
@@ -27,11 +28,22 @@ router.post('/bookmark-import', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
+        let userTier = coerceSubscriptionTier(user.subscription_tier);
+        if (!isPaidTier(userTier) && user.is_premium) {
+            userTier = 'plus';
+        }
         // Check if user is premium (they can import for free)
-        if (user.is_premium) {
+        if (isPaidTier(userTier)) {
+            const plan = getPlan(userTier);
             return res.status(200).json({
-                message: 'Premium user - no payment required',
+                message: `${plan.name} plan - no payment required`,
                 premium: true,
+                subscriptionTier: userTier,
+                plan: {
+                    name: plan.name,
+                    maxIndexedItems: plan.maxIndexedItems,
+                    amountCents: plan.monthlyPriceCents,
+                },
             });
         }
         // Create payment intent
@@ -65,20 +77,35 @@ router.post('/premium-subscription', async (req, res) => {
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
-        // Check if user is already premium
-        if (user.is_premium) {
+        const requestedTierRaw = typeof req.body?.tier === 'string' ? req.body.tier : undefined;
+        let tier = requestedTierRaw ? coerceSubscriptionTier(requestedTierRaw) : 'plus';
+        if (!isPaidTier(tier)) {
+            tier = 'plus';
+        }
+        const plan = getPlan(tier);
+        const currentTier = coerceSubscriptionTier(user.subscription_tier);
+        const userIsPaid = isPaidTier(currentTier) || user.is_premium;
+        // Check if user already has this paid tier
+        if (userIsPaid && currentTier === tier) {
             return res.status(200).json({
-                message: 'User is already premium',
+                message: `User already subscribed to the ${plan.name} plan`,
                 premium: true,
+                subscriptionTier: currentTier,
             });
         }
         // Create payment intent
-        const paymentIntent = await stripeService.createPremiumSubscriptionPaymentIntent(req.user.id, user.email);
+        const paymentIntent = await stripeService.createSubscriptionPaymentIntent(req.user.id, user.email, tier);
         res.json({
             clientSecret: paymentIntent.client_secret,
             paymentIntentId: paymentIntent.id,
             amount: paymentIntent.amount,
             currency: paymentIntent.currency,
+            subscriptionTier: tier,
+            plan: {
+                name: plan.name,
+                maxIndexedItems: plan.maxIndexedItems,
+                amountCents: plan.monthlyPriceCents,
+            },
         });
     }
     catch (error) {
@@ -123,14 +150,22 @@ router.post('/verify', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
         if (paymentType === 'premium_subscription') {
+            const metadataTier = paymentIntent.metadata?.subscription_tier;
+            let tier = metadataTier ? coerceSubscriptionTier(metadataTier) : 'plus';
+            if (!isPaidTier(tier)) {
+                tier = 'plus';
+            }
+            const plan = getPlan(tier);
             // Mark user as premium
             await UserModel.update(req.user.id, {
-                is_premium: true,
+                is_premium: isPaidTier(tier),
+                subscription_tier: tier,
             });
             return res.json({
                 verified: true,
-                message: 'Premium subscription activated successfully',
-                premium: true,
+                message: `${plan.name} subscription activated successfully`,
+                premium: isPaidTier(tier),
+                subscriptionTier: tier,
             });
         }
         else {

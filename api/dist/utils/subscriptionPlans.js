@@ -1,0 +1,47 @@
+export const SUBSCRIPTION_PLANS = {
+    free: {
+        id: 'free',
+        name: 'Free',
+        monthlyPriceCents: 0,
+        minIndexedItems: 0,
+        maxIndexedItems: 500,
+    },
+    plus: {
+        id: 'plus',
+        name: 'Plus',
+        monthlyPriceCents: 500,
+        minIndexedItems: 0,
+        maxIndexedItems: 5000,
+    },
+    power: {
+        id: 'power',
+        name: 'Power User',
+        monthlyPriceCents: 1500,
+        minIndexedItems: 5000,
+        maxIndexedItems: 25000,
+    },
+    pro: {
+        id: 'pro',
+        name: 'Pro',
+        monthlyPriceCents: 3000,
+        minIndexedItems: 25000,
+        maxIndexedItems: 75000,
+    },
+};
+export const PAID_TIERS = ['plus', 'power', 'pro'];
+export function getPlan(tier) {
+    return SUBSCRIPTION_PLANS[tier];
+}
+export function getMaxIndexedItems(tier) {
+    return SUBSCRIPTION_PLANS[tier].maxIndexedItems;
+}
+export function isPaidTier(tier) {
+    return PAID_TIERS.includes(tier);
+}
+export function coerceSubscriptionTier(value) {
+    if (value === 'plus' || value === 'power' || value === 'pro') {
+        return value;
+    }
+    return 'free';
+}
+//# sourceMappingURL=subscriptionPlans.js.map
