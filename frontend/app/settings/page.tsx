@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
+import { AnnouncementBanner } from '@/components/announcement-banner';
 import { XComConnectDialog } from '@/components/xcom-connect-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -89,7 +90,8 @@ export default function SettingsPage() {
   const currentUser = auth.getUser();
 
   return (
-    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-50">
+      <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
           <div className="flex items-center gap-3">

@@ -9,6 +9,7 @@ import { ItemList } from '@/components/item-list';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AvatarMenu } from '@/components/avatar-menu';
+import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail, API_URL } from '@/lib/api';
@@ -492,6 +493,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
+      <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
           <h1 className="text-xl sm:text-2xl font-bold">Injest.io</h1>

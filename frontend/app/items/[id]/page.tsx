@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
+import { AnnouncementBanner } from '@/components/announcement-banner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -158,6 +159,7 @@ export default function ItemDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-4">
           <div className="flex flex-col gap-1">
