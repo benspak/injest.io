@@ -20,10 +20,25 @@ import { computeFileChecksum } from '../utils/checksum.js';
 import type { AttachmentMetadata } from '../models/Item.js';
 import { decodeOriginalFilename, normalizeAttachments, normalizeItem, sanitizeOriginalFilename } from '../utils/itemNormalization.js';
 import { itemStreamService } from '../services/itemStream.js';
+import {
+  coerceSubscriptionTier,
+  getMaxIndexedItems,
+  getPlan,
+  type SubscriptionTier,
+} from '../utils/subscriptionPlans.js';
 
 type UploadedFileWithChecksum = Express.Multer.File & { checksum: string };
 
 const router = express.Router();
+
+const TIER_UPGRADE_PATH: Record<SubscriptionTier, SubscriptionTier | null> = {
+  free: 'plus',
+  plus: 'power',
+  power: 'pro',
+  pro: null,
+};
+
+const formatCurrency = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
 
 // Download file or serve inline (for images)
 // Note: This route is defined before authMiddleware to allow token in query string for images
@@ -218,21 +233,19 @@ const upload = multer({
 /**
  * Helper function to check if a user can create more items
  * Returns null if allowed, or an error response object if blocked
- * Also returns warning information when approaching the limit
  */
-async function checkItemCreationLimit(userId: string): Promise<null | { status: number; error: string; message: string; warning?: boolean; itemCount?: number }> {
-  // Get user to check premium status
+async function checkItemCreationLimit(
+  userId: string
+): Promise<null | { status: number; error: string; message: string; warning?: boolean; itemCount?: number; limit?: number; subscriptionTier?: SubscriptionTier }> {
+  // Get user to check subscription tier
   const user = await UserModel.findById(userId);
   if (!user) {
     return { status: 404, error: 'User not found', message: 'User not found' };
   }
 
-  // Premium users are exempt from the limit
-  const isPremium = user.is_premium || false;
-
-  if (isPremium) {
-    return null; // Allowed
-  }
+  const tier: SubscriptionTier = coerceSubscriptionTier(user.subscription_tier);
+  const plan = getPlan(tier);
+  const limit = getMaxIndexedItems(tier);
 
   // Check current indexed item count
   const result = await pool.query(
@@ -241,13 +254,20 @@ async function checkItemCreationLimit(userId: string): Promise<null | { status: 
   );
   const itemCount = parseInt(result.rows[0].total, 10);
 
-  // If user has 500 or more indexed items, block creation
-  if (itemCount >= 500) {
+  if (itemCount >= limit) {
+    const upgradeTier = TIER_UPGRADE_PATH[tier];
+    const upgradePlan = upgradeTier ? getPlan(upgradeTier) : null;
+    const upgradeMessage = upgradePlan
+      ? ` Upgrade to the ${upgradePlan.name} plan (${formatCurrency(upgradePlan.monthlyPriceCents)}/month) for up to ${upgradePlan.maxIndexedItems.toLocaleString()} items.`
+      : '';
+
     return {
       status: 403,
       error: 'Item limit exceeded',
-      message: 'You have reached the limit of 500 indexed items. Please upgrade to premium ($5/month) to create more items.',
+      message: `You have reached the limit of ${limit.toLocaleString()} indexed items on the ${plan.name} plan.${upgradeMessage}`,
       itemCount,
+      limit,
+      subscriptionTier: tier,
     };
   }
 
@@ -255,15 +275,27 @@ async function checkItemCreationLimit(userId: string): Promise<null | { status: 
 }
 
 /**
- * Helper function to get item count and warning status
- * Returns item count and whether user is approaching or at limit
+ * Helper function to get item count and limit status
  */
-async function getItemLimitStatus(userId: string): Promise<{ itemCount: number; isAtLimit: boolean; isApproachingLimit: boolean; limit: number }> {
-  // Get user to check premium status
+async function getItemLimitStatus(
+  userId: string
+): Promise<{
+  itemCount: number;
+  isAtLimit: boolean;
+  isApproachingLimit: boolean;
+  limit: number;
+  subscriptionTier: SubscriptionTier;
+  planName: string;
+}> {
+  // Get user to check subscription tier
   const user = await UserModel.findById(userId);
   if (!user) {
-    return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: 500 };
+    return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: 500, subscriptionTier: 'free', planName: getPlan('free').name };
   }
+
+  const tier: SubscriptionTier = coerceSubscriptionTier(user.subscription_tier);
+  const plan = getPlan(tier);
+  const limit = getMaxIndexedItems(tier);
 
   // Check current indexed item count (always query the actual count)
   const result = await pool.query(
@@ -272,19 +304,16 @@ async function getItemLimitStatus(userId: string): Promise<{ itemCount: number; 
   );
   const itemCount = parseInt(result.rows[0].total, 10);
 
-  // Premium users are exempt from the limit
-  const isPremium = user.is_premium || false;
+  const isAtLimit = itemCount >= limit;
+  const isApproachingLimit = !isAtLimit && itemCount >= Math.max(0, Math.floor(limit * 0.9));
 
-  if (isPremium) {
-    return { itemCount, isAtLimit: false, isApproachingLimit: false, limit: Infinity };
-  }
-
-  const limit = 500;
   return {
     itemCount,
-    isAtLimit: itemCount >= limit,
-    isApproachingLimit: itemCount >= 450 && itemCount < limit,
+    isAtLimit,
+    isApproachingLimit,
     limit,
+    subscriptionTier: tier,
+    planName: plan.name,
   };
 }
 
@@ -635,6 +664,28 @@ router.post('/', upload.array('attachments', 1000), async (req: AuthRequest, res
         return Object.assign(file, { checksum }) as UploadedFileWithChecksum;
       })
     );
+
+    const unsupportedMedia = files.filter((file) => {
+      const mimetype = file.mimetype?.toLowerCase() ?? '';
+      return mimetype.startsWith('audio/') || mimetype.startsWith('video/');
+    });
+
+    if (unsupportedMedia.length > 0) {
+      await Promise.all(
+        files.map(async (file) => {
+          try {
+            await fileStorageService.deleteFile(file.filename);
+          } catch (cleanupError) {
+            console.warn(`Failed to delete unsupported upload ${file.filename}:`, cleanupError);
+          }
+        })
+      );
+
+      return res.status(400).json({
+        error: 'Unsupported file type',
+        message: 'Audio and video uploads are not supported at this time.',
+      });
+    }
 
     if (files.length > 0) {
       const acceptedFiles: UploadedFileWithChecksum[] = [];
@@ -1023,7 +1074,6 @@ async function processBookmarksInBackground(
 
   // Check user premium status and get current item count for limit checking
   const user = await UserModel.findById(userId);
-  const isPremium = user?.is_premium || false;
 
   // Process bookmarks sequentially to avoid overwhelming the system
   for (let i = 0; i < bookmarks.length; i++) {
@@ -1046,14 +1096,11 @@ async function processBookmarksInBackground(
         continue;
       }
 
-      // For non-premium users, check item limit before creating each item
-      if (!isPremium) {
-        const limitCheck = await checkItemCreationLimit(userId);
-        if (limitCheck && limitCheck.status === 403) {
-          console.log(`Item limit reached during bookmark import. Stopping at ${i} of ${bookmarks.length} bookmarks.`);
-          results.errors.push(`Import stopped: ${limitCheck.message}. ${results.imported} bookmarks were successfully imported.`);
-          break; // Stop importing more bookmarks
-        }
+      const limitCheck = await checkItemCreationLimit(userId);
+      if (limitCheck && limitCheck.status === 403) {
+        console.log(`Item limit reached during bookmark import. Stopping at ${i} of ${bookmarks.length} bookmarks.`);
+        results.errors.push(`Import stopped: ${limitCheck.message}. ${results.imported} bookmarks were successfully imported.`);
+        break; // Stop importing more bookmarks
       }
 
       // Fetch metadata for the URL
@@ -1207,26 +1254,22 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req: Auth
       return res.status(400).json({ error: 'No bookmarks found in file' });
     }
 
-    // Check premium status
-    const isPremium = user.is_premium || false;
-    const bookmarkCount = bookmarks.length;
-
-    // For non-premium users, check if they can import more items (500 item limit)
-    if (!isPremium) {
-      const limitCheck = await checkItemCreationLimit(req.user.id);
-      if (limitCheck && limitCheck.status === 403) {
-        // Clean up file
-        try {
-          fs.unlinkSync(filePath);
-        } catch {
-          // Ignore cleanup errors
-        }
-        return res.status(403).json({
-          error: limitCheck.error,
-          message: limitCheck.message,
-          itemCount: limitCheck.itemCount,
-        });
+    // Check subscription limit before queuing import
+    const limitCheck = await checkItemCreationLimit(req.user.id);
+    if (limitCheck && limitCheck.status === 403) {
+      // Clean up file
+      try {
+        fs.unlinkSync(filePath);
+      } catch {
+        // Ignore cleanup errors
       }
+      return res.status(403).json({
+        error: limitCheck.error,
+        message: limitCheck.message,
+        itemCount: limitCheck.itemCount,
+        limit: limitCheck.limit,
+        subscriptionTier: limitCheck.subscriptionTier,
+      });
     }
 
     // Start processing in background (don't await)
@@ -1241,7 +1284,7 @@ router.post('/import-bookmarks', upload.single('bookmarkFile'), async (req: Auth
       message: 'Bookmark import started',
       total: bookmarks.length,
       note: 'Processing will happen in the background. Bookmarks will appear in your list as they are imported.',
-      premium: isPremium,
+      premium: user.is_premium || false,
     });
   } catch (error: any) {
     console.error('Error importing bookmarks:', error);
@@ -1264,7 +1307,9 @@ router.get('/count', async (req: AuthRequest, res: express.Response) => {
       count: limitStatus.itemCount,
       isAtLimit: limitStatus.isAtLimit,
       isApproachingLimit: limitStatus.isApproachingLimit,
-      limit: limitStatus.limit === Infinity ? null : limitStatus.limit,
+      limit: limitStatus.limit,
+      subscriptionTier: limitStatus.subscriptionTier,
+      planName: limitStatus.planName,
     });
   } catch (error) {
     console.error('Error getting item count:', error);

@@ -14,6 +14,46 @@ import {
 } from 'lucide-react';
 
 export default function Home() {
+  const pricingPlans = [
+    {
+      id: 'free',
+      name: 'Free',
+      priceDisplay: '$0',
+      priceNote: 'forever',
+      limit: 'Up to 500 indexed items',
+      description: 'Organize your knowledge base with core capture and search features.',
+      features: ['Text and image OCR', 'Semantic search & tagging', 'Bookmark and email capture'],
+    },
+    {
+      id: 'plus',
+      name: 'Plus',
+      badge: 'Most Popular',
+      priceDisplay: '$5',
+      priceNote: 'per month',
+      limit: 'Up to 5,000 indexed items',
+      description: 'Perfect for individuals who want more room to grow their second brain.',
+      features: ['Priority indexing for uploads', 'Unlimited bookmark imports', 'Bulk file capture (1,000 files at once)'],
+    },
+    {
+      id: 'power',
+      name: 'Power User',
+      priceDisplay: '$15',
+      priceNote: 'per month',
+      limit: '5,000 – 25,000 indexed items',
+      description: 'Built for power users with large research archives and active workflows.',
+      features: ['Faster background processing', 'Advanced filtering & saved searches', 'Automation-ready email ingestion'],
+    },
+    {
+      id: 'pro',
+      name: 'Pro',
+      priceDisplay: '$30',
+      priceNote: 'per month',
+      limit: '25,000 – 75,000 indexed items',
+      description: 'Scale your personal knowledge infrastructure with dedicated capacity.',
+      features: ['Largest indexing capacity', 'Priority support & onboarding', 'Early access to new features'],
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
       {/* Hero Section */}
@@ -29,7 +69,7 @@ export default function Home() {
             Upload up to 1,000 images at once and start searching their text within minutes!
           </p>
           <p className="text-base text-gray-600 mb-6 max-w-2xl mx-auto">
-            Free up to 500 indexed items. Then just $5/month for unlimited indexing and OCR on uploaded images.
+            Start free with up to 500 indexed items. Upgrade to Plus ($5/month) for 5,000 items, Power User ($15/month) for 25,000, or Pro ($30/month) for 75,000 indexed items.
           </p>
           <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
             Capture, enrich, and search through all your information effortlessly
@@ -250,6 +290,52 @@ export default function Home() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Pricing Section */}
+        <div className="mb-20">
+          <h2 className="text-4xl font-bold text-center mb-6 text-gray-900">
+            Flexible Pricing That Scales With You
+          </h2>
+          <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
+            Whether you&apos;re just getting started or curating a vast knowledge base, pick the plan that matches your workflow.
+          </p>
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto">
+            {pricingPlans.map((plan) => (
+              <Card
+                key={plan.id}
+                className={`relative h-full shadow-lg border-2 transition hover:-translate-y-1 hover:shadow-xl ${
+                  plan.badge ? 'border-blue-500' : 'border-gray-200'
+                }`}
+              >
+                <CardHeader className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-2xl text-gray-900">{plan.name}</CardTitle>
+                    {plan.badge && (
+                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">
+                        {plan.badge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-4xl font-bold text-gray-900">{plan.priceDisplay}</span>
+                    <span className="text-sm text-gray-500">{plan.priceNote}</span>
+                  </div>
+                  <CardDescription className="text-base text-blue-600 font-medium">
+                    {plan.limit}
+                  </CardDescription>
+                  <p className="text-sm text-gray-600">{plan.description}</p>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
+                    {plan.features.map((feature) => (
+                      <li key={feature}>{feature}</li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
 
         {/* How It Works Section */}

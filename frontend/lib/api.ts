@@ -1,3 +1,5 @@
+import type { SubscriptionTier } from './subscriptionPlans';
+
 // Normalize API URL to ensure it has a protocol and is properly formatted
 function normalizeApiUrl(url: string): string {
   if (!url || url.trim() === '') {
@@ -117,6 +119,7 @@ export interface User {
   email: string;
   verified: boolean;
   is_premium?: boolean;
+  subscription_tier?: SubscriptionTier;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -341,24 +344,37 @@ class ApiClient {
     });
   }
 
-  async createPremiumSubscriptionPaymentIntent(): Promise<{
+  async createSubscriptionPaymentIntent(tier: SubscriptionTier): Promise<{
     clientSecret: string;
     paymentIntentId: string;
     amount: number;
     currency: string;
+    subscriptionTier: SubscriptionTier;
+    plan: {
+      name: string;
+      maxIndexedItems: number;
+      amountCents: number;
+    };
   }> {
     return this.request<{
       clientSecret: string;
       paymentIntentId: string;
       amount: number;
       currency: string;
+      subscriptionTier: SubscriptionTier;
+      plan: {
+        name: string;
+        maxIndexedItems: number;
+        amountCents: number;
+      };
     }>('/api/payment/premium-subscription', {
       method: 'POST',
+      body: JSON.stringify({ tier }),
     });
   }
 
-  async verifyPayment(paymentIntentId: string): Promise<{ verified: boolean; message: string; premium?: boolean }> {
-    return this.request<{ verified: boolean; message: string; premium?: boolean }>('/api/payment/verify', {
+  async verifyPayment(paymentIntentId: string): Promise<{ verified: boolean; message: string; premium?: boolean; subscriptionTier?: SubscriptionTier }> {
+    return this.request<{ verified: boolean; message: string; premium?: boolean; subscriptionTier?: SubscriptionTier }>('/api/payment/verify', {
       method: 'POST',
       body: JSON.stringify({ paymentIntentId }),
     });
@@ -374,8 +390,8 @@ class ApiClient {
     return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
-  async getIndexedItemCount(): Promise<{ count: number; isAtLimit?: boolean; isApproachingLimit?: boolean; limit?: number | null }> {
-    return this.request<{ count: number; isAtLimit?: boolean; isApproachingLimit?: boolean; limit?: number | null }>('/api/items/count');
+  async getIndexedItemCount(): Promise<{ count: number; isAtLimit: boolean; isApproachingLimit: boolean; limit: number; subscriptionTier?: SubscriptionTier; planName?: string }> {
+    return this.request<{ count: number; isAtLimit: boolean; isApproachingLimit: boolean; limit: number; subscriptionTier?: SubscriptionTier; planName?: string }>('/api/items/count');
   }
 
   async getItem(id: string): Promise<Item> {

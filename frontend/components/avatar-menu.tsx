@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import type { User } from '@/lib/api';
 import { auth } from '@/lib/auth';
+import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionPlans';
 
 type AvatarMenuProps = {
   user: User | null;
@@ -51,6 +52,16 @@ export function AvatarMenu({ user }: AvatarMenuProps) {
     router.push('/login');
   };
 
+  const planLabel = (() => {
+    if (user.subscription_tier && SUBSCRIPTION_PLANS[user.subscription_tier]) {
+      return SUBSCRIPTION_PLANS[user.subscription_tier].name;
+    }
+    if (user.is_premium) {
+      return SUBSCRIPTION_PLANS.plus.name;
+    }
+    return null;
+  })();
+
   return (
     <div className="relative" ref={menuRef}>
       <button
@@ -70,7 +81,7 @@ export function AvatarMenu({ user }: AvatarMenuProps) {
         >
           <div className="border-b border-gray-100 px-4 py-3">
             <p className="text-sm font-medium text-gray-900">{user.email}</p>
-            {user.is_premium && <p className="mt-1 text-xs font-semibold uppercase text-blue-600">Pro</p>}
+            {planLabel && <p className="mt-1 text-xs font-semibold uppercase text-blue-600">{planLabel}</p>}
           </div>
           <div className="flex flex-col">
             <Link

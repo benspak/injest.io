@@ -1,10 +1,12 @@
 import pool from '../config/database.js';
+import type { SubscriptionTier } from '../utils/subscriptionPlans.js';
 
 export interface User {
   id: string;
   email: string;
   verified: boolean;
   is_premium?: boolean;
+  subscription_tier?: SubscriptionTier;
   stripe_customer_id?: string;
   bookmark_import_count?: number;
   last_bookmark_import_payment?: Date;
@@ -75,6 +77,10 @@ export class UserModel {
     if (updates.is_premium !== undefined) {
       fields.push(`is_premium = $${paramCount++}`);
       values.push(updates.is_premium);
+    }
+    if (updates.subscription_tier !== undefined) {
+      fields.push(`subscription_tier = $${paramCount++}`);
+      values.push(updates.subscription_tier);
     }
     if (updates.stripe_customer_id !== undefined) {
       fields.push(`stripe_customer_id = $${paramCount++}`);

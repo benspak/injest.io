@@ -11,20 +11,33 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import {
+  DEFAULT_PAID_TIER,
+  PAID_PLAN_ORDER,
+  SUBSCRIPTION_PLANS,
+  formatPlanPrice,
+  type SubscriptionTier,
+  type SubscriptionPlan,
+} from '@/lib/subscriptionPlans';
 
 interface SubscriptionPaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
+  currentTier?: SubscriptionTier;
+  currentLimit?: number | null;
+  currentCount?: number | null;
 }
 
 function PaymentForm({
   onPaymentComplete,
-  onCancel
+  onCancel,
+  submitLabel,
 }: {
   onPaymentComplete: (paymentIntentId: string) => void;
   onCancel: () => void;
+  submitLabel: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -107,7 +120,7 @@ function PaymentForm({
           disabled={processing || !stripe}
           className="flex-1"
         >
-          {processing ? 'Processing...' : 'Subscribe $5.00/month'}
+          {processing ? 'Processing...' : submitLabel}
         </Button>
       </div>
     </form>
@@ -119,11 +132,21 @@ export function SubscriptionPaymentDialog({
   onOpenChange,
   onPaymentComplete,
   onCancel,
+  currentTier,
+  currentLimit,
+  currentCount,
 }: SubscriptionPaymentDialogProps) {
   const [stripePromise, setStripePromise] = useState<Stripe | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(DEFAULT_PAID_TIER);
+  const [activePlan, setActivePlan] = useState<{
+    tier: SubscriptionTier;
+    name: string;
+    amountCents: number;
+    maxIndexedItems: number;
+  } | null>(null);
 
   // Initialize Stripe
   useEffect(() => {
@@ -138,15 +161,22 @@ export function SubscriptionPaymentDialog({
     void initStripe();
   }, []);
 
-  const createPaymentIntent = useCallback(async () => {
+  const createPaymentIntent = useCallback(async (tier: SubscriptionTier) => {
     try {
       setLoading(true);
       setError(null);
+      setClientSecret(null);
 
       const { apiClient } = await import('@/lib/api');
-      const paymentData = await apiClient.createPremiumSubscriptionPaymentIntent();
+      const paymentData = await apiClient.createSubscriptionPaymentIntent(tier);
 
       setClientSecret(paymentData.clientSecret);
+      setActivePlan({
+        tier: paymentData.subscriptionTier ?? tier,
+        name: paymentData.plan.name,
+        amountCents: paymentData.plan.amountCents,
+        maxIndexedItems: paymentData.plan.maxIndexedItems,
+      });
     } catch (err: unknown) {
       console.error('Error creating payment intent:', err);
       const message = err instanceof Error ? err.message : 'Failed to initialize payment';
@@ -159,9 +189,48 @@ export function SubscriptionPaymentDialog({
   // Create payment intent when dialog opens
   useEffect(() => {
     if (open && stripePromise) {
-      void createPaymentIntent();
+      const nextTier = (() => {
+        if (currentTier) {
+          const currentIndex = PAID_PLAN_ORDER.indexOf(currentTier);
+          if (currentTier === 'pro') {
+            return 'pro' as SubscriptionTier;
+          }
+          if (currentIndex >= 0 && currentIndex < PAID_PLAN_ORDER.length - 1) {
+            return PAID_PLAN_ORDER[currentIndex + 1];
+          }
+        }
+        return DEFAULT_PAID_TIER;
+      })();
+      setSelectedTier(nextTier);
     }
-  }, [createPaymentIntent, open, stripePromise]);
+  }, [currentTier, open, stripePromise]);
+
+  useEffect(() => {
+    if (open && stripePromise) {
+      void createPaymentIntent(selectedTier);
+    }
+  }, [createPaymentIntent, open, selectedTier, stripePromise]);
+
+  const handlePlanSelect = (tier: SubscriptionTier) => {
+    setSelectedTier(tier);
+  };
+
+  const selectedPlan: SubscriptionPlan = (() => {
+    if (activePlan && activePlan.tier === selectedTier) {
+      return {
+        id: activePlan.tier,
+        name: activePlan.name,
+        monthlyPriceCents: activePlan.amountCents,
+        maxIndexedItems: activePlan.maxIndexedItems,
+        minIndexedItems: SUBSCRIPTION_PLANS[activePlan.tier].minIndexedItems,
+        description: SUBSCRIPTION_PLANS[activePlan.tier].description,
+      };
+    }
+    return SUBSCRIPTION_PLANS[selectedTier];
+  })();
+
+  const currentPlan = SUBSCRIPTION_PLANS[currentTier ?? 'free'];
+  const submitLabel = `Subscribe ${formatPlanPrice(selectedPlan.monthlyPriceCents)}/month`;
 
   const handlePaymentComplete = (id: string) => {
     onPaymentComplete(id);
@@ -179,36 +248,75 @@ export function SubscriptionPaymentDialog({
         <DialogHeader>
           <DialogTitle>Item Limit Exceeded</DialogTitle>
           <DialogDescription>
-            You&apos;ve reached the limit of 500 indexed items on the free tier.
+            Choose a plan to expand your indexed item capacity.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg">
-            <p className="text-sm font-medium mb-2">Choose an option:</p>
-            <ul className="text-sm space-y-1 list-disc list-inside">
-              <li>Delete some items to stay within the free tier (500 items)</li>
-              <li>Subscribe to Premium ($5/month) for unlimited items</li>
-            </ul>
+          <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg space-y-2">
+            <p className="text-sm font-medium">
+              You&apos;re currently on the {currentPlan.name} plan{currentLimit ? ` (up to ${currentLimit.toLocaleString()} items)` : ''}.
+            </p>
+            {typeof currentCount === 'number' && (
+              <p className="text-sm">
+                You have {currentCount.toLocaleString()} indexed item{currentCount === 1 ? '' : 's'} so far.
+              </p>
+            )}
+            <p className="text-sm">
+              Select the plan that matches how many items you expect to manage.
+            </p>
           </div>
 
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Plan:</span>
-              <span className="font-medium">Premium Subscription</span>
+          <div className="grid gap-3">
+            {PAID_PLAN_ORDER.map((tier) => {
+              const plan = SUBSCRIPTION_PLANS[tier];
+              const selected = selectedTier === tier;
+              return (
+                <button
+                  key={tier}
+                  type="button"
+                  onClick={() => handlePlanSelect(tier)}
+                  className={`w-full rounded-lg border p-4 text-left transition ${
+                    selected
+                      ? 'border-blue-500 bg-blue-50 shadow-sm'
+                      : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{plan.name}</p>
+                      <p className="mt-1 text-sm text-gray-600">{plan.description}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-semibold text-gray-900">
+                        {formatPlanPrice(plan.monthlyPriceCents)}/month
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Up to {plan.maxIndexedItems.toLocaleString()} items
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Selected plan:</span>
+              <span className="font-medium text-gray-900">{selectedPlan.name}</span>
             </div>
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-sm text-gray-600">Price:</span>
-              <span className="font-bold text-lg">$5.00/month</span>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Monthly price:</span>
+              <span className="font-bold text-lg text-gray-900">
+                {formatPlanPrice(selectedPlan.monthlyPriceCents)}
+              </span>
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-200">
-              <p className="text-sm text-gray-600">
-                <strong>Benefits:</strong>
-              </p>
-              <ul className="text-sm text-gray-600 mt-1 list-disc list-inside">
-                <li>Unlimited indexed items</li>
-                <li>No item creation limits</li>
-              </ul>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-gray-600">Indexed item capacity:</span>
+              <span className="text-sm font-medium text-gray-900">
+                Up to {selectedPlan.maxIndexedItems.toLocaleString()} items
+              </span>
             </div>
           </div>
 
@@ -245,6 +353,7 @@ export function SubscriptionPaymentDialog({
               <PaymentForm
                 onPaymentComplete={handlePaymentComplete}
                 onCancel={handleCancel}
+                submitLabel={submitLabel}
               />
             </Elements>
           )}

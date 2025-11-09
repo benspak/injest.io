@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiClient, type Item, type UploadAcknowledgement, ApiError } from '@/lib/api';
 import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
+import { SUBSCRIPTION_PLANS, type SubscriptionTier } from '@/lib/subscriptionPlans';
 
 interface CaptureFormProps {
   onItemCreated?: () => void;
@@ -39,6 +40,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
   const [isAtLimit, setIsAtLimit] = useState(false);
   const [isApproachingLimit, setIsApproachingLimit] = useState(false);
   const [limit, setLimit] = useState<number | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load item count and limit status
@@ -48,7 +50,12 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       setItemCount(response.count);
       setIsAtLimit(response.isAtLimit || false);
       setIsApproachingLimit(response.isApproachingLimit || false);
-      setLimit(response.limit || null);
+      setLimit(typeof response.limit === 'number' ? response.limit : null);
+      if (response.subscriptionTier) {
+        setSubscriptionTier(response.subscriptionTier);
+      } else {
+        setSubscriptionTier('free');
+      }
     } catch (error) {
       console.error('Error loading item limit status:', error);
     }
@@ -75,9 +82,16 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     // Check limit status before submission
     try {
       const limitStatus = await apiClient.getIndexedItemCount();
+      setItemCount(limitStatus.count);
+      setIsAtLimit(limitStatus.isAtLimit);
+      setIsApproachingLimit(limitStatus.isApproachingLimit);
+      setLimit(typeof limitStatus.limit === 'number' ? limitStatus.limit : null);
+      const tierFromStatus: SubscriptionTier = limitStatus.subscriptionTier ?? 'free';
+      setSubscriptionTier(tierFromStatus);
+      const plan = SUBSCRIPTION_PLANS[tierFromStatus];
 
       // If at limit, show subscription dialog immediately
-      if (limitStatus.isAtLimit && limitStatus.limit !== null) {
+      if (limitStatus.isAtLimit && typeof limitStatus.limit === 'number') {
         setPendingFormValues({
           title,
           description,
@@ -85,6 +99,9 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
           notes,
           files: [...files],
         });
+        setMessage(
+          `You have reached the ${plan.name} plan limit of ${limitStatus.limit.toLocaleString()} indexed items.`
+        );
         setShowSubscriptionDialog(true);
         setLoading(false);
         return;
@@ -229,7 +246,10 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       const verification = await apiClient.verifyPayment(paymentIntentId);
 
       if (verification.verified && verification.premium) {
-        setMessage('Premium subscription activated! Retrying upload...');
+        const newTier: SubscriptionTier = verification.subscriptionTier ?? 'plus';
+        const plan = SUBSCRIPTION_PLANS[newTier] ?? SUBSCRIPTION_PLANS.plus;
+        setSubscriptionTier(newTier);
+        setMessage(`${plan.name} plan activated! Retrying upload...`);
 
         // Reload limit status after premium activation
         await loadItemLimitStatus();
@@ -312,7 +332,10 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
   const handleSubscriptionCancel = () => {
     setShowSubscriptionDialog(false);
     setPendingFormValues(null);
-    setMessage('You can delete some items to stay within the free tier limit, or subscribe to premium for unlimited items.');
+    const currentPlan = SUBSCRIPTION_PLANS[subscriptionTier] ?? SUBSCRIPTION_PLANS.free;
+    setMessage(
+      `You can delete some items to stay within the ${currentPlan.name} plan limit, or upgrade to a higher tier whenever you’re ready.`
+    );
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -469,6 +492,9 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         onOpenChange={setShowSubscriptionDialog}
         onPaymentComplete={handleSubscriptionComplete}
         onCancel={handleSubscriptionCancel}
+        currentTier={subscriptionTier}
+        currentLimit={limit}
+        currentCount={itemCount}
       />
     </Card>
   );
