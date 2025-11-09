@@ -19,21 +19,17 @@ export default function Home() {
       {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 py-16 max-w-full">
         <div className="text-center mb-20">
-          <div className="flex justify-center mb-6">
-            <Image
-              src="/injest-logo-white.jpg"
-              alt="Injest.io Logo"
-              width={200}
-              height={200}
-              className="object-contain"
-              priority
-            />
-          </div>
           <h1 className="text-6xl font-bold text-gray-900 mb-6">
             Injest.io
           </h1>
           <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto">
-            Your AI-powered knowledge recall system
+            A personal search engine for your files.
+          </p>
+          <p className="text-lg font-semibold text-blue-600 mb-3 max-w-2xl mx-auto">
+            Upload up to 1,000 images at once and start searching their text within minutes!
+          </p>
+          <p className="text-base text-gray-600 mb-6 max-w-2xl mx-auto">
+            Free up to 500 indexed items. Then just $5/month for unlimited indexing and OCR on uploaded images.
           </p>
           <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
             Capture, enrich, and search through all your information effortlessly
@@ -209,6 +205,7 @@ export default function Home() {
                   Upload images and get automatic text extraction and smart titles:
                 </p>
                 <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
+                  <li>Bulk upload up to 1,000 images and make them searchable in minutes</li>
                   <li>Optical Character Recognition (OCR) extracts text from images</li>
                   <li>AI-powered auto titling based on image content</li>
                   <li>Searchable text content from images</li>

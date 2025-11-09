@@ -7,7 +7,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Injest.io - Knowledge Recall System',
+  title: 'Injest.io - A personal search engine for your files',
   description: 'Capture, search, and organize your knowledge with AI-powered search',
 }
 
