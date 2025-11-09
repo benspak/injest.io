@@ -22,6 +22,7 @@ type ReindexOptions = {
   overwriteMetadata: boolean;
   limit?: number;
   skipMissingFiles: boolean;
+  removeMissingAttachments: boolean;
 };
 
 type ItemRecord = Omit<Item, 'attachments'> & {
@@ -55,6 +56,7 @@ Flags:
   --overwrite          Replace existing title/description when regenerating metadata (requires --hydrate-metadata).
   --skip-missing       Skip items whose files are missing instead of stopping with an error.
   --limit <number>     Only process the first <number> matching items (after sorting by created_at desc).
+  --remove-missing     Remove attachment records that no longer exist on disk (requires --execute).
 
 Examples:
   Dry run by email:
@@ -77,6 +79,7 @@ function parseArgs(): ReindexOptions {
   const hydrateMetadata = args.includes('--hydrate-metadata');
   const overwriteMetadata = args.includes('--overwrite');
   const skipMissingFiles = args.includes('--skip-missing');
+  const removeMissingAttachments = args.includes('--remove-missing');
 
   if (overwriteMetadata && !hydrateMetadata) {
     // eslint-disable-next-line no-console
@@ -115,6 +118,7 @@ function parseArgs(): ReindexOptions {
     overwriteMetadata: hydrateMetadata ? overwriteMetadata : false,
     limit,
     skipMissingFiles,
+    removeMissingAttachments,
   };
 }
 
@@ -263,16 +267,34 @@ async function reindexItem(
   // eslint-disable-next-line no-console
   console.log(` - Attachments          : ${attachments.length} (images: ${imageAttachments.length})`);
 
-  const attachmentsUpdates: AttachmentMetadata[] = [...attachments];
+  const attachmentsUpdates: Array<AttachmentMetadata | null> = attachments.map((attachment) => ({
+    ...attachment,
+  }));
 
   for (const attachment of imageAttachments) {
     const lookup = await findExistingFile(attachment);
     if (!lookup.exists) {
       const message = `   ⚠ Missing file on disk: ${attachment.filename}`;
+      if (options.removeMissingAttachments) {
+        const sourceIndex = attachment.__sourceIndex ?? attachments.indexOf(attachment);
+        if (sourceIndex !== -1) {
+          if (options.execute) {
+            attachmentsUpdates[sourceIndex] = null;
+          }
+          // eslint-disable-next-line no-console
+          console.warn(
+            options.execute
+              ? `   • Removing missing attachment ${attachment.filename}`
+              : `   • Would remove missing attachment ${attachment.filename}`
+          );
+        }
+        continue;
+      }
+
       if (options.skipMissingFiles) {
         // eslint-disable-next-line no-console
-        console.warn(message);
-        continue;
+        console.warn(`${message} (skipping item reindex)`);
+        return;
       }
       throw new Error(message);
     }
@@ -286,53 +308,69 @@ async function reindexItem(
     // eslint-disable-next-line no-console
     console.log(`   ✓ Found ${normalizedFilename} (${mimetype ?? 'unknown mimetype'})`);
 
-    if (options.execute) {
-      const sourceIndex = attachment.__sourceIndex ?? attachments.indexOf(attachment);
-      if (sourceIndex !== -1) {
-        attachmentsUpdates[sourceIndex] = {
-          ...attachmentsUpdates[sourceIndex],
-          filename: normalizedFilename,
-          mimetype: mimetype ?? attachmentsUpdates[sourceIndex]?.mimetype,
-          originalname: sanitizeOriginalFilename(
-            attachmentsUpdates[sourceIndex]?.originalname ?? normalizedFilename
-          ),
-        };
-      }
+    const sourceIndex = attachment.__sourceIndex ?? attachments.indexOf(attachment);
+    if (sourceIndex !== -1 && attachmentsUpdates[sourceIndex]) {
+      attachmentsUpdates[sourceIndex] = {
+        ...attachmentsUpdates[sourceIndex],
+        filename: normalizedFilename,
+        mimetype: mimetype ?? attachmentsUpdates[sourceIndex]?.mimetype,
+        originalname: sanitizeOriginalFilename(
+          attachmentsUpdates[sourceIndex]?.originalname ?? normalizedFilename
+        ),
+      };
     }
   }
+
+  const filteredAttachments = attachmentsUpdates.filter(
+    (attachment): attachment is AttachmentMetadata => attachment !== null
+  );
+
+  const remainingImageAttachments = filteredAttachments.filter((att) => isImageAttachment(att));
 
   if (!options.execute) {
     // Dry run: stop after validations.
     return;
   }
 
-  const firstImage = imageAttachments[0];
-  const firstImageIndex = firstImage.__sourceIndex ?? attachments.indexOf(firstImage);
-  const attachmentForParsing =
-    firstImageIndex !== -1 ? attachmentsUpdates[firstImageIndex] : firstImage;
+  if (filteredAttachments.length === 0) {
+    // eslint-disable-next-line no-console
+    console.warn('   • No remaining attachments after cleanup.');
+  }
 
-  const filenameForParsing =
+  let attachmentForParsing: AttachmentMetadata | undefined;
+
+  if (remainingImageAttachments.length > 0) {
+    attachmentForParsing = remainingImageAttachments[0];
+  }
+
+  let filenameForParsing =
     attachmentForParsing?.filename ??
     attachmentForParsing?.originalname ??
-    firstImage.filename ??
-    firstImage.originalname ??
+    remainingImageAttachments[0]?.filename ??
+    remainingImageAttachments[0]?.originalname ??
     '';
 
   if (!filenameForParsing) {
-    // eslint-disable-next-line no-console
-    console.warn('   ⚠ Cannot determine filename for parsing; skipping item.');
-    return;
+    filenameForParsing =
+      filteredAttachments[0]?.filename ?? filteredAttachments[0]?.originalname ?? '';
   }
 
-  const filePath = fileStorageService.getFilePath(filenameForParsing);
+  if (!filenameForParsing) {
+    // eslint-disable-next-line no-console
+    console.warn('   ⚠ Cannot determine filename for parsing; skipping metadata hydration.');
+  }
 
-  if (!fs.existsSync(filePath)) {
-    if (options.skipMissingFiles) {
+  const filePath = filenameForParsing
+    ? fileStorageService.getFilePath(filenameForParsing)
+    : undefined;
+
+  if (filePath && !fs.existsSync(filePath)) {
+    if (options.skipMissingFiles || options.removeMissingAttachments) {
       // eslint-disable-next-line no-console
-      console.warn(`   ⚠ Skipping reindex: cannot locate file for ${filenameForParsing}.`);
-      return;
+      console.warn(`   ⚠ Skipping metadata hydration: cannot locate file for ${filenameForParsing}.`);
+    } else {
+      throw new Error(`File ${filenameForParsing} not found when attempting to parse.`);
     }
-    throw new Error(`File ${filenameForParsing} not found when attempting to parse.`);
   }
 
   let parsedContent:
@@ -343,11 +381,21 @@ async function reindexItem(
       }
     | null = null;
 
-  if (options.hydrateMetadata) {
+  if (
+    options.hydrateMetadata &&
+    attachmentForParsing &&
+    filePath &&
+    fs.existsSync(filePath) &&
+    filenameForParsing
+  ) {
+    const mimetypeForParsing =
+      attachmentForParsing.mimetype ??
+      guessMimeType(attachmentForParsing.filename ?? attachmentForParsing.originalname ?? '') ??
+      undefined;
     try {
       parsedContent = await fileParserService.parseFile(
         filenameForParsing,
-        attachmentForParsing?.mimetype ?? firstImage.mimetype,
+        mimetypeForParsing,
       );
       // eslint-disable-next-line no-console
       console.log(
@@ -367,10 +415,14 @@ async function reindexItem(
   const existingDescription = existingItem.description?.trim();
 
   if (options.hydrateMetadata) {
+    const fallbackAttachment = attachmentForParsing ?? filteredAttachments[0];
     const candidateTitle =
       parsedContent?.title ||
-      (firstImage.originalname
-        ? path.basename(firstImage.originalname, path.extname(firstImage.originalname))
+      (fallbackAttachment?.originalname
+        ? path.basename(
+            fallbackAttachment.originalname,
+            path.extname(fallbackAttachment.originalname)
+          )
         : undefined);
 
     const candidateDescription = parsedContent?.text?.trim();
@@ -388,7 +440,7 @@ async function reindexItem(
     }
   }
 
-  const updatedAttachments = attachmentsUpdates.map(({ __sourceIndex, ...rest }) => rest);
+  const updatedAttachments = filteredAttachments.map(({ __sourceIndex, ...rest }) => rest);
   updates.attachments = updatedAttachments;
 
   if (Object.keys(updates).length > 0) {
@@ -424,6 +476,8 @@ async function reindexUserImages(options: ReindexOptions): Promise<void> {
   }
   // eslint-disable-next-line no-console
   console.log(`Skip missing files: ${options.skipMissingFiles ? 'Yes' : 'No'}`);
+  // eslint-disable-next-line no-console
+  console.log(`Remove missing attachments: ${options.removeMissingAttachments ? 'Yes' : 'No'}`);
   if (options.limit) {
     // eslint-disable-next-line no-console
     console.log(`Limit: ${options.limit}`);

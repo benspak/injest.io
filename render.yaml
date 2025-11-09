@@ -22,7 +22,11 @@ services:
       - key: API_URL
         sync: false
       - key: UPLOAD_DIR
-        value: ./uploads
+        value: /var/uploads
+    disk:
+      - name: uploads-disk
+        mountPath: /var/uploads
+        sizeGB: 10
 
   - type: web
     name: injest-frontend
