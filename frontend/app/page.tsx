@@ -69,7 +69,7 @@ export default function Home() {
             Upload up to 1,000 images at once and start searching their text within minutes!
           </p>
           <p className="text-base text-gray-600 mb-6 max-w-2xl mx-auto">
-            Start free with up to 500 indexed items. Upgrade to Plus ($5/month) for 5,000 items, Power User ($15/month) for 25,000, or Pro ($30/month) for 75,000 indexed items.
+            Start free with up to 500 indexed items. Upgrade to Plus ($5/month) for 5,000 items.
           </p>
           <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
             Capture, enrich, and search through all your information effortlessly
