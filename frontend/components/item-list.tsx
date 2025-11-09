@@ -21,6 +21,8 @@ interface ItemListProps {
   onTaskCreated?: (response: TaskifyResponse) => void;
 }
 
+type Attachment = NonNullable<Item['attachments']>[number];
+
 export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [itemDetails, setItemDetails] = useState<any>(null);
@@ -43,14 +45,10 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
   const [taskifiedItems, setTaskifiedItems] = useState<Set<string>>(new Set());
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{
-    src: string;
-    alt: string;
-    filename: string;
-    originalname: string;
-    size?: number;
-    attachmentId?: string;
     itemId: string;
     resendEmailId?: string;
+    file: Attachment;
+    previewSrc: string;
   } | null>(null);
 
   // Helper to get display title/description (supports both new unified and old structure)
@@ -123,18 +121,28 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
     }
   };
 
-  const handleDownloadFile = async (itemId: string, filename: string, originalname: string, attachmentId?: string, resendEmailId?: string) => {
+  const handleDownloadFile = async (itemId: string, file: Attachment, resendEmailId?: string) => {
     try {
-      // If this is a Resend email attachment, use the Resend API
-      if (resendEmailId && attachmentId) {
-        await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
-      } else {
-        // Regular item file download
-        await apiClient.downloadFile(itemId, filename);
+      const attachmentId = file.attachmentId || file.id;
+
+      if (apiClient.isRemoteAttachment(file)) {
+        if (resendEmailId && attachmentId) {
+          await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
+          return;
+        }
+
+        if (file.url) {
+          window.open(file.url, '_blank', 'noopener,noreferrer');
+          return;
+        }
+
+        throw new Error('Remote attachment is missing download metadata');
       }
+
+      await apiClient.downloadFile(itemId, file.filename);
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert(`Failed to download ${originalname}. Please try again.`);
+      alert(`Failed to download ${file.originalname}. Please try again.`);
     }
   };
 
@@ -353,26 +361,22 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
 
   const handleImageAttachmentClick = (
     event: MouseEvent<HTMLImageElement>,
-    file: {
-      filename: string;
-      originalname: string;
-      size?: number;
-      attachmentId?: string;
-      mimetype?: string;
-    },
+    file: Attachment,
     itemId: string,
     resendEmailId?: string
   ) => {
     event.stopPropagation();
+    const previewSrc = apiClient.getAttachmentPreviewUrl(itemId, file, true);
+    const resolvedAttachmentId = file.attachmentId ?? file.id;
+    const attachmentForState = resolvedAttachmentId
+      ? ({ ...file, attachmentId: resolvedAttachmentId } as Attachment)
+      : file;
+
     setSelectedImage({
-      src: apiClient.getFileUrl(itemId, file.filename, true),
-      alt: file.originalname,
-      filename: file.filename,
-      originalname: file.originalname,
-      size: file.size,
-      attachmentId: file.attachmentId,
       itemId,
       resendEmailId,
+      file: attachmentForState,
+      previewSrc,
     });
     setImageDialogOpen(true);
   };
@@ -464,7 +468,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
             <div>
               <h4 className="text-sm font-semibold mb-2">Attachments</h4>
               <div className="space-y-2">
-                {item.attachments.map((file: any, idx: number) => {
+                {item.attachments.map((file: Attachment, idx: number) => {
                   const isImage = apiClient.isImageMimetype(file.mimetype);
                   return (
                     <div
@@ -474,7 +478,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                       {isImage ? (
                         <>
                           <img
-                            src={apiClient.getFileUrl((itemDetails || item).id, file.filename, true)}
+                            src={apiClient.getAttachmentPreviewUrl((itemDetails || item).id, file, true)}
                             alt={file.originalname}
                             className="w-full max-w-md h-auto rounded-md object-contain max-h-64"
                             onError={(e) => {
@@ -493,9 +497,11 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                           <div className="image-fallback hidden flex items-center justify-between w-full">
                             <div className="flex-1">
                               <p className="text-sm font-medium">{file.originalname}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {Math.round(file.size / 1024)} KB
-                              </p>
+                              {typeof file.size === 'number' && (
+                                <p className="text-xs text-muted-foreground">
+                                  {Math.round(file.size / 1024)} KB
+                                </p>
+                              )}
                             </div>
                             <Button
                               size="sm"
@@ -503,13 +509,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const targetItem = itemDetails || item;
-                                handleDownloadFile(
-                                  targetItem.id,
-                                  file.filename,
-                                  file.originalname,
-                                  file.attachmentId,
-                                  (itemDetails as any)?.resendEmailId
-                                );
+                                handleDownloadFile(targetItem.id, file, targetItem.resendEmailId);
                               }}
                             >
                               Download
@@ -520,9 +520,11 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                         <>
                           <div className="flex-1">
                             <p className="text-sm font-medium">{file.originalname}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {Math.round(file.size / 1024)} KB
-                            </p>
+                                    {typeof file.size === 'number' && (
+                                      <p className="text-xs text-muted-foreground">
+                                        {Math.round(file.size / 1024)} KB
+                                      </p>
+                                    )}
                           </div>
                           <Button
                             size="sm"
@@ -532,10 +534,8 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                               const targetItem = itemDetails || item;
                               handleDownloadFile(
                                 targetItem.id,
-                                file.filename,
-                                file.originalname,
-                                file.attachmentId,
-                                (itemDetails as any)?.resendEmailId
+                                file,
+                                (targetItem as Item | undefined)?.resendEmailId ?? (targetItem as any)?.resendEmailId
                               );
                             }}
                           >
@@ -695,7 +695,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                         <div className="mb-3 border rounded-lg overflow-hidden bg-white">
                           <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                             <img
-                              src={apiClient.getFileUrl(item.id, firstImage.filename, true)}
+                              src={apiClient.getAttachmentPreviewUrl(item.id, firstImage, true)}
                               alt={firstImage.originalname}
                               className="w-full h-auto max-h-[120px] object-cover"
                               onError={(e) => {
@@ -1049,7 +1049,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                       <div>
                         <h4 className="text-sm font-semibold mb-2">Attachments</h4>
                         <div className="space-y-2">
-                          {itemDetails.attachments.map((file: any, idx: number) => {
+                          {itemDetails.attachments.map((file: Attachment, idx: number) => {
                             const isImage = apiClient.isImageMimetype(file.mimetype);
                             return (
                               <div
@@ -1059,7 +1059,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                                 {isImage ? (
                                   <>
                                     <img
-                                      src={apiClient.getFileUrl(itemDetails.id, file.filename, true)}
+                                      src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)}
                                       alt={file.originalname}
                                       className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96 cursor-zoom-in"
                                       onError={(e) => {
@@ -1081,22 +1081,18 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                                     <div className="image-fallback hidden flex items-center justify-between w-full">
                                       <div className="flex-1">
                                         <p className="text-sm font-medium">{file.originalname}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {Math.round(file.size / 1024)} KB
-                                        </p>
+                                        {typeof file.size === 'number' && (
+                                          <p className="text-xs text-muted-foreground">
+                                            {Math.round(file.size / 1024)} KB
+                                          </p>
+                                        )}
                                       </div>
                                       <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleDownloadFile(
-                                            itemDetails.id,
-                                            file.filename,
-                                            file.originalname,
-                                            file.attachmentId,
-                                            itemDetails.resendEmailId
-                                          );
+                                          handleDownloadFile(itemDetails.id, file, itemDetails.resendEmailId);
                                         }}
                                       >
                                         Download
@@ -1107,22 +1103,18 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                                   <>
                                     <div className="flex-1">
                                       <p className="text-sm font-medium">{file.originalname}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {Math.round(file.size / 1024)} KB
-                                      </p>
+                                      {typeof file.size === 'number' && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {Math.round(file.size / 1024)} KB
+                                        </p>
+                                      )}
                                     </div>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDownloadFile(
-                                          itemDetails.id,
-                                          file.filename,
-                                          file.originalname,
-                                          file.attachmentId,
-                                          itemDetails.resendEmailId
-                                        );
+                                        handleDownloadFile(itemDetails.id, file, itemDetails.resendEmailId);
                                       }}
                                     >
                                       Download
@@ -1252,10 +1244,10 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
       >
         <DialogContent className="max-w-5xl w-[calc(100vw-2rem)] sm:w-full sm:max-w-5xl overflow-hidden">
           <DialogHeader>
-            <DialogTitle>{selectedImage?.originalname || 'Image preview'}</DialogTitle>
-            {selectedImage?.size && (
+            <DialogTitle>{selectedImage?.file.originalname || 'Image preview'}</DialogTitle>
+            {selectedImage?.file.size && (
               <DialogDescription>
-                {(selectedImage.size / 1024).toFixed(1)} KB
+                {(selectedImage.file.size / 1024).toFixed(1)} KB
               </DialogDescription>
             )}
           </DialogHeader>
@@ -1263,8 +1255,8 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
             <div className="space-y-4">
               <div className="relative w-full">
                 <img
-                  src={selectedImage.src}
-                  alt={selectedImage.alt}
+                  src={selectedImage.previewSrc}
+                  alt={selectedImage.file.originalname}
                   className="w-full h-auto max-h-[80vh] object-contain rounded-md bg-black/5"
                 />
               </div>
@@ -1273,13 +1265,7 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                   variant="outline"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDownloadFile(
-                      selectedImage.itemId,
-                      selectedImage.filename,
-                      selectedImage.originalname,
-                      selectedImage.attachmentId,
-                      selectedImage.resendEmailId
-                    );
+                    handleDownloadFile(selectedImage.itemId, selectedImage.file, selectedImage.resendEmailId);
                   }}
                 >
                   Download

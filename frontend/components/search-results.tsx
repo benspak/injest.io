@@ -57,6 +57,8 @@ export function SearchResults({ results }: SearchResultsProps) {
   const dialogContentRef = useRef<HTMLDivElement>(null);
   const isClickInsideRef = useRef(false);
 
+  type Attachment = NonNullable<Item['attachments']>[number];
+
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: SearchResult['item'] | Item) => {
     // Use unified fields first (new structure)
@@ -125,16 +127,28 @@ export function SearchResults({ results }: SearchResultsProps) {
     }
   };
 
-  const handleDownloadFile = async (itemId: string, filename: string, originalname: string, attachmentId?: string, resendEmailId?: string) => {
+  const handleDownloadFile = async (itemId: string, file: Attachment, resendEmailId?: string) => {
     try {
-      if (resendEmailId && attachmentId) {
-        await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
-      } else {
-        await apiClient.downloadFile(itemId, filename);
+      const attachmentId = file.attachmentId || file.id;
+
+      if (apiClient.isRemoteAttachment(file)) {
+        if (resendEmailId && attachmentId) {
+          await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
+          return;
+        }
+
+        if (file.url) {
+          window.open(file.url, '_blank', 'noopener,noreferrer');
+          return;
+        }
+
+        throw new Error('Remote attachment is missing download metadata');
       }
+
+      await apiClient.downloadFile(itemId, file.filename);
     } catch (error) {
       console.error('Error downloading file:', error);
-      alert(`Failed to download ${originalname}. Please try again.`);
+      alert(`Failed to download ${file.originalname}. Please try again.`);
     }
   };
 
@@ -456,14 +470,16 @@ export function SearchResults({ results }: SearchResultsProps) {
 
                 {/* Image attachments preview - show if no URL metadata image or no URL at all */}
                 {(!hasUrl || !metadata?.image) && result.item.attachments && Array.isArray(result.item.attachments) && result.item.attachments.length > 0 && (() => {
-                  const imageAttachments = result.item.attachments.filter((file: any) => apiClient.isImageMimetype(file.mimetype));
+                  const imageAttachments = (result.item.attachments as Attachment[]).filter((file) =>
+                    apiClient.isImageMimetype(file.mimetype)
+                  );
                   if (imageAttachments.length > 0) {
                     const firstImage = imageAttachments[0];
                     return (
                       <div className="mb-3 border rounded-lg overflow-hidden bg-white">
                         <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                           <img
-                            src={apiClient.getFileUrl(result.item.id, firstImage.filename, true)}
+                            src={apiClient.getAttachmentPreviewUrl(result.item.id, firstImage, true)}
                             alt={firstImage.originalname}
                             className="w-full h-auto max-h-[120px] object-cover"
                             onError={(e) => {
@@ -898,7 +914,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                       <div>
                         <h4 className="text-sm font-semibold mb-2">Attachments</h4>
                         <div className="space-y-2">
-                          {itemDetails.attachments.map((file: any, idx: number) => {
+                          {itemDetails.attachments.map((file: Attachment, idx: number) => {
                             const isImage = apiClient.isImageMimetype(file.mimetype);
                             return (
                               <div
@@ -908,7 +924,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                                 {isImage ? (
                                   <>
                                     <img
-                                      src={apiClient.getFileUrl(itemDetails.id, file.filename, true)}
+                                      src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)}
                                       alt={file.originalname}
                                       className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96"
                                       onError={(e) => {
@@ -927,22 +943,18 @@ export function SearchResults({ results }: SearchResultsProps) {
                                     <div className="image-fallback hidden flex items-center justify-between w-full">
                                       <div className="flex-1">
                                         <p className="text-sm font-medium">{file.originalname}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          {Math.round(file.size / 1024)} KB
-                                        </p>
+                                        {typeof file.size === 'number' && (
+                                          <p className="text-xs text-muted-foreground">
+                                            {Math.round(file.size / 1024)} KB
+                                          </p>
+                                        )}
                                       </div>
                                       <Button
                                         size="sm"
                                         variant="outline"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleDownloadFile(
-                                            itemDetails.id,
-                                            file.filename,
-                                            file.originalname,
-                                            file.attachmentId,
-                                            (itemDetails as any).resendEmailId
-                                          );
+                                          handleDownloadFile(itemDetails.id, file, (itemDetails as any).resendEmailId);
                                         }}
                                       >
                                         Download
@@ -953,22 +965,18 @@ export function SearchResults({ results }: SearchResultsProps) {
                                   <>
                                     <div className="flex-1">
                                       <p className="text-sm font-medium">{file.originalname}</p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {Math.round(file.size / 1024)} KB
-                                      </p>
+                                      {typeof file.size === 'number' && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {Math.round(file.size / 1024)} KB
+                                        </p>
+                                      )}
                                     </div>
                                     <Button
                                       size="sm"
                                       variant="outline"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDownloadFile(
-                                          itemDetails.id,
-                                          file.filename,
-                                          file.originalname,
-                                          file.attachmentId,
-                                          (itemDetails as any).resendEmailId
-                                        );
+                                        handleDownloadFile(itemDetails.id, file, (itemDetails as any).resendEmailId);
                                       }}
                                     >
                                       Download

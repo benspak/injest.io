@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { apiClient, Task, TaskStatus } from '@/lib/api';
+import { apiClient, Item, Task, TaskStatus } from '@/lib/api';
 
 interface TaskListProps {
   tasks: Task[];
@@ -23,6 +23,8 @@ interface TaskListProps {
 }
 
 const STATUS_OPTIONS: TaskStatus[] = ['pending', 'in_progress', 'completed', 'cancelled'];
+
+type Attachment = NonNullable<Item['attachments']>[number];
 
 export function TaskList({ tasks, loading, onTaskChange }: TaskListProps) {
   const [editorOpen, setEditorOpen] = useState(false);
@@ -105,8 +107,9 @@ export function TaskList({ tasks, loading, onTaskChange }: TaskListProps) {
       ) : (
         sortedTasks.map((task) => {
           const imageAttachments = Array.isArray(task.item?.attachments)
-            ? (task.item.attachments as Array<{ filename: string; originalname: string; mimetype?: string }>)
-                .filter((file) => apiClient.isImageMimetype(file.mimetype))
+            ? (task.item.attachments as Attachment[]).filter((file) =>
+                apiClient.isImageMimetype(file.mimetype)
+              )
             : [];
 
           return (
@@ -131,7 +134,7 @@ export function TaskList({ tasks, loading, onTaskChange }: TaskListProps) {
               {imageAttachments.length > 0 && task.item?.id && (
                 <div className="overflow-hidden rounded-md border border-gray-200 bg-gray-50">
                   <img
-                    src={apiClient.getFileUrl(task.item.id, imageAttachments[0].filename, true)}
+                    src={apiClient.getAttachmentPreviewUrl(task.item.id, imageAttachments[0], true)}
                     alt={imageAttachments[0].originalname}
                     className="h-auto w-full max-h-60 object-cover"
                     onError={(e) => {

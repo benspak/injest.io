@@ -61,6 +61,17 @@ export interface LinkMetadata {
   url: string;
 }
 
+export interface ItemAttachment {
+  filename: string;
+  originalname: string;
+  mimetype?: string;
+  size?: number;
+  attachmentId?: string;
+  checksum?: string;
+  url?: string;
+  id?: string;
+}
+
 export interface Item {
   id: string;
   owner_id: string;
@@ -69,14 +80,7 @@ export interface Item {
   title?: string;
   description?: string;
   url?: string;
-  attachments?: Array<{
-    filename: string;
-    originalname: string;
-    mimetype?: string;
-    size?: number;
-    attachmentId?: string;
-    checksum?: string;
-  }>;
+  attachments?: ItemAttachment[];
   clean?: string;
   tags?: string[];
   source?: string;
@@ -462,6 +466,29 @@ class ApiClient {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(downloadUrl);
+  }
+
+  isRemoteAttachment(attachment: ItemAttachment | null | undefined): boolean {
+    return (
+      !!attachment &&
+      (Boolean(attachment.attachmentId) || Boolean(attachment.url) || Boolean(attachment.id))
+    );
+  }
+
+  getAttachmentPreviewUrl(itemId: string, attachment: ItemAttachment, inline: boolean = false): string {
+    if (this.isRemoteAttachment(attachment)) {
+      if (attachment.url) {
+        return attachment.url;
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(
+          `[API] Remote attachment "${attachment.originalname}" is missing a preview URL; falling back to stored file route.`
+        );
+      }
+    }
+
+    return this.getFileUrl(itemId, attachment.filename, inline);
   }
 
   // Search

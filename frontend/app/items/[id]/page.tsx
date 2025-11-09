@@ -19,13 +19,7 @@ import {
 import { apiClient, Item } from '@/lib/api';
 import { auth } from '@/lib/auth';
 
-type Attachment = {
-  filename: string;
-  originalname: string;
-  mimetype?: string;
-  size?: number;
-  attachmentId?: string;
-};
+type Attachment = NonNullable<Item['attachments']>[number];
 
 export default function ItemDetailPage() {
   const params = useParams<{ id: string }>();
@@ -34,7 +28,7 @@ export default function ItemDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<Attachment | null>(null);
+  const [selectedImage, setSelectedImage] = useState<(Attachment & { previewUrl: string }) | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -86,6 +80,29 @@ export default function ItemDetailPage() {
     );
   }, [item?.attachments]);
 
+  const resolvedResendEmailId = useMemo(() => {
+    if (!item) {
+      return undefined;
+    }
+
+    if (item.resendEmailId) {
+      return item.resendEmailId;
+    }
+
+    if (item.raw) {
+      try {
+        const rawData = JSON.parse(item.raw);
+        if (typeof rawData?.resend_email_id === 'string') {
+          return rawData.resend_email_id;
+        }
+      } catch {
+        // Ignore malformed raw payloads
+      }
+    }
+
+    return undefined;
+  }, [item]);
+
   const formatDate = (value: string) => {
     const parsed = new Date(value);
     if (Number.isNaN(parsed.getTime())) {
@@ -98,6 +115,23 @@ export default function ItemDetailPage() {
     if (!item) return;
 
     try {
+      const resendEmailId = item.resendEmailId ?? resolvedResendEmailId;
+      const attachmentId = attachment.attachmentId ?? attachment.id;
+
+      if (apiClient.isRemoteAttachment(attachment)) {
+        if (resendEmailId && attachmentId) {
+          await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
+          return;
+        }
+
+        if (attachment.url) {
+          window.open(attachment.url, '_blank', 'noopener,noreferrer');
+          return;
+        }
+
+        throw new Error('Remote attachment is missing download metadata');
+      }
+
       await apiClient.downloadFile(item.id, attachment.filename);
     } catch (err) {
       console.error('Error downloading attachment:', err);
@@ -106,7 +140,13 @@ export default function ItemDetailPage() {
   };
 
   const handleImagePreview = (attachment: Attachment) => {
-    setSelectedImage(attachment);
+    if (!item) return;
+
+    const previewUrl = apiClient.getAttachmentPreviewUrl(item.id, attachment, true);
+    setSelectedImage({
+      ...attachment,
+      previewUrl,
+    });
     setImageDialogOpen(true);
   };
 
@@ -188,7 +228,7 @@ export default function ItemDetailPage() {
                         className="overflow-hidden rounded-md border border-gray-200 bg-muted"
                       >
                         <img
-                          src={apiClient.getFileUrl(item.id, attachment.filename, true)}
+                          src={apiClient.getAttachmentPreviewUrl(item.id, attachment, true)}
                           alt={attachment.originalname}
                           className="h-auto w-full cursor-zoom-in object-contain"
                           onError={(event) => {
@@ -317,7 +357,7 @@ export default function ItemDetailPage() {
             <div className="space-y-4">
               <div className="relative w-full">
                 <img
-                  src={apiClient.getFileUrl(item.id, selectedImage.filename, true)}
+                  src={selectedImage.previewUrl}
                   alt={selectedImage.originalname}
                   className="h-auto w-full max-h-[80vh] rounded-md object-contain bg-black/5"
                 />
