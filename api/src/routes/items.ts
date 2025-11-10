@@ -20,6 +20,8 @@ import { computeFileChecksum } from '../utils/checksum.js';
 import type { AttachmentMetadata } from '../models/Item.js';
 import { decodeOriginalFilename, normalizeAttachments, normalizeItem, sanitizeOriginalFilename } from '../utils/itemNormalization.js';
 import { itemStreamService } from '../services/itemStream.js';
+import { emailService } from '../services/email.js';
+import { ItemAccessModel } from '../models/ItemAccess.js';
 import {
   coerceSubscriptionTier,
   getMaxIndexedItems,
@@ -39,6 +41,28 @@ const TIER_UPGRADE_PATH: Record<SubscriptionTier, SubscriptionTier | null> = {
 };
 
 const formatCurrency = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
+const isValidEmail = (value: string): boolean =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase());
+const resolveFrontendBaseUrl = (): string | null => {
+  const candidates = [
+    process.env.NEXT_PUBLIC_APP_URL,
+    process.env.APP_BASE_URL,
+    process.env.APP_URL,
+    process.env.WEB_APP_URL,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && candidate.trim().length > 0) {
+      return candidate.trim().replace(/\/+$/, '');
+    }
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:3000';
+  }
+
+  return null;
+};
 
 // Download file or serve inline (for images)
 // Note: This route is defined before authMiddleware to allow token in query string for images
@@ -78,7 +102,11 @@ router.get('/:id/files/:filename', async (req: AuthRequest, res: express.Respons
 
     const normalizedItem = normalizeItem(item);
 
-    if (normalizedItem.owner_id !== req.user.id) {
+    const hasAccess =
+      normalizedItem.owner_id === req.user.id ||
+      (await ItemAccessModel.userHasAccess(normalizedItem.id, req.user.id, req.user.email));
+
+    if (!hasAccess) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -1477,7 +1505,11 @@ router.get('/:id', async (req: AuthRequest, res: express.Response) => {
       return res.status(404).json({ error: 'Item not found' });
     }
 
-    if (item.owner_id !== req.user.id) {
+    const hasAccess =
+      item.owner_id === req.user.id ||
+      (await ItemAccessModel.userHasAccess(item.id, req.user.id, req.user.email));
+
+    if (!hasAccess) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
@@ -1501,7 +1533,11 @@ router.get('/:id/metadata', async (req: AuthRequest, res: express.Response) => {
           return res.status(404).json({ error: 'Item not found' });
         }
 
-        if (item.owner_id !== req.user.id) {
+        const hasAccess =
+          item.owner_id === req.user.id ||
+          (await ItemAccessModel.userHasAccess(item.id, req.user.id, req.user.email));
+
+        if (!hasAccess) {
           return res.status(403).json({ error: 'Forbidden' });
         }
 
@@ -1565,6 +1601,50 @@ router.post('/:id/index', async (req: AuthRequest, res: express.Response) => {
   } catch (error) {
     console.error('Error indexing item:', error);
     res.status(500).json({ error: 'Failed to index item' });
+  }
+});
+
+router.post('/:id/share', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { email } = req.body ?? {};
+
+    const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+
+    if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
+      return res.status(400).json({ error: 'A valid email address is required.' });
+    }
+
+    const item = await ItemModel.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    if (item.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const normalizedItem = normalizeItem(item);
+    const baseUrl = resolveFrontendBaseUrl();
+    const shareUrl = baseUrl ? `${baseUrl}/items/${normalizedItem.id}` : `/items/${normalizedItem.id}`;
+
+    await ItemAccessModel.grantAccess(item.id, trimmedEmail, { grantedByUserId: req.user.id });
+
+    await emailService.sendItemShareEmail({
+      to: trimmedEmail,
+      item: normalizedItem,
+      shareUrl,
+      senderEmail: req.user.email,
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error sending item share email:', error);
+    res.status(500).json({ error: 'Failed to send item share email.' });
   }
 });
 

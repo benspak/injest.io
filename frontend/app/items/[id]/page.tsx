@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { Share2 } from 'lucide-react';
 
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { apiClient, Item } from '@/lib/api';
 import { auth } from '@/lib/auth';
+import { ShareItemDialog } from '@/components/share-item-dialog';
 
 type Attachment = NonNullable<Item['attachments']>[number];
 
@@ -30,6 +32,7 @@ export default function ItemDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<(Attachment & { previewUrl: string }) | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -169,6 +172,16 @@ export default function ItemDetailPage() {
             <h1 className="text-xl font-semibold">Item Details</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm"
+              onClick={() => setShareDialogOpen(true)}
+              disabled={!item}
+            >
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -373,6 +386,12 @@ export default function ItemDetailPage() {
           )}
         </DialogContent>
       </Dialog>
+      <ShareItemDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        itemId={item?.id}
+        itemTitle={item?.title || undefined}
+      />
     </div>
   );
 }

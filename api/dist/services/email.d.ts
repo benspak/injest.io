@@ -1,3 +1,4 @@
+import type { Item } from '../models/Item.js';
 export interface ReceivedEmail {
     id: string;
     to: string[];
@@ -43,6 +44,12 @@ export declare class EmailService {
             originalname: string;
             mimetype: string;
         };
+    }): Promise<void>;
+    sendItemShareEmail(params: {
+        to: string;
+        item: Item;
+        shareUrl: string;
+        senderEmail?: string;
     }): Promise<void>;
     listReceivedEmails(limit?: number, after?: string, before?: string): Promise<ReceivedEmailListResponse>;
     getReceivedEmail(emailId: string): Promise<ReceivedEmail>;

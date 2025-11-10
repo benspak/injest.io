@@ -19,6 +19,7 @@ import { JWT_SECRET } from '../config/auth.js';
 import { computeFileChecksum } from '../utils/checksum.js';
 import { decodeOriginalFilename, normalizeItem, sanitizeOriginalFilename } from '../utils/itemNormalization.js';
 import { itemStreamService } from '../services/itemStream.js';
+import { emailService } from '../services/email.js';
 import { coerceSubscriptionTier, getMaxIndexedItems, getPlan, } from '../utils/subscriptionPlans.js';
 const router = express.Router();
 const TIER_UPGRADE_PATH = {
@@ -28,6 +29,24 @@ const TIER_UPGRADE_PATH = {
     pro: null,
 };
 const formatCurrency = (cents) => `$${(cents / 100).toFixed(2)}`;
+const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase());
+const resolveFrontendBaseUrl = () => {
+    const candidates = [
+        process.env.NEXT_PUBLIC_APP_URL,
+        process.env.APP_BASE_URL,
+        process.env.APP_URL,
+        process.env.WEB_APP_URL,
+    ];
+    for (const candidate of candidates) {
+        if (candidate && candidate.trim().length > 0) {
+            return candidate.trim().replace(/\/+$/, '');
+        }
+    }
+    if (process.env.NODE_ENV !== 'production') {
+        return 'http://localhost:3000';
+    }
+    return null;
+};
 // Download file or serve inline (for images)
 // Note: This route is defined before authMiddleware to allow token in query string for images
 router.get('/:id/files/:filename', async (req, res) => {
@@ -1330,6 +1349,38 @@ router.post('/:id/index', async (req, res) => {
     catch (error) {
         console.error('Error indexing item:', error);
         res.status(500).json({ error: 'Failed to index item' });
+    }
+});
+router.post('/:id/share', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { email } = req.body ?? {};
+        if (!email || typeof email !== 'string' || !isValidEmail(email)) {
+            return res.status(400).json({ error: 'A valid email address is required.' });
+        }
+        const item = await ItemModel.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        if (item.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        const normalizedItem = normalizeItem(item);
+        const baseUrl = resolveFrontendBaseUrl();
+        const shareUrl = baseUrl ? `${baseUrl}/items/${normalizedItem.id}` : `/items/${normalizedItem.id}`;
+        await emailService.sendItemShareEmail({
+            to: email,
+            item: normalizedItem,
+            shareUrl,
+            senderEmail: req.user.email,
+        });
+        res.json({ success: true });
+    }
+    catch (error) {
+        console.error('Error sending item share email:', error);
+        res.status(500).json({ error: 'Failed to send item share email.' });
     }
 });
 // Update item (unified structure)

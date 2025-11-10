@@ -9,6 +9,7 @@ import pool from '../config/database.js';
 import crypto from 'crypto';
 import { generateApiKey, hashApiKey } from '../utils/apiKeys.js';
 import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
+import { ItemAccessModel } from '../models/ItemAccess.js';
 
 const router = express.Router();
 
@@ -26,6 +27,8 @@ router.post('/magic-link', async (req: express.Request, res: express.Response) =
     if (!user) {
       user = await UserModel.create(email);
     }
+
+    await ItemAccessModel.linkUserToEmail(user.id, user.email);
 
     // Generate JWT token
     const token = jwt.sign(
@@ -475,6 +478,7 @@ router.post('/xcom/create-account', async (req: express.Request, res: express.Re
     if (existingUser.rows.length > 0) {
       // Account already exists, just log them in
       const user = existingUser.rows[0];
+      await ItemAccessModel.linkUserToEmail(user.id, user.email);
       await UserModel.updateXComTokens(user.id, {
         access_token: pendingLink.access_token,
         refresh_token: pendingLink.refresh_token,
@@ -495,6 +499,7 @@ router.post('/xcom/create-account', async (req: express.Request, res: express.Re
     // Create new user with X.com username as email placeholder
     const email = `${pendingLink.username}@x.com`;
     const user = await UserModel.create(email);
+    await ItemAccessModel.linkUserToEmail(user.id, user.email);
 
     // Update with X.com info
     await UserModel.updateXComTokens(user.id, {

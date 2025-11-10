@@ -429,6 +429,13 @@ class ApiClient {
     });
   }
 
+  async shareItemByEmail(id: string, email: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/items/${id}/share`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  }
+
   async updateItemNotes(id: string, notes: string): Promise<Item> {
     return this.request<Item>(`/api/items/${id}/notes`, {
       method: 'PATCH',

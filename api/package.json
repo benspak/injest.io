@@ -9,8 +9,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "migrate": "tsx src/migrations/run.ts",
-    "reset-db": "tsx src/migrations/reset.ts",
-    "re-enrich-bookmarks": "tsx src/scripts/reEnrichBookmarks.ts"
+    "make-plus-user": "tsx src/scripts/makePlusUser.ts"
   },
   "keywords": [],
   "author": "",

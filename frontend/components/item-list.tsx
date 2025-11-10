@@ -14,6 +14,8 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { apiClient, Item, LinkMetadata, TaskifyResponse } from '@/lib/api';
+import { Share2 } from 'lucide-react';
+import { ShareItemDialog } from '@/components/share-item-dialog';
 
 interface ItemListProps {
   items: Item[];
@@ -50,6 +52,8 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
     file: Attachment;
     previewSrc: string;
   } | null>(null);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareTarget, setShareTarget] = useState<{ id: string; title?: string } | null>(null);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -381,6 +385,19 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
     setImageDialogOpen(true);
   };
 
+  const openShareDialog = (item: Item, titleOverride?: string) => {
+    const display = getItemDisplay(item);
+    const shareTitle =
+      titleOverride ||
+      (item.link_metadata && (item.link_metadata as LinkMetadata | undefined)?.title) ||
+      display.title ||
+      item.title ||
+      'Untitled item';
+
+    setShareTarget({ id: item.id, title: shareTitle });
+    setShareDialogOpen(true);
+  };
+
   const handleTaskifyItem = async (item: Item) => {
     if (item.isResendEmail) {
       toast.error('Import the email as an item before turning it into a task.');
@@ -605,21 +622,36 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                         {item.isResendEmail && ' • Resend'}
                       </p>
                     </div>
-                    {!item.isResendEmail && !taskifiedItems.has(item.id) && item.type !== 'task' ? (
+                    <div className="flex items-center gap-2">
                       <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleTaskifyItem(item);
+                        variant="ghost"
+                        size="icon"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openShareDialog(item, itemMetadata?.title);
                         }}
-                        disabled={taskifyLoading.has(item.id)}
+                        className="h-8 w-8"
+                        title="Share item"
+                        aria-label="Share item"
                       >
-                        {taskifyLoading.has(item.id) ? 'Taskifying…' : 'Taskify'}
+                        <Share2 className="h-4 w-4" />
                       </Button>
-                    ) : (!item.isResendEmail ? (
-                      <span className="text-xs text-green-600 font-medium ml-2">Task ready</span>
-                    ) : null)}
+                      {!item.isResendEmail && !taskifiedItems.has(item.id) && item.type !== 'task' ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTaskifyItem(item);
+                          }}
+                          disabled={taskifyLoading.has(item.id)}
+                        >
+                          {taskifyLoading.has(item.id) ? 'Taskifying…' : 'Taskify'}
+                        </Button>
+                      ) : (!item.isResendEmail ? (
+                        <span className="text-xs text-green-600 font-medium ml-2">Task ready</span>
+                      ) : null)}
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent>
@@ -1187,6 +1219,12 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
 
 
                 <div className="flex gap-2 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => openShareDialog(itemDetails)}
+                  >
+                    Share
+                  </Button>
                   {!itemDetails.isResendEmail && !(taskifiedItems.has(itemDetails.id) || itemDetails.type === 'task') && (
                     <Button
                       variant="outline"
@@ -1275,6 +1313,17 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
           )}
         </DialogContent>
       </Dialog>
+      <ShareItemDialog
+        open={shareDialogOpen}
+        onOpenChange={(open) => {
+          setShareDialogOpen(open);
+          if (!open) {
+            setShareTarget(null);
+          }
+        }}
+        itemId={shareTarget?.id}
+        itemTitle={shareTarget?.title}
+      />
     </>
   );
 }
