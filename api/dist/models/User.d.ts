@@ -11,20 +11,8 @@ export interface User {
     api_key_hash?: string | null;
     api_key_created_at?: Date | null;
     api_key_last_used_at?: Date | null;
-    xcom_access_token?: string;
-    xcom_refresh_token?: string;
-    xcom_token_expires_at?: Date;
-    xcom_user_id?: string;
-    xcom_username?: string;
     created_at: Date;
     updated_at: Date;
-}
-export interface XComTokens {
-    access_token: string;
-    refresh_token?: string;
-    expires_in?: number;
-    user_id?: string;
-    username?: string;
 }
 export declare class UserModel {
     static findByEmail(email: string): Promise<User | null>;
@@ -32,24 +20,6 @@ export declare class UserModel {
     static create(email: string): Promise<User>;
     static verifyEmail(id: string): Promise<User>;
     static update(id: string, updates: Partial<User>): Promise<User>;
-    /**
-     * Update X.com OAuth tokens for a user
-     */
-    static updateXComTokens(userId: string, tokens: XComTokens): Promise<User>;
-    /**
-     * Get X.com tokens for a user
-     */
-    static getXComTokens(userId: string): Promise<{
-        access_token: string;
-        refresh_token?: string;
-        expires_at?: Date;
-        user_id?: string;
-        username?: string;
-    } | null>;
-    /**
-     * Clear X.com tokens (disconnect)
-     */
-    static clearXComTokens(userId: string): Promise<User>;
     static setApiKey(userId: string, apiKeyHash: string): Promise<User>;
     static clearApiKey(userId: string): Promise<User>;
     static updateApiKeyLastUsed(userId: string): Promise<void>;

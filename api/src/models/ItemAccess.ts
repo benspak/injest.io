@@ -68,7 +68,7 @@ export class ItemAccessModel {
       params
     );
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   static async linkUserToEmail(userId: string, email: string): Promise<void> {

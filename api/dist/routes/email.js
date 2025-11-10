@@ -1,6 +1,7 @@
 import express from 'express';
 import { UserModel } from '../models/User.js';
 import { ItemModel } from '../models/Item.js';
+import { ItemAccessModel } from '../models/ItemAccess.js';
 import { indexingService } from '../services/indexing.js';
 import { emailService } from '../services/email.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -235,8 +236,10 @@ router.get('/received/:id', authMiddleware, async (req, res) => {
         // First check if email exists in database
         let item = await ItemModel.findByResendEmailId(emailId);
         if (item) {
-            // Verify ownership
-            if (item.owner_id !== req.user.id) {
+            // Verify ownership or shared access
+            const hasAccess = item.owner_id === req.user.id ||
+                (await ItemAccessModel.userHasAccess(item.id, req.user.id, req.user.email));
+            if (!hasAccess) {
                 return res.status(403).json({ error: 'Email not found or access denied' });
             }
             // Convert item to Resend-like format

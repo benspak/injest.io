@@ -20,6 +20,7 @@ import { computeFileChecksum } from '../utils/checksum.js';
 import { decodeOriginalFilename, normalizeItem, sanitizeOriginalFilename } from '../utils/itemNormalization.js';
 import { itemStreamService } from '../services/itemStream.js';
 import { emailService } from '../services/email.js';
+import { ItemAccessModel } from '../models/ItemAccess.js';
 import { coerceSubscriptionTier, getMaxIndexedItems, getPlan, } from '../utils/subscriptionPlans.js';
 const router = express.Router();
 const TIER_UPGRADE_PATH = {
@@ -78,7 +79,9 @@ router.get('/:id/files/:filename', async (req, res) => {
             return res.status(404).json({ error: 'Item not found' });
         }
         const normalizedItem = normalizeItem(item);
-        if (normalizedItem.owner_id !== req.user.id) {
+        const hasAccess = normalizedItem.owner_id === req.user.id ||
+            (await ItemAccessModel.userHasAccess(normalizedItem.id, req.user.id, req.user.email));
+        if (!hasAccess) {
             return res.status(403).json({ error: 'Forbidden' });
         }
         if (!normalizedItem.attachments ||
@@ -1275,7 +1278,9 @@ router.get('/:id', async (req, res) => {
         if (!item) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        if (item.owner_id !== req.user.id) {
+        const hasAccess = item.owner_id === req.user.id ||
+            (await ItemAccessModel.userHasAccess(item.id, req.user.id, req.user.email));
+        if (!hasAccess) {
             return res.status(403).json({ error: 'Forbidden' });
         }
         res.json(normalizeItem(item));
@@ -1295,7 +1300,9 @@ router.get('/:id/metadata', async (req, res) => {
         if (!item) {
             return res.status(404).json({ error: 'Item not found' });
         }
-        if (item.owner_id !== req.user.id) {
+        const hasAccess = item.owner_id === req.user.id ||
+            (await ItemAccessModel.userHasAccess(item.id, req.user.id, req.user.email));
+        if (!hasAccess) {
             return res.status(403).json({ error: 'Forbidden' });
         }
         if (!item.url) {
@@ -1357,7 +1364,8 @@ router.post('/:id/share', async (req, res) => {
             return res.status(401).json({ error: 'Unauthorized' });
         }
         const { email } = req.body ?? {};
-        if (!email || typeof email !== 'string' || !isValidEmail(email)) {
+        const trimmedEmail = typeof email === 'string' ? email.trim() : '';
+        if (!trimmedEmail || !isValidEmail(trimmedEmail)) {
             return res.status(400).json({ error: 'A valid email address is required.' });
         }
         const item = await ItemModel.findById(req.params.id);
@@ -1370,8 +1378,9 @@ router.post('/:id/share', async (req, res) => {
         const normalizedItem = normalizeItem(item);
         const baseUrl = resolveFrontendBaseUrl();
         const shareUrl = baseUrl ? `${baseUrl}/items/${normalizedItem.id}` : `/items/${normalizedItem.id}`;
+        await ItemAccessModel.grantAccess(item.id, trimmedEmail, { grantedByUserId: req.user.id });
         await emailService.sendItemShareEmail({
-            to: email,
+            to: trimmedEmail,
             item: normalizedItem,
             shareUrl,
             senderEmail: req.user.email,

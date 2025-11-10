@@ -7,25 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
 
-// Get API URL (same logic as api.ts)
-function getApiUrl(): string {
-  let url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555';
-
-  // Remove trailing slashes
-  url = url.trim().replace(/\/+$/, '');
-
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return typeof window !== 'undefined' && window.location.protocol === 'https:'
-      ? `https://${url}`
-      : `http://${url}`;
-  }
-  return url;
-}
-
 function LoginForm() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-  const [xcomLoading, setXcomLoading] = useState(false);
   const [message, setMessage] = useState('');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -58,7 +42,6 @@ function LoginForm() {
     e.preventDefault();
     setLoading(true);
     setMessage('');
-
     try {
       await auth.login(email);
       setMessage('Magic link sent! Check your email.');
@@ -67,19 +50,6 @@ function LoginForm() {
       setMessage(message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleXComLogin = async () => {
-    setXcomLoading(true);
-    setMessage('');
-    try {
-      const apiUrl = getApiUrl();
-      window.location.href = `${apiUrl}/api/auth/xcom/login`;
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to initiate X.com login';
-      setMessage(message);
-      setXcomLoading(false);
     }
   };
 
@@ -101,27 +71,8 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Button type="submit" className="w-full" disabled={loading || xcomLoading}>
+            <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Sending...' : 'Send Magic Link'}
-            </Button>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-muted-foreground">Or</span>
-              </div>
-            </div>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              onClick={handleXComLogin}
-              disabled={loading || xcomLoading}
-            >
-              {xcomLoading ? 'Connecting...' : 'Continue with X.com'}
             </Button>
 
             {message && (

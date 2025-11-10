@@ -699,61 +699,6 @@ class ApiClient {
     });
   }
 
-  // X.com OAuth
-  async initiateXComAuth(): Promise<void> {
-    // Make authenticated request to get auth URL, then redirect
-    try {
-      const response = await this.request<{ authUrl: string }>('/api/xcom/auth?format=json');
-      if (response.authUrl) {
-        window.location.href = response.authUrl;
-      } else {
-        throw new Error('No authorization URL received');
-      }
-    } catch (error: unknown) {
-      console.error('Error initiating X.com auth:', error);
-      throw error instanceof Error ? error : new Error('Failed to initiate X.com auth');
-    }
-  }
-
-  async getXComStatus(): Promise<{ connected: boolean; username?: string; user_id?: string }> {
-    return this.request<{ connected: boolean; username?: string; user_id?: string }>('/api/xcom/status', {
-      method: 'GET',
-    });
-  }
-
-  async disconnectXCom(): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>('/api/xcom/disconnect', {
-      method: 'POST',
-    });
-  }
-
-  // X.com Posting
-  async postToXCom(image: File, description: string): Promise<{ success: boolean; postId: string; text: string }> {
-    const formData = new FormData();
-    formData.append('image', image);
-    formData.append('description', description);
-
-    // Don't set Content-Type header - browser will set it automatically with boundary for FormData
-    return this.request<{ success: boolean; postId: string; text: string }>('/api/xcom/post', {
-      method: 'POST',
-      body: formData,
-    });
-  }
-
-  // X.com Account Linking
-  async linkXComAccount(linkId: string, email: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>('/api/auth/xcom/link', {
-      method: 'POST',
-      body: JSON.stringify({ linkId, email }),
-    });
-  }
-
-  async createAccountWithXCom(linkId: string): Promise<{ token: string }> {
-    return this.request<{ token: string }>('/api/auth/xcom/create-account', {
-      method: 'POST',
-      body: JSON.stringify({ linkId }),
-    });
-  }
 }
 
 export const apiClient = new ApiClient(API_URL);

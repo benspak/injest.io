@@ -1,5 +1,7 @@
 import { Resend } from 'resend';
 import dotenv from 'dotenv';
+import { promises as fs } from 'fs';
+import { fileStorageService } from './storage.js';
 dotenv.config();
 const RESEND_API_BASE = 'https://api.resend.com';
 export class EmailService {
@@ -169,10 +171,38 @@ export class EmailService {
         if (item.notes) {
             textSections.push(`Notes:\n${item.notes}`);
         }
+        let emailAttachments;
         if (Array.isArray(item.attachments) && item.attachments.length > 0) {
             textSections.push(`Attachments:\n${item.attachments
                 .map((attachment) => `- ${attachment.originalname || attachment.filename}`)
                 .join('\n')}`);
+            const preparedAttachments = [];
+            for (const attachment of item.attachments) {
+                if (!attachment?.filename) {
+                    continue;
+                }
+                const storedFilename = attachment.filename;
+                const downloadName = attachment.originalname || attachment.filename;
+                const contentType = attachment.mimetype || 'application/octet-stream';
+                try {
+                    const filePath = fileStorageService.getFilePath(storedFilename);
+                    const fileBuffer = await fs.readFile(filePath);
+                    preparedAttachments.push({
+                        filename: downloadName,
+                        content: fileBuffer.toString('base64'),
+                        contentType,
+                    });
+                }
+                catch (error) {
+                    console.warn('[EmailService] Failed to load attachment for sharing email', {
+                        filename: storedFilename,
+                        error,
+                    });
+                }
+            }
+            if (preparedAttachments.length > 0) {
+                emailAttachments = preparedAttachments;
+            }
         }
         if (Array.isArray(item.tags) && item.tags.length > 0) {
             textSections.push(`Tags: ${item.tags.join(', ')}`);
@@ -186,6 +216,7 @@ export class EmailService {
             subject: `Shared item: ${title}`,
             html,
             text,
+            attachments: emailAttachments,
         });
     }
     async listReceivedEmails(limit, after, before) {

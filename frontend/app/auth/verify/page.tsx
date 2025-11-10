@@ -9,8 +9,6 @@ function VerifyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
-  const xcomLinked = searchParams.get('xcom_linked');
-  const username = searchParams.get('username');
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState('Verifying your email...');
 
@@ -24,16 +22,9 @@ function VerifyForm() {
     auth.verify(token)
       .then(() => {
         setStatus('success');
-        if (xcomLinked === 'true') {
-          setMessage(`X.com account linked successfully! Redirecting to dashboard...`);
-        } else {
-          setMessage('Email verified! Redirecting to dashboard...');
-        }
-        const redirectUrl = xcomLinked === 'true' && username
-          ? `/dashboard?xcom_linked=true&username=${encodeURIComponent(username)}`
-          : '/dashboard';
+        setMessage('Email verified! Redirecting to dashboard...');
         setTimeout(() => {
-          router.push(redirectUrl);
+          router.push('/dashboard');
         }, 2000);
       })
       .catch((error: unknown) => {
@@ -41,18 +32,16 @@ function VerifyForm() {
         setStatus('error');
         setMessage(err?.message || 'Invalid or expired token');
       });
-  }, [token, router, xcomLinked, username]);
+  }, [token, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>
-            {xcomLinked === 'true' ? 'Linking X.com Account' : 'Email Verification'}
-          </CardTitle>
+          <CardTitle>Email Verification</CardTitle>
           <CardDescription>
-            {status === 'verifying' && (xcomLinked === 'true' ? 'Please wait while we link your X.com account...' : 'Please wait while we verify your email...')}
-            {status === 'success' && (xcomLinked === 'true' ? 'Account linked successfully!' : 'Verification successful!')}
+            {status === 'verifying' && 'Please wait while we verify your email...'}
+            {status === 'success' && 'Verification successful!'}
             {status === 'error' && 'Verification failed'}
           </CardDescription>
         </CardHeader>
