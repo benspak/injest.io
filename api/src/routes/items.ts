@@ -43,17 +43,40 @@ const TIER_UPGRADE_PATH: Record<SubscriptionTier, SubscriptionTier | null> = {
 const formatCurrency = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
 const isValidEmail = (value: string): boolean =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase());
+const normalizeBaseUrl = (value?: string | null): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const sanitized = trimmed.replace(/\/+$/, '');
+
+  if (/^https?:\/\//i.test(sanitized)) {
+    return sanitized;
+  }
+
+  return `https://${sanitized}`;
+};
+
 const resolveFrontendBaseUrl = (): string | null => {
   const candidates = [
     process.env.NEXT_PUBLIC_APP_URL,
+    process.env.FRONTEND_URL,
     process.env.APP_BASE_URL,
     process.env.APP_URL,
     process.env.WEB_APP_URL,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL,
+    process.env.VERCEL_URL,
   ];
 
   for (const candidate of candidates) {
-    if (candidate && candidate.trim().length > 0) {
-      return candidate.trim().replace(/\/+$/, '');
+    const normalized = normalizeBaseUrl(candidate);
+    if (normalized) {
+      return normalized;
     }
   }
 
