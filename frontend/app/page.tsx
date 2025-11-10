@@ -10,10 +10,51 @@ import {
   Tag,
   Filter,
   Sparkles,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Database,
+  Download
 } from 'lucide-react';
 
 export default function Home() {
+  const keyFeatures = [
+    {
+      id: 'capture',
+      icon: Link2,
+      title: 'Capture Everything',
+      description: 'Pull in bookmarks, files, and notes from anywhere with browser extensions, bulk uploads, or simple email forwarding.',
+    },
+    {
+      id: 'summaries',
+      icon: Mail,
+      title: 'AI Email Summaries',
+      description: 'Forward any email to input@injest.io and instantly get concise bullet-point summaries that keep you up to speed.',
+    },
+    {
+      id: 'search',
+      icon: Search,
+      title: 'Semantic Search',
+      description: 'Ask questions in natural language and find the exact insight you captured—across documents, images, and messages.',
+    },
+    {
+      id: 'automation',
+      icon: Sparkles,
+      title: 'Automation Ready',
+      description: 'Auto-tag, categorize, and enrich every item with metadata so your knowledge base stays organized without manual effort.',
+    },
+    {
+      id: 'api',
+      icon: Database,
+      title: 'REST API Access',
+      description: 'Integrate Injest.io into your workflows with a developer-friendly API for ingestion, syncing, and programmatic search.',
+    },
+    {
+      id: 'exports',
+      icon: Download,
+      title: 'Portable Data Exports',
+      description: 'Download everything you capture as CSV or JSON whenever you need a backup, audit trail, or deeper analysis.',
+    },
+  ];
+
   const pricingPlans = [
     {
       id: 'free',
@@ -57,34 +98,74 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
       {/* Hero Section */}
-      <div className="container mx-auto px-4 sm:px-6 py-16 max-w-full">
-        <div className="text-center mb-20">
-          <h1 className="text-6xl font-bold text-gray-900 mb-6">
-            Injest.io
-          </h1>
-          <p className="text-xl text-gray-600 mb-4 max-w-2xl mx-auto">
-            A personal search engine for your files.
-          </p>
-          <p className="text-lg font-semibold text-blue-600 mb-3 max-w-2xl mx-auto">
-            Upload up to 1,000 images at once and start searching their text within minutes!
-          </p>
-          <p className="text-base text-gray-600 mb-6 max-w-2xl mx-auto">
-            Start free with up to 500 indexed items. Upgrade to Plus ($5/month) for 5,000 items.
-          </p>
-          <p className="text-lg text-gray-500 mb-8 max-w-2xl mx-auto">
-            Capture, enrich, and search through all your information effortlessly
-          </p>
-          <div className="flex gap-4 justify-center">
-            <Link href="/login">
-              <Button size="lg" className="text-lg px-8">
-                Get Started
-              </Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button size="lg" variant="outline" className="text-lg px-8">
-                Dashboard
-              </Button>
-            </Link>
+      <div className="container mx-auto px-4 sm:px-6 py-16 max-w-7xl">
+        <div className="grid gap-12 md:grid-cols-2 md:items-center mb-20">
+          <div className="text-center md:text-left">
+            <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
+              Keep Every Insight Searchable
+            </h1>
+            <p className="text-xl text-gray-600 mb-4 max-w-2xl md:max-w-xl mx-auto md:mx-0">
+              Injest.io is your personal search engine—capture links, emails, images, and documents, then surface the right detail in seconds.
+            </p>
+            <p className="text-lg font-semibold text-blue-600 mb-3 max-w-2xl md:max-w-xl mx-auto md:mx-0">
+              Upload up to 1,000 images at once, summarize inbox overload, tap into the API, and unlock insights with semantic search.
+            </p>
+            <p className="text-base text-gray-600 mb-6 max-w-2xl md:max-w-xl mx-auto md:mx-0">
+              Start free with up to 500 indexed items. Upgrade to Plus for 5,000 items, priority processing, and on-demand CSV or JSON exports.
+            </p>
+            <p className="text-lg text-gray-500 mb-8 max-w-2xl md:max-w-xl mx-auto md:mx-0">
+              Capture, enrich, and search through all your information effortlessly
+            </p>
+            <div className="flex gap-4 justify-center md:justify-start">
+              <Link href="/login">
+                <Button size="lg" className="text-lg px-8">
+                  Get Started
+                </Button>
+              </Link>
+              <Link href="/dashboard">
+                <Button size="lg" variant="outline" className="text-lg px-8">
+                  Dashboard
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <div className="relative mx-auto w-full max-w-xl">
+            <div className="relative aspect-[4/3] rounded-3xl border-2 border-white/60 shadow-2xl overflow-hidden">
+              <Image
+                src="/hero-image.png"
+                alt="Illustration of the Injest.io knowledge dashboard"
+                fill
+                priority
+                className="object-cover"
+                sizes="(min-width: 1024px) 42rem, 100vw"
+              />
+              <div className="absolute inset-0 rounded-3xl ring-1 ring-black/5 pointer-events-none" />
+            </div>
+          </div>
+        </div>
+
+        {/* Key Features */}
+        <div className="mb-20">
+          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
+            What Makes Injest.io Different
+          </h2>
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto">
+            {keyFeatures.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <Card key={feature.id} className="h-full shadow-lg border-2 border-gray-200 transition hover:-translate-y-1 hover:shadow-xl">
+                  <CardHeader className="space-y-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <CardTitle className="text-2xl text-gray-900">{feature.title}</CardTitle>
+                    <CardDescription className="text-base text-gray-600">
+                      {feature.description}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              );
+            })}
           </div>
         </div>
 

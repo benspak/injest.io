@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
+import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail, API_URL } from '@/lib/api';
+import type { SubscriptionTier } from '@/lib/subscriptionPlans';
 
 type ApiKeyInfoState = {
   hasKey: boolean;
@@ -36,6 +38,9 @@ export default function DashboardPage() {
   const [apiKeyActionType, setApiKeyActionType] = useState<'generate' | 'revoke' | null>(null);
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
+  const [itemLimit, setItemLimit] = useState<number | null>(null);
+  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -77,10 +82,39 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const refreshCurrentUser = useCallback(async () => {
+    try {
+      const response = await apiClient.getCurrentUser();
+      if (response.user) {
+        auth.setUser(response.user);
+        if (response.user.subscription_tier) {
+          setSubscriptionTier(response.user.subscription_tier);
+        } else if (response.user.is_premium) {
+          setSubscriptionTier('plus');
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing current user:', error);
+    }
+  }, []);
+
   const loadIndexedCount = useCallback(async () => {
     try {
       const response = await apiClient.getIndexedItemCount();
       setIndexedCount(response.count);
+      setItemLimit(typeof response.limit === 'number' ? response.limit : null);
+      if (response.subscriptionTier) {
+        setSubscriptionTier(response.subscriptionTier);
+      } else {
+        const user = auth.getUser();
+        if (user?.subscription_tier) {
+          setSubscriptionTier(user.subscription_tier);
+        } else if (user?.is_premium) {
+          setSubscriptionTier('plus');
+        } else {
+          setSubscriptionTier('free');
+        }
+      }
     } catch (error: unknown) {
       console.error('Error loading indexed count:', error);
     }
@@ -325,6 +359,36 @@ export default function DashboardPage() {
       setLoadingMore(false);
     }
   }, [loadingMore, hasMore, loading, offset, sourceFilter, hasAttachmentsFilter, fileTypeFilter]);
+
+  const handleSubscriptionComplete = useCallback(async (paymentIntentId: string) => {
+    try {
+      const verification = await apiClient.verifyPayment(paymentIntentId);
+      if (verification.verified && verification.premium) {
+        if (verification.subscriptionTier) {
+          setSubscriptionTier(verification.subscriptionTier);
+        }
+        toast.success('Subscription upgraded! Downloads and API access unlocked.');
+        await refreshCurrentUser();
+        await loadIndexedCount();
+      } else {
+        toast.error(verification.message || 'Unable to verify payment');
+      }
+    } catch (error: unknown) {
+      console.error('Error verifying subscription payment:', error);
+      const err = error as { message?: string };
+      toast.error(err?.message || 'Failed to verify subscription payment');
+    } finally {
+      setSubscriptionDialogOpen(false);
+    }
+  }, [loadIndexedCount, refreshCurrentUser]);
+
+  const handleSubscriptionCancel = useCallback(() => {
+    setSubscriptionDialogOpen(false);
+  }, []);
+
+  const openSubscriptionDialog = useCallback(() => {
+    setSubscriptionDialogOpen(true);
+  }, []);
 
   // Reload items when filters change
   useEffect(() => {
@@ -595,6 +659,11 @@ export default function DashboardPage() {
   }
 
   const currentUser = auth.getUser();
+  const effectiveSubscriptionTier: SubscriptionTier =
+    currentUser?.subscription_tier ?? (currentUser?.is_premium ? 'plus' : subscriptionTier);
+  const isSubscriber = Boolean(
+    currentUser?.is_premium || (effectiveSubscriptionTier && effectiveSubscriptionTier !== 'free')
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
@@ -670,113 +739,151 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Downloads</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  Export all enriched items as structured data. Hosted attachments are not included.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={() => handleExportItems('json')}
-                    disabled={exportingFormat !== null}
-                  >
-                    {exportingFormat === 'json' ? 'Preparing JSON...' : 'Download JSON'}
+            {isSubscriber ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Downloads</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Export all enriched items as structured data. Hosted attachments are not included.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => handleExportItems('json')}
+                      disabled={exportingFormat !== null}
+                    >
+                      {exportingFormat === 'json' ? 'Preparing JSON...' : 'Download JSON'}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      onClick={() => handleExportItems('csv')}
+                      disabled={exportingFormat !== null}
+                    >
+                      {exportingFormat === 'csv' ? 'Preparing CSV...' : 'Download CSV'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Downloads</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Unlock JSON and CSV exports when you upgrade your plan. Paid tiers also include higher item limits.
+                  </p>
+                  <Button onClick={openSubscriptionDialog} className="w-full sm:w-auto">
+                    Upgrade to unlock exports
                   </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={() => handleExportItems('csv')}
-                    disabled={exportingFormat !== null}
-                  >
-                    {exportingFormat === 'csv' ? 'Preparing CSV...' : 'Download CSV'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+                  <p className="text-xs text-muted-foreground">
+                    Starting at $5/month with priority processing and API access.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
-            <Card>
-              <CardHeader>
-                <CardTitle>External API Access</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  Generate an API key to query your enriched data via REST without sharing your account token.
-                </p>
+            {isSubscriber ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>External API Access</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Generate an API key to query your enriched data via REST without sharing your account token.
+                  </p>
 
-                {apiKeyInfoLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading API key details...</p>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm">
-                      <p>
-                        Key status:{' '}
-                        <span className="font-semibold">
-                          {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
-                        </span>
-                      </p>
-                      <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
-                      <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
-                    </div>
-
-                    {generatedApiKey && (
-                      <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
-                        <p className="text-xs font-semibold uppercase text-amber-800 tracking-wide">
-                          Your new API key
+                  {apiKeyInfoLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading API key details...</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm">
+                        <p>
+                          Key status:{' '}
+                          <span className="font-semibold">
+                            {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
+                          </span>
                         </p>
-                        <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
-                        <p className="mt-2 text-xs text-amber-700">
-                          Copy this key now—you won&apos;t be able to see it again.
-                        </p>
+                        <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
+                        <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
                       </div>
-                    )}
 
-                    <div className="flex flex-col sm:flex-row gap-2">
-                      <Button
-                        onClick={handleGenerateApiKey}
-                        disabled={apiKeyActionLoading}
-                      >
-                        {apiKeyActionLoading && apiKeyActionType === 'generate'
-                          ? 'Generating...'
-                          : apiKeyInfo?.hasKey
-                            ? 'Regenerate API Key'
-                            : 'Generate API Key'}
-                      </Button>
-                      {apiKeyInfo?.hasKey && (
+                      {generatedApiKey && (
+                        <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
+                          <p className="text-xs font-semibold uppercase text-amber-800 tracking-wide">
+                            Your new API key
+                          </p>
+                          <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
+                          <p className="mt-2 text-xs text-amber-700">
+                            Copy this key now—you won&apos;t be able to see it again.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Button
-                          variant="destructive"
-                          onClick={handleRevokeApiKey}
+                          onClick={handleGenerateApiKey}
                           disabled={apiKeyActionLoading}
                         >
-                          {apiKeyActionLoading && apiKeyActionType === 'revoke'
-                            ? 'Revoking...'
-                            : 'Revoke Key'}
+                          {apiKeyActionLoading && apiKeyActionType === 'generate'
+                            ? 'Generating...'
+                            : apiKeyInfo?.hasKey
+                              ? 'Regenerate API Key'
+                              : 'Generate API Key'}
                         </Button>
-                      )}
+                        {apiKeyInfo?.hasKey && (
+                          <Button
+                            variant="destructive"
+                            onClick={handleRevokeApiKey}
+                            disabled={apiKeyActionLoading}
+                          >
+                            {apiKeyActionLoading && apiKeyActionType === 'revoke'
+                              ? 'Revoking...'
+                              : 'Revoke Key'}
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Example requests
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Example requests
+                    </p>
+                    <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
+                      {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items?limit=25"`}
+                    </pre>
+                    <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
+                      {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/search?q=meeting"`}
+                    </pre>
+                    <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
+                      {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items/ITEM_ID"`}
+                    </pre>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>External API Access</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    Bring your workspace data into your own tools with a personal API key—available on paid plans.
                   </p>
-                  <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
-{`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items?limit=25"`}
-                  </pre>
-                  <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
-{`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/search?q=meeting"`}
-                  </pre>
-                  <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
-{`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items/ITEM_ID"`}
-                  </pre>
-                </div>
-              </CardContent>
-            </Card>
+                  <Button onClick={openSubscriptionDialog} className="w-full sm:w-auto">
+                    Upgrade to enable API access
+                  </Button>
+                  <p className="text-xs text-muted-foreground">
+                    Paid tiers include API access plus larger indexing limits and data exports.
+                  </p>
+                </CardContent>
+              </Card>
+            )}
 
           </div>
 
@@ -862,6 +969,15 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+      <SubscriptionPaymentDialog
+        open={subscriptionDialogOpen}
+        onOpenChange={setSubscriptionDialogOpen}
+        onPaymentComplete={handleSubscriptionComplete}
+        onCancel={handleSubscriptionCancel}
+        currentTier={effectiveSubscriptionTier}
+        currentLimit={itemLimit}
+        currentCount={indexedCount}
+      />
     </div>
   );
 }
