@@ -61,6 +61,22 @@ export class UserModel {
             fields.push(`api_key_last_used_at = $${paramCount++}`);
             values.push(updates.api_key_last_used_at);
         }
+        if (updates.two_factor_enabled !== undefined) {
+            fields.push(`two_factor_enabled = $${paramCount++}`);
+            values.push(updates.two_factor_enabled);
+        }
+        if (updates.two_factor_secret !== undefined) {
+            fields.push(`two_factor_secret = $${paramCount++}`);
+            values.push(updates.two_factor_secret);
+        }
+        if (updates.two_factor_confirmed_at !== undefined) {
+            fields.push(`two_factor_confirmed_at = $${paramCount++}`);
+            values.push(updates.two_factor_confirmed_at);
+        }
+        if (updates.two_factor_recovery_codes !== undefined) {
+            fields.push(`two_factor_recovery_codes = $${paramCount++}`);
+            values.push(updates.two_factor_recovery_codes);
+        }
         if (fields.length === 0) {
             return await this.findById(id);
         }
@@ -88,6 +104,35 @@ export class UserModel {
     static async findByApiKeyHash(apiKeyHash) {
         const result = await pool.query('SELECT * FROM users WHERE api_key_hash = $1 AND api_key_hash IS NOT NULL', [apiKeyHash]);
         return result.rows[0] || null;
+    }
+    static async saveTwoFactorSecret(userId, secret) {
+        return await this.update(userId, {
+            two_factor_secret: secret,
+            two_factor_enabled: false,
+            two_factor_confirmed_at: null,
+            two_factor_recovery_codes: null,
+        });
+    }
+    static async enableTwoFactor(userId, secret, recoveryCodes) {
+        return await this.update(userId, {
+            two_factor_secret: secret,
+            two_factor_enabled: true,
+            two_factor_confirmed_at: new Date(),
+            two_factor_recovery_codes: recoveryCodes,
+        });
+    }
+    static async disableTwoFactor(userId) {
+        return await this.update(userId, {
+            two_factor_secret: null,
+            two_factor_enabled: false,
+            two_factor_confirmed_at: null,
+            two_factor_recovery_codes: null,
+        });
+    }
+    static async updateRecoveryCodes(userId, recoveryCodes) {
+        return await this.update(userId, {
+            two_factor_recovery_codes: recoveryCodes,
+        });
     }
 }
 //# sourceMappingURL=User.js.map

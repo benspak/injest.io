@@ -2,6 +2,7 @@ import { ItemModel } from '../models/Item.js';
 import { embeddingService } from './embeddings.js';
 import { openAIService } from './openai.js';
 import { itemStreamService } from './itemStream.js';
+import { searchService } from './search.js';
 export class IndexingService {
     async indexItem(itemOrId, options = {}) {
         const maxAttempts = options.retries ?? 3;
@@ -33,6 +34,7 @@ export class IndexingService {
                 return false;
             }
             itemStreamService.broadcastIndexedItem(updatedItem);
+            await searchService.invalidateForItem(updatedItem.id);
             return true;
         }
         catch (error) {

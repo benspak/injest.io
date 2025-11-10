@@ -1,4 +1,4 @@
-import { EmbeddingModel } from '../models/Embedding.js';
+import { EmbeddingModel, type SemanticSimilarityResult } from '../models/Embedding.js';
 import { openAIService } from './openai.js';
 
 export class EmbeddingService {
@@ -12,17 +12,22 @@ export class EmbeddingService {
     return embeddingRecord.id;
   }
 
-  async findSimilar(queryText: string, limit: number = 10): Promise<Array<{ embedding: import('../models/Embedding.js').Embedding; similarity: number }>> {
+  async findSimilar(
+    queryText: string,
+    options: {
+      userId: string;
+      email?: string | null;
+      limit?: number;
+      candidateMultiplier?: number;
+      titlePatterns?: string[];
+      filters?: import('../types/search.js').SearchFilters;
+    }
+  ): Promise<SemanticSimilarityResult[]> {
     // Generate embedding for query
     const queryEmbedding = await openAIService.createEmbedding(queryText);
 
-    // Find similar embeddings
-    const similar = await EmbeddingModel.findSimilar(queryEmbedding, limit);
-
-    return similar.map((emb) => ({
-      embedding: emb,
-      similarity: parseFloat(String(emb.similarity || '0')) || 0,
-    }));
+    // Find similar embeddings accessible to the requesting user
+    return EmbeddingModel.findSimilar(queryEmbedding, options);
   }
 }
 

@@ -8,15 +8,11 @@ export class EmbeddingService {
         const embeddingRecord = await EmbeddingModel.create(itemId, embedding);
         return embeddingRecord.id;
     }
-    async findSimilar(queryText, limit = 10) {
+    async findSimilar(queryText, options) {
         // Generate embedding for query
         const queryEmbedding = await openAIService.createEmbedding(queryText);
-        // Find similar embeddings
-        const similar = await EmbeddingModel.findSimilar(queryEmbedding, limit);
-        return similar.map((emb) => ({
-            embedding: emb,
-            similarity: parseFloat(String(emb.similarity || '0')) || 0,
-        }));
+        // Find similar embeddings accessible to the requesting user
+        return EmbeddingModel.findSimilar(queryEmbedding, options);
     }
 }
 export const embeddingService = new EmbeddingService();

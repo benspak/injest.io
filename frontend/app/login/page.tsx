@@ -20,14 +20,8 @@ function LoginForm() {
   useEffect(() => {
     if (token) {
       setLoading(true);
-      auth.verify(token)
-        .then(() => {
-          router.push('/dashboard');
-        })
-        .catch(() => {
-          setMessage('Invalid or expired token');
-          setLoading(false);
-        });
+      setMessage('Redirecting to verification...');
+      router.replace(`/auth/verify?token=${encodeURIComponent(token)}`);
     }
   }, [token, router]);
 

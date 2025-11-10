@@ -13,6 +13,10 @@ export interface User {
   api_key_hash?: string | null;
   api_key_created_at?: Date | null;
   api_key_last_used_at?: Date | null;
+  two_factor_enabled?: boolean;
+  two_factor_secret?: string | null;
+  two_factor_confirmed_at?: Date | null;
+  two_factor_recovery_codes?: string[] | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -96,6 +100,22 @@ export class UserModel {
       fields.push(`api_key_last_used_at = $${paramCount++}`);
       values.push(updates.api_key_last_used_at);
     }
+    if (updates.two_factor_enabled !== undefined) {
+      fields.push(`two_factor_enabled = $${paramCount++}`);
+      values.push(updates.two_factor_enabled);
+    }
+    if (updates.two_factor_secret !== undefined) {
+      fields.push(`two_factor_secret = $${paramCount++}`);
+      values.push(updates.two_factor_secret);
+    }
+    if (updates.two_factor_confirmed_at !== undefined) {
+      fields.push(`two_factor_confirmed_at = $${paramCount++}`);
+      values.push(updates.two_factor_confirmed_at);
+    }
+    if (updates.two_factor_recovery_codes !== undefined) {
+      fields.push(`two_factor_recovery_codes = $${paramCount++}`);
+      values.push(updates.two_factor_recovery_codes);
+    }
     if (fields.length === 0) {
       return await this.findById(id) as User;
     }
@@ -134,5 +154,38 @@ export class UserModel {
       [apiKeyHash]
     );
     return result.rows[0] || null;
+  }
+
+  static async saveTwoFactorSecret(userId: string, secret: string | null): Promise<User> {
+    return await this.update(userId, {
+      two_factor_secret: secret,
+      two_factor_enabled: false,
+      two_factor_confirmed_at: null,
+      two_factor_recovery_codes: null,
+    });
+  }
+
+  static async enableTwoFactor(userId: string, secret: string, recoveryCodes: string[]): Promise<User> {
+    return await this.update(userId, {
+      two_factor_secret: secret,
+      two_factor_enabled: true,
+      two_factor_confirmed_at: new Date(),
+      two_factor_recovery_codes: recoveryCodes,
+    });
+  }
+
+  static async disableTwoFactor(userId: string): Promise<User> {
+    return await this.update(userId, {
+      two_factor_secret: null,
+      two_factor_enabled: false,
+      two_factor_confirmed_at: null,
+      two_factor_recovery_codes: null,
+    });
+  }
+
+  static async updateRecoveryCodes(userId: string, recoveryCodes: string[] | null): Promise<User> {
+    return await this.update(userId, {
+      two_factor_recovery_codes: recoveryCodes,
+    });
   }
 }

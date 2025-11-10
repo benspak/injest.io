@@ -13,13 +13,87 @@ router.get('/', async (req, res) => {
         if (!q || typeof q !== 'string') {
             return res.status(400).json({ error: 'Query parameter is required' });
         }
-        const results = await searchService.search(req.user.id, q, 10);
+        const toArray = (value) => {
+            if (Array.isArray(value)) {
+                return value
+                    .flatMap((entry) => entry.split(','))
+                    .map((entry) => entry.trim())
+                    .filter((entry) => entry.length > 0);
+            }
+            if (typeof value === 'string') {
+                return value
+                    .split(',')
+                    .map((entry) => entry.trim())
+                    .filter((entry) => entry.length > 0);
+            }
+            return [];
+        };
+        const limitParam = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+        if (Number.isNaN(limitParam ?? 0)) {
+            return res.status(400).json({ error: 'Invalid limit parameter' });
+        }
+        const limit = limitParam ? Math.min(Math.max(limitParam, 1), 50) : 10;
+        const uploadedByParam = typeof req.query.uploadedBy === 'string' ? req.query.uploadedBy.trim().toLowerCase() : undefined;
+        if (uploadedByParam && !['me', 'shared', 'all'].includes(uploadedByParam)) {
+            return res.status(400).json({ error: 'uploadedBy must be one of: me, shared, all' });
+        }
+        const hasAttachmentsParam = typeof req.query.hasAttachments === 'string'
+            ? req.query.hasAttachments.trim().toLowerCase()
+            : undefined;
+        if (hasAttachmentsParam && !['true', 'false'].includes(hasAttachmentsParam)) {
+            return res.status(400).json({ error: 'hasAttachments must be "true" or "false"' });
+        }
+        const parseDateParam = (value) => {
+            if (typeof value !== 'string' || value.trim().length === 0) {
+                return undefined;
+            }
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return undefined;
+            }
+            return date.toISOString();
+        };
+        const filters = {};
+        const types = toArray(req.query.type ?? req.query.types);
+        if (types.length > 0) {
+            filters.types = types;
+        }
+        const tags = toArray(req.query.tag ?? req.query.tags);
+        if (tags.length > 0) {
+            filters.tags = tags;
+        }
+        const sources = toArray(req.query.source ?? req.query.sources);
+        if (sources.length > 0) {
+            filters.sources = sources;
+        }
+        if (uploadedByParam && uploadedByParam !== 'all') {
+            filters.uploadedBy = uploadedByParam;
+        }
+        if (hasAttachmentsParam === 'true') {
+            filters.hasAttachments = true;
+        }
+        const dateFrom = parseDateParam(req.query.dateFrom);
+        if (req.query.dateFrom && !dateFrom) {
+            return res.status(400).json({ error: 'Invalid dateFrom parameter' });
+        }
+        if (dateFrom) {
+            filters.dateFrom = dateFrom;
+        }
+        const dateTo = parseDateParam(req.query.dateTo);
+        if (req.query.dateTo && !dateTo) {
+            return res.status(400).json({ error: 'Invalid dateTo parameter' });
+        }
+        if (dateTo) {
+            filters.dateTo = dateTo;
+        }
+        const results = await searchService.search({ id: req.user.id, email: req.user.email }, q, limit, filters);
         res.json({
             query: q,
             results: results.map((result) => ({
                 item: result.item,
                 similarity: result.similarity,
                 source: result.item.source,
+                scores: result.scores,
             })),
         });
     }

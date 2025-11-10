@@ -23,7 +23,11 @@ router.post('/', async (req: AuthRequest, res: express.Response) => {
 
     // If context query is provided, search for relevant items
     if (contextQuery && typeof contextQuery === 'string') {
-      const searchResults = await searchService.search(req.user.id, contextQuery, 5);
+      const searchResults = await searchService.search(
+        { id: req.user.id, email: req.user.email },
+        contextQuery,
+        5
+      );
       const contextItems = searchResults.map((r) => {
         try {
           const parsed = JSON.parse(r.item.raw);

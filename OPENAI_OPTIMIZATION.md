@@ -3,10 +3,9 @@
 ## Current Usage Analysis
 
 ### Models Being Used:
-1. **Embeddings**: `text-embedding-3-large` (3072 dimensions) - *Default*
+1. **Embeddings**: `text-embedding-3-small` (1536 dimensions) - *Default*
    - Used for: Item indexing, search similarity
-   - Cost: ~$0.13 per 1M tokens
-   - **Optimized**: Can use `text-embedding-3-small` (10x cheaper) via env var
+   - Cost: ~$0.02 per 1M tokens
 
 2. **Chat Completions**: `gpt-4-turbo-preview` (All tasks) - *Before optimization*
    - Used for: Classification, tagging, title/description generation, email summaries, general generation
@@ -17,11 +16,10 @@
 ### 1. Model Selection (Estimated 70-90% cost reduction)
 
 **Embeddings:**
-- ✅ Configurable via `OPENAI_EMBEDDING_MODEL=small` environment variable
-- Defaults to `text-embedding-3-large` for backward compatibility
-- When enabled: `text-embedding-3-small` (10x cheaper, 1536 dims vs 3072)
-- Cost reduction: ~10x cheaper ($0.13 → $0.02 per 1M tokens)
-- **Note**: Requires database migration to support 1536 dimensions (migration file provided)
+- ✅ Default model is `text-embedding-3-small` (1536 dims, ~10x cheaper than large)
+- ✅ Still configurable via `OPENAI_EMBEDDING_MODEL` to allow future model swaps
+- Cost: ~$0.02 per 1M tokens
+- **Note**: Database schema ships with 1536-dimension vectors; run migration `016_force_small_embeddings.sql` if upgrading from an older install
 
 **Chat Completions:**
 - ✅ Changed from `gpt-4-turbo-preview` → `gpt-3.5-turbo` for simple tasks:
@@ -61,22 +59,14 @@
 - **Estimated monthly cost**: High (depending on usage)
 
 ### After Optimization:
-- Embeddings (large): ~$0.13 per 1M tokens (default, backward compatible)
-- Embeddings (small): ~$0.02 per 1M tokens (10x cheaper, when enabled)
+- Embeddings: ~$0.02 per 1M tokens (text-embedding-3-small, default)
 - Chat (GPT-3.5): ~$0.50-1.50 per 1M tokens (10-30x cheaper)
 - Chat (GPT-4): Only for user-facing generation (minimal usage)
 - **Estimated monthly cost**: 70-90% reduction
 
-## Database Migration (Optional)
+## Database Migration
 
-To enable `text-embedding-3-small` embeddings:
-
-1. **Migration file**: `006_migrate_to_small_embeddings.sql` (already created)
-2. **Set environment variable**: `OPENAI_EMBEDDING_MODEL=small`
-3. **Run migration**: `npm run migrate`
-4. **Regenerate embeddings**: All existing embeddings will need to be regenerated
-
-**Note**: The code defaults to `text-embedding-3-large` for backward compatibility. Only set the env var after running the migration.
+Projects created before this change may still have 3072-dimension embeddings. Run the migrations (including `016_force_small_embeddings.sql`) and then re-index items to regenerate embeddings with the smaller dimension.
 
 ## Usage Patterns
 
@@ -111,12 +101,7 @@ To enable `text-embedding-3-small` embeddings:
 - ~70-90% cost reduction on chat completions
 - No quality loss expected for classification, tagging, summarization
 
-**Optional Savings** (Large → Small embeddings):
-- Additional 10x cost reduction on embeddings
-- Requires database migration and regeneration
-- Minimal quality impact (1536 dims still very effective)
-
-**Total Potential Savings**: 70-95% reduction in OpenAI costs
+**Total Savings**: 70-95% reduction in OpenAI costs compared to the original large-embedding, GPT-4-only setup.
 
 ## Rate Limiting & Error Handling
 

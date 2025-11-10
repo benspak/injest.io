@@ -22,6 +22,7 @@ import { itemStreamService } from '../services/itemStream.js';
 import { emailService } from '../services/email.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
 import { coerceSubscriptionTier, getMaxIndexedItems, getPlan, } from '../utils/subscriptionPlans.js';
+import { searchService } from '../services/search.js';
 const router = express.Router();
 const TIER_UPGRADE_PATH = {
     free: 'plus',
@@ -31,16 +32,34 @@ const TIER_UPGRADE_PATH = {
 };
 const formatCurrency = (cents) => `$${(cents / 100).toFixed(2)}`;
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase());
+const normalizeBaseUrl = (value) => {
+    if (!value) {
+        return null;
+    }
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+        return null;
+    }
+    const sanitized = trimmed.replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(sanitized)) {
+        return sanitized;
+    }
+    return `https://${sanitized}`;
+};
 const resolveFrontendBaseUrl = () => {
     const candidates = [
         process.env.NEXT_PUBLIC_APP_URL,
+        process.env.FRONTEND_URL,
         process.env.APP_BASE_URL,
         process.env.APP_URL,
         process.env.WEB_APP_URL,
+        process.env.VERCEL_PROJECT_PRODUCTION_URL,
+        process.env.VERCEL_URL,
     ];
     for (const candidate of candidates) {
-        if (candidate && candidate.trim().length > 0) {
-            return candidate.trim().replace(/\/+$/, '');
+        const normalized = normalizeBaseUrl(candidate);
+        if (normalized) {
+            return normalized;
         }
     }
     if (process.env.NODE_ENV !== 'production') {
@@ -1379,6 +1398,7 @@ router.post('/:id/share', async (req, res) => {
         const baseUrl = resolveFrontendBaseUrl();
         const shareUrl = baseUrl ? `${baseUrl}/items/${normalizedItem.id}` : `/items/${normalizedItem.id}`;
         await ItemAccessModel.grantAccess(item.id, trimmedEmail, { grantedByUserId: req.user.id });
+        await searchService.invalidateForItem(item.id);
         await emailService.sendItemShareEmail({
             to: trimmedEmail,
             item: normalizedItem,
@@ -1483,6 +1503,7 @@ router.delete('/:id', async (req, res) => {
             return res.status(403).json({ error: 'Forbidden' });
         }
         await ItemModel.delete(req.params.id);
+        await searchService.invalidateForItem(item.id);
         res.json({ message: 'Item deleted' });
     }
     catch (error) {

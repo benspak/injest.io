@@ -1,0 +1,5 @@
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS two_factor_enabled BOOLEAN DEFAULT FALSE,
+ADD COLUMN IF NOT EXISTS two_factor_secret TEXT,
+ADD COLUMN IF NOT EXISTS two_factor_confirmed_at TIMESTAMP WITH TIME ZONE,
+ADD COLUMN IF NOT EXISTS two_factor_recovery_codes TEXT[];

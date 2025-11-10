@@ -5,6 +5,7 @@ export declare class OpenAIService {
     private readonly ADVANCED_TASK_MODEL;
     private readonly VISION_MODEL;
     constructor();
+    private resolveEmbeddingModel;
     /**
      * Wait for rate limit permission before making API call
      */

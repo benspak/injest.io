@@ -8,19 +8,14 @@ dotenv.config();
 
 export class OpenAIService {
   private client: OpenAI;
-
-  // Model configuration - use cheaper models for simple tasks
-  // Embedding model: Use small for 10x cost savings (requires DB migration to 1536 dims)
-  // Default to large to avoid breaking existing embeddings until migration is run
-  private readonly EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL === 'small'
-    ? 'text-embedding-3-small'  // 1536 dims, 10x cheaper
-    : 'text-embedding-3-large';  // 3072 dims (default for compatibility)
+  private readonly EMBEDDING_MODEL: string;
 
   private readonly SIMPLE_TASK_MODEL = 'gpt-3.5-turbo'; // For simple tasks (10-30x cheaper than GPT-4)
   private readonly ADVANCED_TASK_MODEL = 'gpt-4-turbo-preview'; // For complex tasks that need GPT-4
   private readonly VISION_MODEL = 'gpt-4o'; // For vision tasks (supports image analysis)
 
   constructor() {
+    this.EMBEDDING_MODEL = this.resolveEmbeddingModel();
     this.client = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -30,6 +25,23 @@ export class OpenAIService {
     console.log(`[OpenAI] Using chat model (simple): ${this.SIMPLE_TASK_MODEL}`);
     console.log(`[OpenAI] Using chat model (advanced): ${this.ADVANCED_TASK_MODEL}`);
     console.log(`[OpenAI] Using vision model: ${this.VISION_MODEL}`);
+  }
+
+  private resolveEmbeddingModel(): string {
+    const configured = process.env.OPENAI_EMBEDDING_MODEL?.trim();
+
+    if (!configured) {
+      return 'text-embedding-3-small';
+    }
+
+    const normalized = configured.toLowerCase();
+    if (normalized === 'small' || normalized === 'text-embedding-3-small') {
+      return 'text-embedding-3-small';
+    }
+    if (normalized === 'large' || normalized === 'text-embedding-3-large') {
+      return 'text-embedding-3-large';
+    }
+    return configured;
   }
 
   /**

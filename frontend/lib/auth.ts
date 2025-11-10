@@ -4,16 +4,31 @@ import type { User } from './api';
 let currentUser: User | null = null;
 let authRestoring: Promise<void> | null = null;
 let authRestored = false;
+let pendingTwoFactor: {
+  pendingToken: string;
+  user: User;
+} | null = null;
 
 export const auth = {
   async login(email: string): Promise<void> {
     await apiClient.sendMagicLink(email);
   },
 
-  async verify(token: string): Promise<User> {
+  async verify(token: string): Promise<{ user: User; twoFactorRequired: boolean }> {
     const response = await apiClient.verifyToken(token);
+
+    if ('twoFactorRequired' in response && response.twoFactorRequired) {
+      pendingTwoFactor = {
+        pendingToken: response.pendingToken,
+        user: response.user,
+      };
+      currentUser = null;
+      return { user: response.user, twoFactorRequired: true };
+    }
+
+    pendingTwoFactor = null;
     currentUser = response.user;
-    return response.user;
+    return { user: response.user, twoFactorRequired: false };
   },
 
   getUser(): User | null {
@@ -24,10 +39,47 @@ export const auth = {
     currentUser = user;
   },
 
+  hasPendingTwoFactor(): boolean {
+    return pendingTwoFactor !== null;
+  },
+
+  getPendingTwoFactorUser(): User | null {
+    return pendingTwoFactor?.user ?? null;
+  },
+
+  clearPendingTwoFactor() {
+    pendingTwoFactor = null;
+  },
+
+  async completeTwoFactorChallenge(params: { code?: string; recoveryCode?: string }): Promise<{
+    user: User;
+    recoveryCodeUsed: boolean;
+    recoveryCodesRemaining: number;
+  }> {
+    if (!pendingTwoFactor) {
+      throw new Error('No pending two-factor challenge');
+    }
+
+    const response = await apiClient.completeTwoFactorChallenge({
+      pendingToken: pendingTwoFactor.pendingToken,
+      code: params.code,
+      recoveryCode: params.recoveryCode,
+    });
+
+    currentUser = response.user;
+    pendingTwoFactor = null;
+    return {
+      user: response.user,
+      recoveryCodeUsed: response.recoveryCodeUsed,
+      recoveryCodesRemaining: response.recoveryCodesRemaining,
+    };
+  },
+
   logout() {
     currentUser = null;
     authRestored = false;
     apiClient.clearToken();
+    pendingTwoFactor = null;
   },
 
   isAuthenticated(): boolean {
@@ -66,6 +118,7 @@ export const auth = {
         if (response.user) {
           currentUser = response.user;
           authRestored = true;
+          pendingTwoFactor = null;
         }
       } catch (error) {
         // Token is invalid or expired, clear it
@@ -73,6 +126,7 @@ export const auth = {
         localStorage.removeItem('token');
         currentUser = null;
         authRestored = true;
+        pendingTwoFactor = null;
       } finally {
         authRestoring = null;
       }

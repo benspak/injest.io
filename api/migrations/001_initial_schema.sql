@@ -39,7 +39,7 @@ CREATE INDEX IF NOT EXISTS idx_items_title ON items(title) WHERE title IS NOT NU
 CREATE TABLE IF NOT EXISTS embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     item_id UUID NOT NULL REFERENCES items(id) ON DELETE CASCADE,
-    embedding vector(3072),
+    embedding vector(1536),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -60,7 +60,6 @@ CREATE INDEX IF NOT EXISTS idx_items_owner_id ON items(owner_id);
 CREATE INDEX IF NOT EXISTS idx_items_type ON items(type);
 CREATE INDEX IF NOT EXISTS idx_items_created_at ON items(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_embeddings_item_id ON embeddings(item_id);
--- Note: Vector index removed due to dimension limit (ivfflat max 2000, text-embedding-3-large uses 3072)
 -- For better performance with large datasets, manually add HNSW index after migration:
 -- CREATE INDEX idx_embeddings_vector ON embeddings USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
 -- Sequential scans will work but may be slower on large datasets

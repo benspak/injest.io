@@ -7,7 +7,26 @@ import { authMiddleware } from '../middleware/auth.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKeys.js';
 import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
+import { generateTwoFactorSecret, verifyTwoFactorToken, generateRecoveryCodes, hashRecoveryCode, verifyRecoveryCode, } from '../services/twoFactor.js';
 const router = express.Router();
+const TWO_FACTOR_PENDING_EXPIRATION = '10m';
+function createSessionToken(user) {
+    return jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+}
+function createPendingTwoFactorToken(user) {
+    return jwt.sign({ userId: user.id, email: user.email, twoFactorPending: true }, JWT_SECRET, { expiresIn: TWO_FACTOR_PENDING_EXPIRATION });
+}
+function buildUserResponse(user) {
+    return {
+        id: user.id,
+        email: user.email,
+        verified: user.verified,
+        is_premium: user.is_premium || false,
+        subscription_tier: coerceSubscriptionTier(user.subscription_tier),
+        two_factor_enabled: user.two_factor_enabled || false,
+        two_factor_confirmed_at: user.two_factor_confirmed_at || null,
+    };
+}
 // Send magic link
 router.post('/magic-link', async (req, res) => {
     try {
@@ -49,17 +68,19 @@ router.get('/verify', async (req, res) => {
         if (userBefore && !userBefore.verified && user.verified) {
             await emailService.sendApprovalEmail(user.email);
         }
-        // Generate new JWT for authenticated session
-        const sessionToken = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+        const responseUser = buildUserResponse(user);
+        if (user.two_factor_enabled && user.two_factor_secret) {
+            const pendingToken = createPendingTwoFactorToken(user);
+            return res.json({
+                twoFactorRequired: true,
+                pendingToken,
+                user: responseUser,
+            });
+        }
+        const sessionToken = createSessionToken(user);
         res.json({
             token: sessionToken,
-            user: {
-                id: user.id,
-                email: user.email,
-                verified: user.verified,
-                is_premium: user.is_premium || false,
-                subscription_tier: coerceSubscriptionTier(user.subscription_tier),
-            }
+            user: responseUser,
         });
     }
     catch (error) {
@@ -81,18 +102,184 @@ router.get('/me', authMiddleware, async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
         res.json({
-            user: {
-                id: user.id,
-                email: user.email,
-                verified: user.verified,
-                is_premium: user.is_premium || false,
-                subscription_tier: coerceSubscriptionTier(user.subscription_tier),
-            }
+            user: buildUserResponse(user),
         });
     }
     catch (error) {
         console.error('Error getting current user:', error);
         res.status(500).json({ error: 'Failed to get current user' });
+    }
+});
+router.get('/2fa', authMiddleware, async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const user = await UserModel.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json({
+            enabled: Boolean(user.two_factor_enabled),
+            confirmedAt: user.two_factor_confirmed_at || null,
+            recoveryCodesRemaining: user.two_factor_recovery_codes?.length ?? 0,
+        });
+    }
+    catch (error) {
+        console.error('Error fetching 2FA status:', error);
+        res.status(500).json({ error: 'Failed to fetch 2FA status' });
+    }
+});
+router.post('/2fa/setup', authMiddleware, async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const user = await UserModel.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (user.two_factor_enabled) {
+            return res.status(400).json({ error: 'Two-factor authentication is already enabled' });
+        }
+        const { secret, otpauthUrl } = generateTwoFactorSecret(user.email);
+        const updatedUser = await UserModel.saveTwoFactorSecret(user.id, secret);
+        res.json({
+            secret,
+            otpauthUrl,
+            user: buildUserResponse(updatedUser),
+        });
+    }
+    catch (error) {
+        console.error('Error preparing 2FA setup:', error);
+        res.status(500).json({ error: 'Failed to start 2FA setup' });
+    }
+});
+router.post('/2fa/verify', authMiddleware, async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { code } = req.body;
+        if (!code) {
+            return res.status(400).json({ error: 'Code is required' });
+        }
+        const user = await UserModel.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (!user.two_factor_secret) {
+            return res.status(400).json({ error: 'Two-factor authentication has not been initiated' });
+        }
+        const isValid = verifyTwoFactorToken(user.two_factor_secret, code);
+        if (!isValid) {
+            return res.status(401).json({ error: 'Invalid verification code' });
+        }
+        const recoveryCodes = generateRecoveryCodes();
+        const hashedCodes = recoveryCodes.map(hashRecoveryCode);
+        const updatedUser = await UserModel.enableTwoFactor(user.id, user.two_factor_secret, hashedCodes);
+        res.json({
+            enabled: true,
+            recoveryCodes,
+            user: buildUserResponse(updatedUser),
+        });
+    }
+    catch (error) {
+        console.error('Error verifying 2FA code:', error);
+        res.status(500).json({ error: 'Failed to verify 2FA code' });
+    }
+});
+router.post('/2fa/challenge', async (req, res) => {
+    try {
+        const { pendingToken, code, recoveryCode } = req.body;
+        if (!pendingToken) {
+            return res.status(400).json({ error: 'Pending token is required' });
+        }
+        let decoded;
+        try {
+            decoded = jwt.verify(pendingToken, JWT_SECRET);
+        }
+        catch (error) {
+            if (error instanceof jwt.JsonWebTokenError) {
+                return res.status(401).json({ error: 'Invalid or expired pending token' });
+            }
+            throw error;
+        }
+        if (!decoded.twoFactorPending) {
+            return res.status(400).json({ error: 'Invalid pending token' });
+        }
+        let user = await UserModel.findById(decoded.userId);
+        if (!user || !user.two_factor_enabled || !user.two_factor_secret) {
+            return res.status(401).json({ error: 'Two-factor authentication is not enabled for this user' });
+        }
+        if (!code && !recoveryCode) {
+            return res.status(400).json({ error: 'A verification code or recovery code is required' });
+        }
+        let recoveryCodeUsed = false;
+        if (code) {
+            const isValid = verifyTwoFactorToken(user.two_factor_secret, code);
+            if (!isValid) {
+                return res.status(401).json({ error: 'Invalid verification code' });
+            }
+        }
+        else if (recoveryCode) {
+            const result = verifyRecoveryCode(user.two_factor_recovery_codes ?? [], recoveryCode);
+            if (!result.valid) {
+                return res.status(401).json({ error: 'Invalid recovery code' });
+            }
+            recoveryCodeUsed = true;
+            user = await UserModel.updateRecoveryCodes(user.id, result.remaining);
+        }
+        const sessionToken = createSessionToken(user);
+        res.json({
+            token: sessionToken,
+            user: buildUserResponse(user),
+            recoveryCodeUsed,
+            recoveryCodesRemaining: user.two_factor_recovery_codes?.length ?? 0,
+        });
+    }
+    catch (error) {
+        console.error('Error processing 2FA challenge:', error);
+        res.status(500).json({ error: 'Failed to process 2FA challenge' });
+    }
+});
+router.delete('/2fa', authMiddleware, async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { code, recoveryCode } = req.body;
+        if (!code && !recoveryCode) {
+            return res.status(400).json({ error: 'A verification code or recovery code is required' });
+        }
+        const user = await UserModel.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        if (!user.two_factor_enabled || !user.two_factor_secret) {
+            return res.status(400).json({ error: 'Two-factor authentication is not enabled' });
+        }
+        if (code) {
+            const isValid = verifyTwoFactorToken(user.two_factor_secret, code);
+            if (!isValid) {
+                return res.status(401).json({ error: 'Invalid verification code' });
+            }
+        }
+        else if (recoveryCode) {
+            const result = verifyRecoveryCode(user.two_factor_recovery_codes ?? [], recoveryCode);
+            if (!result.valid) {
+                return res.status(401).json({ error: 'Invalid recovery code' });
+            }
+        }
+        const updatedUser = await UserModel.disableTwoFactor(user.id);
+        res.json({
+            success: true,
+            user: buildUserResponse(updatedUser),
+        });
+    }
+    catch (error) {
+        console.error('Error disabling 2FA:', error);
+        res.status(500).json({ error: 'Failed to disable 2FA' });
     }
 });
 router.get('/api-key', authMiddleware, async (req, res) => {

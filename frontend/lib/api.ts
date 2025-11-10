@@ -120,6 +120,8 @@ export interface User {
   verified: boolean;
   is_premium?: boolean;
   subscription_tier?: SubscriptionTier;
+  two_factor_enabled?: boolean;
+  two_factor_confirmed_at?: string | null;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -141,15 +143,65 @@ export interface TaskifyResponse {
   item?: Item;
 }
 
+export interface TwoFactorStatus {
+  enabled: boolean;
+  confirmedAt: string | null;
+  recoveryCodesRemaining: number;
+}
+
+export interface TwoFactorSetupResponse {
+  secret: string;
+  otpauthUrl: string;
+  user: User;
+}
+
+export interface TwoFactorVerifyResponse {
+  enabled: boolean;
+  recoveryCodes: string[];
+  user: User;
+}
+
+export interface TwoFactorChallengeResponse {
+  token: string;
+  user: User;
+  recoveryCodeUsed: boolean;
+  recoveryCodesRemaining: number;
+}
+
+export interface TwoFactorDisableResponse {
+  success: boolean;
+  user: User;
+}
+
 export interface SearchResult {
   item: Item;
   similarity: number;
   source?: string;
+  scores?: SearchResultScores;
 }
 
 export interface SearchResponse {
   query: string;
   results: SearchResult[];
+}
+
+export interface SearchResultScores {
+  overall: number;
+  vector: number;
+  recency: number;
+  tagBoost: number;
+  titleBoost: number;
+  ownerBoost: number;
+}
+
+export interface SearchFilters {
+  types?: string[];
+  tags?: string[];
+  sources?: string[];
+  uploadedBy?: 'me' | 'shared' | 'all';
+  dateFrom?: string;
+  dateTo?: string;
+  hasAttachments?: boolean;
 }
 
 export interface ReceivedEmail {
@@ -293,11 +345,14 @@ class ApiClient {
   }
 
   async verifyToken(token: string) {
-    const response = await this.request<{ token: string; user: User }>(
+    const response = await this.request<
+      | { token: string; user: User }
+      | { twoFactorRequired: true; pendingToken: string; user: User }
+    >(
       `/api/auth/verify?token=${token}`,
       { method: 'GET' }
     );
-    if (response.token) {
+    if ('token' in response && response.token) {
       this.setToken(response.token);
     }
     return response;
@@ -321,6 +376,42 @@ class ApiClient {
 
   async revokeApiKey(): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>('/api/auth/api-key', { method: 'DELETE' });
+  }
+
+  async getTwoFactorStatus(): Promise<TwoFactorStatus> {
+    return this.request<TwoFactorStatus>('/api/auth/2fa', { method: 'GET' });
+  }
+
+  async startTwoFactorSetup(): Promise<TwoFactorSetupResponse> {
+    return this.request<TwoFactorSetupResponse>('/api/auth/2fa/setup', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async verifyTwoFactorSetup(code: string): Promise<TwoFactorVerifyResponse> {
+    return this.request<TwoFactorVerifyResponse>('/api/auth/2fa/verify', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  async completeTwoFactorChallenge(params: { pendingToken: string; code?: string; recoveryCode?: string }): Promise<TwoFactorChallengeResponse> {
+    const response = await this.request<TwoFactorChallengeResponse>('/api/auth/2fa/challenge', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+    if (response.token) {
+      this.setToken(response.token);
+    }
+    return response;
+  }
+
+  async disableTwoFactor(params: { code?: string; recoveryCode?: string }): Promise<TwoFactorDisableResponse> {
+    return this.request<TwoFactorDisableResponse>('/api/auth/2fa', {
+      method: 'DELETE',
+      body: JSON.stringify(params),
+    });
   }
 
   // Items
@@ -577,8 +668,43 @@ class ApiClient {
   }
 
   // Search
-  async search(query: string): Promise<SearchResponse> {
-    return this.request<SearchResponse>(`/api/search?q=${encodeURIComponent(query)}`);
+  async search(
+    query: string,
+    options?: {
+      limit?: number;
+      filters?: SearchFilters;
+    }
+  ): Promise<SearchResponse> {
+    const params = new URLSearchParams();
+    params.set('q', query);
+
+    if (options?.limit && Number.isFinite(options.limit)) {
+      params.set('limit', Math.max(1, Math.min(options.limit, 50)).toString());
+    }
+
+    const filters = options?.filters;
+    if (filters) {
+      filters.types?.forEach((value) => params.append('type', value));
+      filters.tags?.forEach((value) => params.append('tag', value));
+      filters.sources?.forEach((value) => params.append('source', value));
+
+      if (filters.uploadedBy && filters.uploadedBy !== 'all') {
+        params.set('uploadedBy', filters.uploadedBy);
+      }
+
+      if (typeof filters.hasAttachments === 'boolean' && filters.hasAttachments) {
+        params.set('hasAttachments', 'true');
+      }
+
+      if (filters.dateFrom) {
+        params.set('dateFrom', filters.dateFrom);
+      }
+      if (filters.dateTo) {
+        params.set('dateTo', filters.dateTo);
+      }
+    }
+
+    return this.request<SearchResponse>(`/api/search?${params.toString()}`);
   }
 
   // Generate

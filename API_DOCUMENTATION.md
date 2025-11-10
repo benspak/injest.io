@@ -596,7 +596,15 @@ Perform semantic search across all indexed items using vector similarity.
 **Authentication:** Required
 
 **Query Parameters:**
-- `q` (string, required) - Search query
+- `q` (string, required) - Search query (minimum 2 characters)
+- `limit` (number, optional) - Maximum number of results to return (default `10`, max `50`)
+- `type` (string, optional) - Filter by item type (`note`, `link`, `file`, `email`, `task`). May be provided multiple times or as a comma-separated list.
+- `tag` (string, optional) - Filter by tag. May be provided multiple times or as a comma-separated list. Tag comparisons are case-insensitive.
+- `source` (string, optional) - Filter by item source (e.g. `web`, `email:resend`). May be provided multiple times.
+- `uploadedBy` (string, optional) - Filter by ownership: `me` (items you uploaded), `shared` (items shared with you), or `all` (default).
+- `hasAttachments` (boolean, optional) - When `true`, only items with attachments are returned.
+- `dateFrom` (ISO 8601 string, optional) - Filter results created on or after this timestamp.
+- `dateTo` (ISO 8601 string, optional) - Filter results created on or before this timestamp.
 
 **Response:** `200 OK`
 ```json
@@ -610,8 +618,16 @@ Perform semantic search across all indexed items using vector similarity.
         "description": "Item description",
         ...
       },
-      "similarity": 0.95,
-      "source": "web"
+          "similarity": 0.95,
+          "source": "web",
+          "scores": {
+            "overall": 0.95,
+            "vector": 0.91,
+            "recency": 0.68,
+            "tagBoost": 0.05,
+            "titleBoost": 0.03,
+            "ownerBoost": 0.03
+          }
     }
   ]
 }
@@ -623,9 +639,10 @@ Perform semantic search across all indexed items using vector similarity.
 - `500 Internal Server Error` - Failed to search
 
 **Notes:**
-- Returns top 10 most similar results
-- Results are ordered by similarity score (higher is better)
-- Only searches items that have been indexed (have embeddings)
+- Supports metadata filters for type, tags, source, uploaded owner, attachments, and date range.
+- Results include a `scores` object that breaks down the overall ranking into vector similarity, recency, and metadata boosts.
+- Responses are cached per user for 60 seconds and automatically invalidated when items are indexed, updated, shared, or deleted.
+- Only items the requesting user owns or has been granted access to are included.
 
 ---
 
@@ -1115,8 +1132,13 @@ curl -X POST https://api.injest.io/api/items \
 ### Searching Items
 
 ```bash
-curl -X GET "https://api.injest.io/api/search?q=project%20ideas" \
-  -H "Authorization: Bearer YOUR_TOKEN"
+curl -G "https://api.injest.io/api/search" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  --data-urlencode "q=project planning" \
+  --data-urlencode "type=note" \
+  --data-urlencode "tag=roadmap" \
+  --data-urlencode "uploadedBy=me" \
+  --data-urlencode "hasAttachments=true"
 ```
 
 ### Generating AI Content

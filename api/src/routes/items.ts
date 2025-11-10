@@ -28,6 +28,7 @@ import {
   getPlan,
   type SubscriptionTier,
 } from '../utils/subscriptionPlans.js';
+import { searchService } from '../services/search.js';
 
 type UploadedFileWithChecksum = Express.Multer.File & { checksum: string };
 
@@ -1656,6 +1657,7 @@ router.post('/:id/share', async (req: AuthRequest, res: express.Response) => {
     const shareUrl = baseUrl ? `${baseUrl}/items/${normalizedItem.id}` : `/items/${normalizedItem.id}`;
 
     await ItemAccessModel.grantAccess(item.id, trimmedEmail, { grantedByUserId: req.user.id });
+    await searchService.invalidateForItem(item.id);
 
     await emailService.sendItemShareEmail({
       to: trimmedEmail,
@@ -1784,6 +1786,7 @@ router.delete('/:id', async (req: AuthRequest, res: express.Response) => {
     }
 
     await ItemModel.delete(req.params.id);
+    await searchService.invalidateForItem(item.id);
     res.json({ message: 'Item deleted' });
   } catch (error) {
     console.error('Error deleting item:', error);

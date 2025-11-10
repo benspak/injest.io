@@ -2,6 +2,7 @@ import { ItemModel, type Item } from '../models/Item.js';
 import { embeddingService } from './embeddings.js';
 import { openAIService } from './openai.js';
 import { itemStreamService } from './itemStream.js';
+import { searchService } from './search.js';
 
 export class IndexingService {
   async indexItem(itemOrId: Item | string, options: { retries?: number } = {}): Promise<boolean> {
@@ -39,6 +40,7 @@ export class IndexingService {
       }
 
       itemStreamService.broadcastIndexedItem(updatedItem);
+      await searchService.invalidateForItem(updatedItem.id);
       return true;
     } catch (error: any) {
       if (error?.code === '23503') {

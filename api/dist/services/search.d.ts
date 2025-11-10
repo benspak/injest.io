@@ -1,9 +1,33 @@
+import type { SearchFilters } from '../types/search.js';
+export interface SearchResultScores {
+    overall: number;
+    vector: number;
+    recency: number;
+    tagBoost: number;
+    titleBoost: number;
+    ownerBoost: number;
+}
 export interface SearchResult {
     item: any;
     similarity: number;
+    scores?: SearchResultScores;
 }
 export declare class SearchService {
-    search(ownerId: string, query: string, limit?: number): Promise<SearchResult[]>;
+    private cache;
+    private userCacheKeys;
+    private buildCacheKey;
+    private serializeFilters;
+    private unlinkCacheKey;
+    private getFromCache;
+    private storeInCache;
+    private pruneCache;
+    invalidateForUser(userId: string): void;
+    invalidateForItem(itemId: string): Promise<void>;
+    clearCache(): void;
+    search(user: {
+        id: string;
+        email?: string | null;
+    }, query: string, limit?: number, filters?: SearchFilters): Promise<SearchResult[]>;
     private semanticSearch;
     private textSearch;
     private combineResults;

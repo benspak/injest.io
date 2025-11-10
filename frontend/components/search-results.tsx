@@ -12,26 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiClient, Item, LinkMetadata } from '@/lib/api';
-
-interface SearchResult {
-  item: {
-    id: string;
-    type?: string;
-    raw?: string;
-    title?: string;
-    description?: string;
-    url?: string;
-    attachments?: any[];
-    clean?: string;
-    tags?: string[];
-    source?: string;
-    link_metadata?: LinkMetadata;
-    notes?: string;
-    created_at: string;
-  };
-  similarity: number;
-}
+import { apiClient, type Item, type LinkMetadata, type SearchResult } from '@/lib/api';
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -97,6 +78,44 @@ export function SearchResults({ results }: SearchResultsProps) {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatRelativeTime = (dateString: string) => {
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) {
+      return '';
+    }
+    const diffMs = Date.now() - date.getTime();
+    const minutes = Math.round(diffMs / 60000);
+    if (minutes < 60) {
+      return `${Math.max(minutes, 0)}m ago`;
+    }
+    const hours = Math.round(minutes / 60);
+    if (hours < 48) {
+      return `${hours}h ago`;
+    }
+    const days = Math.round(hours / 24);
+    if (days < 14) {
+      return `${days}d ago`;
+    }
+    const weeks = Math.round(days / 7);
+    if (weeks < 10) {
+      return `${weeks}w ago`;
+    }
+    const months = Math.round(days / 30);
+    if (months < 24) {
+      return `${months}mo ago`;
+    }
+    const years = Math.round(days / 365);
+    return `${years}y ago`;
+  };
+
+  const formatScore = (value?: number) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return null;
+    }
+    const clamped = Math.max(0, Math.min(value, 1));
+    return `${Math.round(clamped * 100)}%`;
   };
 
   const fetchLinkMetadata = async (itemId: string, url: string) => {
@@ -417,7 +436,13 @@ export function SearchResults({ results }: SearchResultsProps) {
           const metadata = result.item.link_metadata;
           const hasUrl = !!result.item.url;
           const displayTitle = metadata?.title || display.title || result.item.title || 'Untitled';
-          const displayDescription = metadata?.description || result.item.description || display.description || result.item.clean || '';
+          const displayDescription =
+            metadata?.description || result.item.description || display.description || result.item.clean || '';
+          const overallScore = result.scores?.overall ?? result.similarity;
+          const vectorScore = result.scores?.vector ?? undefined;
+          const recencyScore = result.scores?.recency ?? undefined;
+          const relativeTime = result.item.created_at ? formatRelativeTime(result.item.created_at) : '';
+          const overallScoreLabel = formatScore(overallScore);
 
           return (
             <Card
@@ -427,10 +452,35 @@ export function SearchResults({ results }: SearchResultsProps) {
             >
               <CardHeader className="p-3 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                  <CardTitle className="text-sm sm:text-base leading-tight pr-2">{displayTitle}</CardTitle>
-                  <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                    {(result.similarity * 100).toFixed(0)}% match
-                  </span>
+                  <div className="flex flex-col gap-1 pr-2">
+                    <CardTitle className="text-sm sm:text-base leading-tight">{displayTitle}</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      {result.item.type && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 capitalize">{result.item.type}</span>
+                      )}
+                      {result.item.source && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5">{result.item.source}</span>
+                      )}
+                      {relativeTime && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5">{relativeTime}</span>
+                      )}
+                      {vectorScore !== undefined && vectorScore > 0 && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">
+                          Vector {formatScore(vectorScore)}
+                        </span>
+                      )}
+                      {recencyScore !== undefined && recencyScore > 0 && (
+                        <span className="rounded-full bg-green-50 px-2 py-0.5 text-green-700">
+                          Recency {formatScore(recencyScore)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {overallScoreLabel && (
+                    <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                      {overallScoreLabel} match
+                    </span>
+                  )}
                 </div>
               </CardHeader>
               <CardContent className="p-3 sm:p-6 pt-0">
