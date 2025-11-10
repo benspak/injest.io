@@ -22,6 +22,35 @@ type ApiKeyInfoState = {
   lastUsedAt: string | null;
 };
 
+type ExternalEndpoint = {
+  method: string;
+  path: string;
+  useCase: string;
+};
+
+const externalApiEndpoints: ExternalEndpoint[] = [
+  {
+    method: 'POST',
+    path: '/items',
+    useCase: 'Capture a new item, including optional attachments, from your own tools.',
+  },
+  {
+    method: 'GET',
+    path: '/items',
+    useCase: 'List your indexed items. Supports limit and offset for pagination.',
+  },
+  {
+    method: 'GET',
+    path: '/items/:id',
+    useCase: 'Retrieve full details for a specific item by its ID.',
+  },
+  {
+    method: 'GET',
+    path: '/search',
+    useCase: 'Search across your items with a query using the q parameter.',
+  },
+];
+
 export default function DashboardPage() {
   const router = useRouter();
   const [items, setItems] = useState<Item[]>([]);
@@ -852,17 +881,24 @@ export default function DashboardPage() {
 
                   <div className="space-y-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Example requests
+                      Available endpoints
                     </p>
-                    <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
-                      {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items?limit=25"`}
-                    </pre>
-                    <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
-                      {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/search?q=meeting"`}
-                    </pre>
-                    <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs font-mono">
-                      {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items/ITEM_ID"`}
-                    </pre>
+                    <div className="space-y-2">
+                      {externalApiEndpoints.map((endpoint) => (
+                        <div
+                          key={endpoint.path}
+                          className="rounded-md border border-dashed bg-muted/40 p-3 space-y-1"
+                        >
+                          <p className="font-mono text-[11px] sm:text-xs">
+                            <span className="mr-2 inline-block rounded-sm bg-emerald-100 px-1.5 py-[1px] font-semibold text-emerald-700">
+                              {endpoint.method}
+                            </span>
+                            {`${externalApiBaseUrl}${endpoint.path}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">{endpoint.useCase}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="space-y-2">
