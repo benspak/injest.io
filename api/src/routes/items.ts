@@ -223,7 +223,7 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({
+export const upload = multer({
   storage,
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB
@@ -623,7 +623,7 @@ async function processQueuedUpload(job: QueuedUploadJob, loggerPrefix = '[UPLOAD
 }
 
 // Create item (unified structure)
-router.post('/', upload.array('attachments', 1000), async (req: AuthRequest, res: express.Response, next: express.NextFunction) => {
+export async function handleCreateItem(req: AuthRequest, res: express.Response) {
   try {
     // Log incoming request for debugging
     console.log('[DEBUG] Creating item - body:', req.body);
@@ -1041,7 +1041,9 @@ router.post('/', upload.array('attachments', 1000), async (req: AuthRequest, res
       details: process.env.NODE_ENV === 'development' ? error?.message : undefined
     });
   }
-});
+}
+
+router.post('/', upload.array('attachments', 1000), handleCreateItem);
 
 // Background function to process bookmarks
 async function processBookmarksInBackground(

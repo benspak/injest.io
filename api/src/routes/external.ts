@@ -1,13 +1,32 @@
 import express from 'express';
 import type { ApiKeyRequest } from '../middleware/apiKeyAuth.js';
 import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth.js';
+import type { AuthRequest } from '../middleware/auth.js';
 import { ItemModel } from '../models/Item.js';
 import { normalizeItem } from '../utils/itemNormalization.js';
 import { searchService } from '../services/search.js';
+import { upload as itemUpload, handleCreateItem } from './items.js';
 
 const router = express.Router();
 
 router.use(apiKeyAuthMiddleware);
+
+router.post('/items', itemUpload.array('attachments', 1000), async (req: ApiKeyRequest, res: express.Response) => {
+  try {
+    if (!req.apiUser) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    req.user = { id: req.apiUser.id, email: req.apiUser.email };
+
+    await handleCreateItem(req as unknown as AuthRequest, res);
+  } catch (error) {
+    console.error('[External API] Failed to create item:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to create item' });
+    }
+  }
+});
 
 router.get('/items', async (req: ApiKeyRequest, res: express.Response) => {
   try {

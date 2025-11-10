@@ -11,8 +11,8 @@ A Chrome extension that replicates the Injest capture form and allows you to qui
   - File attachments (optional)
   - Notes (optional)
 - **Clipboard Capture**: Press `Cmd+Shift+V` (Mac) or `Ctrl+Shift+V` (Windows/Linux) to quickly capture clipboard content
-- **API Integration**: Directly interfaces with your Injest API
-- **Settings Page**: Configure your API URL and authentication token
+- **External API Integration**: Uses your personal Injest external API key for secure access
+- **Settings Page**: Configure your external API URL and API key
 
 ## Installation
 
@@ -26,19 +26,17 @@ A Chrome extension that replicates the Injest capture form and allows you to qui
 
 1. Click the extension icon in your Chrome toolbar
 2. Click "Settings" at the bottom of the popup
-3. Enter your API URL (e.g., `https://api.injest.io` or `http://localhost:5555`)
-4. Enter your JWT authentication token (see instructions below)
+3. Enter your External API URL (default: `https://api.injest.io/api/external`)
+4. Enter your API key (see instructions below)
 5. Click "Test Connection" to verify your settings
 6. Click "Save Settings"
 
-### Getting Your Authentication Token
+### Getting Your API Key
 
 1. Log in to your Injest web app
-2. Open your browser's Developer Tools (F12)
-3. Go to the Application/Storage tab
-4. Find "Local Storage" and select your app's domain
-5. Look for the "token" key and copy its value
-6. Paste it in the "Authentication Token" field in the extension settings
+2. Open the dashboard and navigate to the **External API Access** card
+3. Generate a new API key (or copy your existing key)
+4. Paste the API key into the extension settings
 
 ## Usage
 
@@ -56,7 +54,7 @@ A Chrome extension that replicates the Injest capture form and allows you to qui
 3. The extension will automatically detect if it's a URL or plain text
 4. A notification will confirm the item was created
 
-**Note**: 
+**Note**:
 - Chrome extensions cannot intercept the standard `Cmd+V` / `Ctrl+V` paste shortcut due to browser security restrictions. The extension uses `Cmd+Shift+V` / `Ctrl+Shift+V` instead.
 - The keyboard shortcut can be customized in Chrome's extension keyboard shortcuts settings:
   - Go to `chrome://extensions/shortcuts`
@@ -110,9 +108,9 @@ chrome-extension/
 
 ## API Integration
 
-The extension makes POST requests to `/api/items` with:
-- `Authorization: Bearer <token>` header
+The extension makes POST requests to your external API endpoint (`/api/external/items`) with:
+- `x-api-key: <your-api-key>` header
 - FormData body with fields: `title`, `description`, `url`, `notes`, `attachments`
+- Additional metadata captured from clipboard interactions (`source: chrome-extension`)
 
 This matches the exact API interface used by the web application.
-

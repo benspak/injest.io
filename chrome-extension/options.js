@@ -1,46 +1,66 @@
 // DOM elements
 const form = document.getElementById('settingsForm');
 const apiUrlInput = document.getElementById('apiUrl');
-const authTokenInput = document.getElementById('authToken');
+const apiKeyInput = document.getElementById('apiKey');
 const testBtn = document.getElementById('testBtn');
 const messageDiv = document.getElementById('message');
 
+const DEFAULT_EXTERNAL_API_URL = 'https://api.injest.io/api/external';
+
 // Load saved settings
 async function loadSettings() {
-  const result = await chrome.storage.sync.get(['apiUrl', 'authToken']);
-  if (result.apiUrl) {
-    apiUrlInput.value = result.apiUrl;
+  const result = await chrome.storage.sync.get(['externalApiUrl', 'apiKey', 'apiUrl']);
+  const updates = {};
+
+  let externalApiUrl = (result.externalApiUrl || '').replace(/\/+$/, '');
+  const apiKey = result.apiKey || '';
+
+  if (!externalApiUrl && result.apiUrl) {
+    const normalizedLegacyUrl = result.apiUrl.replace(/\/+$/, '');
+    if (normalizedLegacyUrl) {
+      externalApiUrl = `${normalizedLegacyUrl}/api/external`;
+      updates.externalApiUrl = externalApiUrl;
+    }
   }
-  if (result.authToken) {
-    authTokenInput.value = result.authToken;
+
+  if (!externalApiUrl) {
+    externalApiUrl = DEFAULT_EXTERNAL_API_URL;
+    updates.externalApiUrl = externalApiUrl;
   }
+
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.sync.set(updates);
+  }
+
+  apiUrlInput.value = externalApiUrl || '';
+  apiKeyInput.value = apiKey || '';
 }
 
 // Save settings
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
-  
+
   const apiUrl = apiUrlInput.value.trim();
-  const authToken = authTokenInput.value.trim();
-  
-  if (!apiUrl || !authToken) {
+  const apiKey = apiKeyInput.value.trim();
+
+  if (!apiUrl || !apiKey) {
     showMessage('Please fill in all fields', 'error');
     return;
   }
-  
+
   // Normalize API URL
   let normalizedUrl = apiUrl;
   if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
     normalizedUrl = `https://${normalizedUrl}`;
   }
   normalizedUrl = normalizedUrl.replace(/\/+$/, ''); // Remove trailing slashes
-  
+
   try {
     await chrome.storage.sync.set({
-      apiUrl: normalizedUrl,
-      authToken: authToken
+      externalApiUrl: normalizedUrl,
+      apiKey: apiKey
     });
-    
+
     showMessage('Settings saved successfully!', 'success');
   } catch (error) {
     showMessage('Failed to save settings: ' + error.message, 'error');
@@ -50,40 +70,40 @@ form.addEventListener('submit', async (e) => {
 // Test connection
 testBtn.addEventListener('click', async () => {
   const apiUrl = apiUrlInput.value.trim();
-  const authToken = authTokenInput.value.trim();
-  
-  if (!apiUrl || !authToken) {
+  const apiKey = apiKeyInput.value.trim();
+
+  if (!apiUrl || !apiKey) {
     showMessage('Please fill in all fields first', 'error');
     return;
   }
-  
+
   // Normalize API URL
   let normalizedUrl = apiUrl;
   if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
     normalizedUrl = `https://${normalizedUrl}`;
   }
   normalizedUrl = normalizedUrl.replace(/\/+$/, '');
-  
+
   testBtn.disabled = true;
   testBtn.textContent = 'Testing...';
   clearMessage();
-  
+
   try {
-    const response = await fetch(`${normalizedUrl}/api/auth/me`, {
+    const response = await fetch(`${normalizedUrl}/items?limit=1`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${authToken}`
+        'x-api-key': apiKey
       }
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
       throw new Error(errorData.error || `Request failed: ${response.status}`);
     }
-    
-    const data = await response.json();
-    showMessage('Connection successful! You are authenticated as: ' + (data.user?.email || 'Unknown'), 'success');
-    
+    const data = await response.json().catch(() => ({}));
+    const totalCount = Array.isArray(data.items) ? data.items.length : 'unknown';
+    showMessage(`Connection successful! Retrieved ${totalCount} item(s).`, 'success');
+
   } catch (error) {
     let errorMessage = 'Connection failed';
     if (error.message) {
@@ -101,6 +121,7 @@ testBtn.addEventListener('click', async () => {
 function showMessage(text, type) {
   messageDiv.textContent = text;
   messageDiv.className = `message ${type}`;
+  messageDiv.style.display = 'block';
 }
 
 function clearMessage() {
@@ -111,4 +132,3 @@ function clearMessage() {
 
 // Load settings on page load
 loadSettings();
-

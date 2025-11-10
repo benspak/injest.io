@@ -1,5 +1,7 @@
 // Background service worker for clipboard monitoring
 
+const DEFAULT_EXTERNAL_API_URL = 'https://api.injest.io/api/external';
+
 // Listen for commands (Cmd+Shift+V / Ctrl+Shift+V)
 chrome.commands.onCommand.addListener((command) => {
   if (command === 'capture-clipboard') {
@@ -12,35 +14,35 @@ async function handleClipboardCapture() {
   try {
     // Get current active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (!tab || !tab.id) {
       console.error('No active tab found');
       return;
     }
-    
+
     // Get clipboard content
     const clipboardText = await getClipboardText();
-    
+
     if (!clipboardText) {
       console.log('No text in clipboard');
       return;
     }
-    
+
     // Check if configured
-    const config = await chrome.storage.sync.get(['apiUrl', 'authToken']);
-    if (!config.apiUrl || !config.authToken) {
+    const config = await loadConfig();
+    if (!config) {
       // Open options page if not configured
       chrome.runtime.openOptionsPage();
       return;
     }
-    
+
     // Try to detect if clipboard contains a URL
     const urlPattern = /^https?:\/\/.+/i;
     const isUrl = urlPattern.test(clipboardText.trim());
-    
+
     // Create item from clipboard
     await createItemFromClipboard(clipboardText, isUrl, config);
-    
+
   } catch (error) {
     console.error('Error capturing clipboard:', error);
   }
@@ -52,12 +54,12 @@ async function getClipboardText() {
     // Service workers don't have direct clipboard access
     // We need to inject a script into the active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (!tab || !tab.id) {
       console.error('No active tab found');
       return null;
     }
-    
+
     // Inject script to read clipboard from the page context
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -70,22 +72,53 @@ async function getClipboardText() {
         } catch (e) {
           console.log('Clipboard API not available:', e);
         }
-        
+
         // Fallback: return empty string (user will need to paste manually)
         return '';
       }
     });
-    
+
     if (results && results[0] && results[0].result) {
       return results[0].result;
     }
-    
+
     return null;
   } catch (error) {
     console.error('Error reading clipboard:', error);
     // If clipboard access fails, we'll create an item with a prompt
     return null;
   }
+}
+
+async function loadConfig() {
+  const result = await chrome.storage.sync.get(['externalApiUrl', 'apiKey', 'apiUrl']);
+  const updates = {};
+
+  let externalApiUrl = (result.externalApiUrl || '').replace(/\/+$/, '');
+  const apiKey = result.apiKey || '';
+
+  if (!externalApiUrl && result.apiUrl) {
+    const normalizedLegacyUrl = result.apiUrl.replace(/\/+$/, '');
+    if (normalizedLegacyUrl) {
+      externalApiUrl = `${normalizedLegacyUrl}/api/external`;
+      updates.externalApiUrl = externalApiUrl;
+    }
+  }
+
+  if (!externalApiUrl) {
+    externalApiUrl = DEFAULT_EXTERNAL_API_URL;
+    updates.externalApiUrl = externalApiUrl;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.sync.set(updates);
+  }
+
+  if (!externalApiUrl || !apiKey) {
+    return null;
+  }
+
+  return { externalApiUrl, apiKey };
 }
 
 // Create item from clipboard content
@@ -102,33 +135,33 @@ async function createItemFromClipboard(text, isUrl, config) {
       });
       return;
     }
-    
+
     const formData = new FormData();
-    
+
     if (isUrl) {
       formData.append('url', text.trim());
     } else {
       formData.append('description', text);
     }
-    
+
     // Set source to indicate it came from extension
     formData.append('source', 'chrome-extension');
-    
-    const response = await fetch(`${config.apiUrl}/api/items`, {
+
+    const response = await fetch(`${config.externalApiUrl}/items`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${config.authToken}`
+        'x-api-key': config.apiKey
       },
       body: formData
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
       throw new Error(errorData.details || errorData.error || 'Failed to create item');
     }
-    
+
     const item = await response.json();
-    
+
     // Show notification
     chrome.notifications.create({
       type: 'basic',
@@ -136,12 +169,12 @@ async function createItemFromClipboard(text, isUrl, config) {
       title: 'Injest Capture',
       message: isUrl ? 'URL captured successfully!' : 'Text captured successfully!'
     });
-    
+
     console.log('Item created:', item);
-    
+
   } catch (error) {
     console.error('Error creating item:', error);
-    
+
     // Show error notification
     chrome.notifications.create({
       type: 'basic',
@@ -163,4 +196,3 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true; // Will respond asynchronously
   }
 });
-
