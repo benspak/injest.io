@@ -26,7 +26,7 @@ A Chrome extension that replicates the Injest capture form and allows you to qui
 
 1. Click the extension icon in your Chrome toolbar
 2. Click "Settings" at the bottom of the popup
-3. Enter your External API URL (default: `https://api.injest.io/api/external`)
+3. Enter your External API URL (default: `https://injest-api.onrender.com/api/external`)
 4. Enter your API key (see instructions below)
 5. Click "Test Connection" to verify your settings
 6. Click "Save Settings"

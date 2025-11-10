@@ -1,6 +1,7 @@
 // Background service worker for clipboard monitoring
 
-const DEFAULT_EXTERNAL_API_URL = 'https://api.injest.io/api/external';
+const DEFAULT_EXTERNAL_API_URL = 'https://injest-api.onrender.com/api/external';
+const LEGACY_EXTERNAL_API_URL = 'https://api.injest.io/api/external';
 
 // Listen for commands (Cmd+Shift+V / Ctrl+Shift+V)
 chrome.commands.onCommand.addListener((command) => {
@@ -103,6 +104,11 @@ async function loadConfig() {
       externalApiUrl = `${normalizedLegacyUrl}/api/external`;
       updates.externalApiUrl = externalApiUrl;
     }
+  }
+
+  if (externalApiUrl === LEGACY_EXTERNAL_API_URL) {
+    externalApiUrl = DEFAULT_EXTERNAL_API_URL;
+    updates.externalApiUrl = externalApiUrl;
   }
 
   if (!externalApiUrl) {

@@ -5,7 +5,8 @@ const apiKeyInput = document.getElementById('apiKey');
 const testBtn = document.getElementById('testBtn');
 const messageDiv = document.getElementById('message');
 
-const DEFAULT_EXTERNAL_API_URL = 'https://api.injest.io/api/external';
+const DEFAULT_EXTERNAL_API_URL = 'https://injest-api.onrender.com/api/external';
+const LEGACY_EXTERNAL_API_URL = 'https://api.injest.io/api/external';
 
 // Load saved settings
 async function loadSettings() {
@@ -21,6 +22,11 @@ async function loadSettings() {
       externalApiUrl = `${normalizedLegacyUrl}/api/external`;
       updates.externalApiUrl = externalApiUrl;
     }
+  }
+
+  if (externalApiUrl === LEGACY_EXTERNAL_API_URL) {
+    externalApiUrl = DEFAULT_EXTERNAL_API_URL;
+    updates.externalApiUrl = externalApiUrl;
   }
 
   if (!externalApiUrl) {

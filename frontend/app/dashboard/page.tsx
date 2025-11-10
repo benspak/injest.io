@@ -864,6 +864,19 @@ export default function DashboardPage() {
                       {`curl -H "x-api-key: YOUR_API_KEY" "${externalApiBaseUrl}/items/ITEM_ID"`}
                     </pre>
                   </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Use with the Chrome extension
+                    </p>
+                    <ol className="space-y-1 text-xs text-muted-foreground list-decimal list-inside">
+                      <li>Install the Injest Capture extension and click the puzzle icon to pin it.</li>
+                      <li>Open the extension, click <span className="font-medium">Settings</span>, and set the External API URL to <code className="font-mono">https://injest-api.onrender.com/api/external</code>.</li>
+                      <li>Paste the API key from above into the extension&apos;s API Key field.</li>
+                      <li>Click <span className="font-medium">Test Connection</span>, then <span className="font-medium">Save Settings</span> to finish.</li>
+                      <li>Use the popup or <kbd className="rounded border px-1 py-0.5">Cmd/CTRL+Shift+V</kbd> to capture items directly into Injest.</li>
+                    </ol>
+                  </div>
                 </CardContent>
               </Card>
             ) : (
