@@ -24,9 +24,10 @@ import { decodeOriginalFilename, normalizeAttachments, normalizeItem, sanitizeOr
 import { itemStreamService } from '../services/itemStream.js';
 import { emailService } from '../services/email.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
-import { ContactModel } from '../models/Contact.js';
+import { ContactModel, type Contact } from '../models/Contact.js';
 import { contactExtractor } from '../services/contactExtractor.js';
 import type { ContactCandidate } from '../services/contactExtractor.js';
+import { contactStreamService } from '../services/contactStream.js';
 import {
   coerceSubscriptionTier,
   getMaxIndexedItems,
@@ -112,11 +113,11 @@ async function persistContactCandidatesForItem(
   itemId: string,
   candidates: ContactCandidate[],
   context: { filename?: string; source?: string; textSample?: string } = {}
-): Promise<void> {
+): Promise<Contact[]> {
   const validCandidates = candidates.filter((candidate) => candidate.email);
 
   if (!validCandidates.length) {
-    return;
+    return [];
   }
 
   const metadataBase: Record<string, unknown> = {
@@ -132,7 +133,7 @@ async function persistContactCandidatesForItem(
     metadataBase.textSample = context.textSample;
   }
 
-  await ContactModel.upsertMany(
+  const contacts = await ContactModel.upsertMany(
     validCandidates.map((candidate) => ({
       ownerId,
       name: candidate.name ?? undefined,
@@ -145,6 +146,8 @@ async function persistContactCandidatesForItem(
     })),
     client
   );
+
+  return contacts;
 }
 
 // Download file or serve inline (for images)
@@ -516,6 +519,8 @@ async function processSingleFile(
   };
 
   const client = await pool.connect();
+  let contactsToBroadcast: Contact[] = [];
+
   try {
     await client.query('BEGIN');
 
@@ -640,7 +645,7 @@ async function processSingleFile(
     }, client);
 
     if (contactCandidates.length > 0) {
-      await persistContactCandidatesForItem(client, userId, item.id, contactCandidates, {
+      contactsToBroadcast = await persistContactCandidatesForItem(client, userId, item.id, contactCandidates, {
         filename: file.originalname,
         source: extractionSource,
         textSample: contactTextSample,
@@ -649,6 +654,10 @@ async function processSingleFile(
 
     await client.query('COMMIT');
     log(`Stage 3/4 complete (item ${item.id})`);
+
+    if (contactsToBroadcast.length > 0) {
+      contactStreamService.broadcastContacts(contactsToBroadcast);
+    }
 
     log('Stage 4/4: Generating embeddings and indexing');
     try {
@@ -1092,6 +1101,7 @@ export async function handleCreateItem(req: AuthRequest, res: express.Response) 
     }
 
     let item: Item | null = null;
+    let contactsToBroadcast: Contact[] = [];
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -1109,7 +1119,7 @@ export async function handleCreateItem(req: AuthRequest, res: express.Response) 
       }, client);
 
       if (item && contactCandidates.length > 0) {
-        await persistContactCandidatesForItem(client, req.user.id, item.id, contactCandidates, {
+        contactsToBroadcast = await persistContactCandidatesForItem(client, req.user.id, item.id, contactCandidates, {
           filename: contactFilename,
           source: contactExtractionSource,
           textSample: contactTextSample,
@@ -1151,6 +1161,10 @@ export async function handleCreateItem(req: AuthRequest, res: express.Response) 
 
     if (!item) {
       return;
+    }
+
+    if (contactsToBroadcast.length > 0) {
+      contactStreamService.broadcastContacts(contactsToBroadcast);
     }
 
     // Trigger indexing in background (don't await - let it run async)

@@ -1,8 +1,67 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { ContactModel } from '../models/Contact.js';
+import { UserModel } from '../models/User.js';
+import { JWT_SECRET } from '../config/auth.js';
+import { contactStreamService } from '../services/contactStream.js';
 
 const router = express.Router();
+
+router.get('/stream', async (req: express.Request, res: express.Response) => {
+  try {
+    let token: string | null = null;
+    const authHeader = req.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else if (req.query.token && typeof req.query.token === 'string') {
+      token = req.query.token;
+    }
+
+    if (!token) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    let decoded: { userId: string; email: string };
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    } catch {
+      res.status(401).json({ error: 'Invalid token' });
+      return;
+    }
+
+    const user = await UserModel.findById(decoded.userId);
+    if (!user || !user.verified) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    if (req.socket && typeof req.socket.setKeepAlive === 'function') {
+      req.socket.setKeepAlive(true);
+    }
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders?.();
+
+    const client = contactStreamService.addClient(user.id, res);
+
+    const cleanup = () => {
+      contactStreamService.removeClient(user.id, client);
+    };
+
+    req.on('close', cleanup);
+    req.on('end', cleanup);
+  } catch (error) {
+    console.error('[Contacts SSE] Failed to establish contact stream:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to establish stream' });
+    }
+  }
+});
 
 router.use(authMiddleware);
 
@@ -87,6 +146,8 @@ router.post('/', async (req: AuthRequest, res: express.Response) => {
       return res.status(400).json({ error: 'Unable to create contact with provided details.' });
     }
 
+    contactStreamService.broadcastContact(contact);
+
     return res.status(201).json({ contact });
   } catch (error) {
     console.error('[Contacts] Failed to create contact:', error);
@@ -120,6 +181,7 @@ router.patch('/:id', async (req: AuthRequest, res: express.Response) => {
       if (!contact) {
         return res.status(404).json({ error: 'Contact not found' });
       }
+      contactStreamService.broadcastContact(contact);
       return res.json({ contact });
     } catch (updateError) {
       if (updateError instanceof Error) {
@@ -150,6 +212,8 @@ router.delete('/:id', async (req: AuthRequest, res: express.Response) => {
     if (!deleted) {
       return res.status(404).json({ error: 'Contact not found' });
     }
+
+    contactStreamService.broadcastContactDeleted(req.user.id, contactId);
 
     return res.status(204).send();
   } catch (error) {

@@ -113,7 +113,7 @@ export class ContactModel {
           metadata
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (owner_id, normalized_email, normalized_phone, normalized_name)
+        ON CONFLICT (owner_id, normalized_email)
         DO UPDATE SET
           name = CASE
             WHEN EXCLUDED.name IS NOT NULL THEN EXCLUDED.name

@@ -46,6 +46,68 @@ export default function DashboardPage() {
     setSearchQuery(value);
   }, []);
 
+  const itemMatchesFilters = useCallback((item: Item): boolean => {
+    if (sourceFilter) {
+      if (sourceFilter === 'email') {
+        const isEmailSource = (item.source?.toLowerCase().startsWith('email:') ?? false) || item.type === 'email';
+        if (!isEmailSource) {
+          return false;
+        }
+      } else if (sourceFilter.startsWith('email:')) {
+        if ((item.source ?? '').toLowerCase() !== sourceFilter.toLowerCase()) {
+          return false;
+        }
+      } else if ((item.source ?? '') !== sourceFilter) {
+        return false;
+      }
+    }
+
+    if (hasAttachmentsFilter) {
+      if (!item.attachments || item.attachments.length === 0) {
+        return false;
+      }
+    }
+
+    if (fileTypeFilter) {
+      if (!item.attachments || item.attachments.length === 0) {
+        return false;
+      }
+
+      const matchesFileType = item.attachments.some((attachment) => {
+        const mimetype = attachment?.mimetype?.toLowerCase() ?? '';
+        if (!mimetype) {
+          return false;
+        }
+        if (fileTypeFilter === 'image') {
+          return mimetype.startsWith('image/');
+        }
+        if (fileTypeFilter === 'spreadsheet') {
+          return (
+            mimetype.includes('spreadsheet') ||
+            mimetype.includes('excel') ||
+            mimetype === 'text/csv' ||
+            mimetype === 'application/csv'
+          );
+        }
+        if (fileTypeFilter === 'document') {
+          return (
+            mimetype === 'application/pdf' ||
+            mimetype.includes('word') ||
+            mimetype === 'text/plain' ||
+            mimetype === 'text/rtf'
+          );
+        }
+        return false;
+      });
+
+      if (!matchesFileType) {
+        return false;
+      }
+    }
+
+    return true;
+  }, [fileTypeFilter, hasAttachmentsFilter, sourceFilter]);
+
 
   const loadIndexedCount = useCallback(async () => {
     try {
@@ -374,7 +436,8 @@ export default function DashboardPage() {
           return;
         }
 
-        if (sourceFilter || hasAttachmentsFilter || fileTypeFilter) {
+        if (!itemMatchesFilters(newItem)) {
+          void loadIndexedCount();
           return;
         }
 
@@ -417,7 +480,7 @@ export default function DashboardPage() {
       eventSource.close();
       itemStreamRef.current = null;
     };
-  }, [authLoading, hasAttachmentsFilter, itemStreamRetry, loadIndexedCount, sourceFilter, fileTypeFilter]);
+  }, [authLoading, hasAttachmentsFilter, itemMatchesFilters, itemStreamRetry, loadIndexedCount, sourceFilter, fileTypeFilter]);
 
   const handleDelete = async (itemId: string) => {
     try {

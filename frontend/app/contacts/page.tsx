@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { apiClient, type Contact } from '@/lib/api';
+import { apiClient, API_URL, type Contact } from '@/lib/api';
 import { auth } from '@/lib/auth';
 
 const CONTACTS_PAGE_SIZE = 25;
@@ -41,6 +41,8 @@ export default function ContactsPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
+  const contactStreamRef = useRef<EventSource | null>(null);
+  const [contactStreamRetry, setContactStreamRetry] = useState(0);
 
   const loadContacts = useCallback(async (offset: number = 0, reset: boolean = false) => {
     if (reset) {
@@ -100,6 +102,94 @@ export default function ContactsPage() {
 
     void initialize();
   }, [loadContacts, router]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    if (authLoading) {
+      return;
+    }
+
+    if (!auth.isAuthenticated()) {
+      if (contactStreamRef.current) {
+        contactStreamRef.current.close();
+        contactStreamRef.current = null;
+      }
+      return;
+    }
+
+    const token = localStorage.getItem('token');
+    if (!token) {
+      return;
+    }
+
+    const apiUrl = API_URL.replace(/\/+$/, '');
+    const streamUrl = `${apiUrl}/api/contacts/stream?token=${encodeURIComponent(token)}`;
+    const eventSource = new EventSource(streamUrl);
+    contactStreamRef.current = eventSource;
+
+    const handleUpserted = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const contact = payload?.contact as Contact | undefined;
+        if (!contact || !contact.id) {
+          return;
+        }
+
+        setContacts((prev) => {
+          const existingIndex = prev.findIndex((existing) => existing.id === contact.id);
+          let next: Contact[];
+          if (existingIndex >= 0) {
+            next = prev.map((existing, index) => (index === existingIndex ? contact : existing));
+          } else {
+            next = [contact, ...prev];
+          }
+
+          return next
+            .slice()
+            .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+        });
+      } catch (error) {
+        console.error('Failed to handle contact stream event:', error);
+      }
+    };
+
+    const handleDeleted = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const contactId = payload?.contactId as string | undefined;
+        if (!contactId) {
+          return;
+        }
+        setContacts((prev) => prev.filter((contact) => contact.id !== contactId));
+      } catch (error) {
+        console.error('Failed to handle contact deletion event:', error);
+      }
+    };
+
+    eventSource.addEventListener('contact-upserted', handleUpserted);
+    eventSource.addEventListener('contact-deleted', handleDeleted);
+
+    eventSource.onerror = (error) => {
+      console.error('Contact stream error:', error);
+      eventSource.close();
+      contactStreamRef.current = null;
+      setTimeout(() => {
+        setContactStreamRetry((retry) => retry + 1);
+      }, 3000);
+    };
+
+    return () => {
+      eventSource.removeEventListener('contact-upserted', handleUpserted);
+      eventSource.removeEventListener('contact-deleted', handleDeleted);
+      eventSource.close();
+      if (contactStreamRef.current === eventSource) {
+        contactStreamRef.current = null;
+      }
+    };
+  }, [authLoading, contactStreamRetry]);
 
   const currentUser = auth.getUser();
 
