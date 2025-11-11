@@ -21,6 +21,13 @@ import { apiClient, API_URL, type Contact } from '@/lib/api';
 import { auth } from '@/lib/auth';
 
 const CONTACTS_PAGE_SIZE = 25;
+const SEARCH_DEBOUNCE_MS = 300;
+
+type LoadContactsOptions = {
+  offset?: number;
+  reset?: boolean;
+  search?: string;
+};
 
 export default function ContactsPage() {
   const router = useRouter();
@@ -30,6 +37,7 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [nextOffset, setNextOffset] = useState<number | null>(null);
+  const [contactsCount, setContactsCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ mode: 'create' | 'edit'; contact?: Contact } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -43,48 +51,126 @@ export default function ContactsPage() {
   const [deletingContactId, setDeletingContactId] = useState<string | null>(null);
   const contactStreamRef = useRef<EventSource | null>(null);
   const [contactStreamRetry, setContactStreamRetry] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
-  const loadContacts = useCallback(async (offset: number = 0, reset: boolean = false) => {
-    if (reset) {
-      setLoading(true);
-      setError(null);
-    } else {
-      setLoadingMore(true);
+  const matchesSearch = useCallback((contact: Contact, query: string) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return true;
     }
 
-    try {
-      const response = await apiClient.getContacts(CONTACTS_PAGE_SIZE, offset);
-      const incoming = response.contacts ?? [];
+    const name = contact.name?.toLowerCase() ?? '';
+    const email = contact.email?.toLowerCase() ?? '';
+    const phone = contact.phone ?? '';
+    const phoneDigits = phone.replace(/\D+/g, '');
+    const queryDigits = normalizedQuery.replace(/\D+/g, '');
 
-      setContacts((prev) => {
-        if (reset) {
-          return incoming;
-        }
+    if (name.includes(normalizedQuery) || email.includes(normalizedQuery)) {
+      return true;
+    }
 
-        const existingIds = new Set(prev.map((contact) => contact.id));
-        const merged = [...prev];
+    if (queryDigits) {
+      return phoneDigits.includes(queryDigits);
+    }
 
-        incoming.forEach((contact) => {
-          if (!existingIds.has(contact.id)) {
-            merged.push(contact);
+    return false;
+  }, []);
+
+  const loadContacts = useCallback(
+    async ({ offset = 0, reset = false, search }: LoadContactsOptions = {}) => {
+      const effectiveSearch = search ?? appliedSearch;
+
+      if (reset) {
+        setLoading(true);
+        setError(null);
+        setContacts([]);
+        setHasMore(false);
+        setNextOffset(null);
+      } else {
+        setLoadingMore(true);
+      }
+
+      try {
+        const response = await apiClient.getContacts(CONTACTS_PAGE_SIZE, offset, effectiveSearch);
+        const incoming = response.contacts ?? [];
+
+        setContacts((prev) => {
+          if (reset) {
+            return incoming;
           }
+
+          const existingIds = new Set(prev.map((contact) => contact.id));
+          const merged = [...prev];
+
+          incoming.forEach((contact) => {
+            if (!existingIds.has(contact.id)) {
+              merged.push(contact);
+            }
+          });
+
+          return merged;
         });
 
-        return merged;
-      });
-
-      setHasMore(response.pagination?.hasMore ?? false);
-      setNextOffset(response.pagination?.nextOffset ?? null);
-    } catch (fetchError) {
-      console.error('Failed to load contacts:', fetchError);
-      setError(fetchError instanceof Error ? fetchError.message : 'Failed to load contacts');
-    } finally {
-      if (reset) {
-        setLoading(false);
-      } else {
+        setHasMore(response.pagination?.hasMore ?? false);
+        setNextOffset(response.pagination?.nextOffset ?? null);
+      } catch (fetchError) {
+        console.error('Failed to load contacts:', fetchError);
+        setError(fetchError instanceof Error ? fetchError.message : 'Failed to load contacts');
+      } finally {
+        if (reset) {
+          setLoading(false);
+        }
         setLoadingMore(false);
       }
+    },
+    [appliedSearch]
+  );
+
+  const refreshContactCount = useCallback(
+    async (searchTerm: string) => {
+      try {
+        const response = await apiClient.getContactCount(searchTerm);
+        setContactsCount(response.count);
+      } catch (error) {
+        console.error('Failed to load contact count:', error);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
     }
+    searchDebounceRef.current = setTimeout(() => {
+      setAppliedSearch(searchQuery.trim());
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+        searchDebounceRef.current = null;
+      }
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   useEffect(() => {
@@ -94,14 +180,35 @@ export default function ContactsPage() {
 
       if (!auth.isAuthenticated()) {
         router.push('/login');
-        return;
       }
-
-      await loadContacts(0, true);
     };
 
     void initialize();
-  }, [loadContacts, router]);
+  }, [router]);
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!auth.isAuthenticated()) {
+      return;
+    }
+
+    void loadContacts({ offset: 0, reset: true });
+  }, [appliedSearch, authLoading, loadContacts]);
+
+  useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!auth.isAuthenticated()) {
+      return;
+    }
+
+    void refreshContactCount(appliedSearch);
+  }, [appliedSearch, authLoading, refreshContactCount]);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -140,17 +247,26 @@ export default function ContactsPage() {
 
         setContacts((prev) => {
           const existingIndex = prev.findIndex((existing) => existing.id === contact.id);
-          let next: Contact[];
-          if (existingIndex >= 0) {
-            next = prev.map((existing, index) => (index === existingIndex ? contact : existing));
-          } else {
-            next = [contact, ...prev];
+          const matches = matchesSearch(contact, appliedSearch);
+
+          if (!matches) {
+            if (existingIndex >= 0) {
+              const next = prev.filter((existing) => existing.id !== contact.id);
+              return next;
+            }
+            return prev;
           }
+
+          const next = existingIndex >= 0
+            ? prev.map((existing, index) => (index === existingIndex ? contact : existing))
+            : [contact, ...prev];
 
           return next
             .slice()
             .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
         });
+
+        void refreshContactCount(appliedSearch);
       } catch (error) {
         console.error('Failed to handle contact stream event:', error);
       }
@@ -164,6 +280,7 @@ export default function ContactsPage() {
           return;
         }
         setContacts((prev) => prev.filter((contact) => contact.id !== contactId));
+        void refreshContactCount(appliedSearch);
       } catch (error) {
         console.error('Failed to handle contact deletion event:', error);
       }
@@ -189,83 +306,9 @@ export default function ContactsPage() {
         contactStreamRef.current = null;
       }
     };
-  }, [authLoading, contactStreamRetry]);
+  }, [appliedSearch, authLoading, contactStreamRetry, matchesSearch, refreshContactCount]);
 
   const currentUser = auth.getUser();
-
-  const downloadFile = useCallback((content: string, filename: string, mimeType: string) => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-
-    const element = document.createElement('a');
-    element.href = url;
-    element.download = filename;
-    document.body.appendChild(element);
-    element.click();
-    document.body.removeChild(element);
-
-    URL.revokeObjectURL(url);
-  }, []);
-
-  const handleDownloadJson = useCallback(() => {
-    if (contacts.length === 0) {
-      return;
-    }
-
-    const payload = contacts.map((contact) => ({
-      id: contact.id,
-      name: contact.name,
-      email: contact.email,
-      phone: contact.phone,
-      source_item_id: contact.source_item_id,
-      metadata: contact.metadata,
-      created_at: contact.created_at,
-      updated_at: contact.updated_at,
-    }));
-
-    downloadFile(JSON.stringify(payload, null, 2), 'contacts.json', 'application/json');
-  }, [contacts, downloadFile]);
-
-  const handleDownloadCsv = useCallback(() => {
-    if (contacts.length === 0) {
-      return;
-    }
-
-    const headers = [
-      'id',
-      'name',
-      'email',
-      'phone',
-      'source_item_id',
-      'created_at',
-      'updated_at',
-    ] as const;
-
-    const escapeCsv = (value: unknown): string => {
-      if (value == null) {
-        return '';
-      }
-      const stringValue =
-        typeof value === 'object' ? JSON.stringify(value) : String(value);
-      if (/[",\n]/.test(stringValue)) {
-        return `"${stringValue.replace(/"/g, '""')}"`;
-      }
-      return stringValue;
-    };
-
-    const rows = contacts.map((contact) =>
-      headers
-        .map((header) => escapeCsv((contact as Record<(typeof headers)[number], unknown>)[header]))
-        .join(',')
-    );
-
-    const csvContent = [headers.join(','), ...rows].join('\n');
-    downloadFile(csvContent, 'contacts.csv', 'text/csv');
-  }, [contacts, downloadFile]);
 
   const resetDialog = useCallback(() => {
     setDialogState(null);
@@ -343,7 +386,8 @@ export default function ContactsPage() {
 
       setIsDialogOpen(false);
       resetDialog();
-      await loadContacts(0, true);
+      await loadContacts({ offset: 0, reset: true });
+      void refreshContactCount(appliedSearch);
     } catch (submitError) {
       console.error('Failed to save contact:', submitError);
       if (submitError instanceof Error) {
@@ -354,7 +398,7 @@ export default function ContactsPage() {
     } finally {
       setSavingContact(false);
     }
-  }, [dialogState, formValues, loadContacts, resetDialog]);
+  }, [appliedSearch, dialogState, formValues, loadContacts, refreshContactCount, resetDialog]);
 
   const handleDeleteContact = useCallback(
     async (contact: Contact) => {
@@ -370,7 +414,8 @@ export default function ContactsPage() {
 
       try {
         await apiClient.deleteContact(contact.id);
-        await loadContacts(0, true);
+        await loadContacts({ offset: 0, reset: true });
+        void refreshContactCount(appliedSearch);
       } catch (deleteError) {
         console.error('Failed to delete contact:', deleteError);
         setError(deleteError instanceof Error ? deleteError.message : 'Failed to delete contact');
@@ -378,17 +423,43 @@ export default function ContactsPage() {
         setDeletingContactId(null);
       }
     },
-    [loadContacts]
+    [appliedSearch, loadContacts, refreshContactCount]
   );
 
   const handleLoadMore = useCallback(() => {
-    if (!hasMore || loadingMore) {
+    if (!hasMore || loadingMore || loading) {
       return;
     }
 
     const offset = nextOffset ?? contacts.length;
-    void loadContacts(offset, false);
-  }, [contacts.length, hasMore, loadContacts, loadingMore, nextOffset]);
+    void loadContacts({ offset, reset: false });
+  }, [contacts.length, hasMore, loadContacts, loading, loadingMore, nextOffset]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasMore || loading || loadingMore) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          handleLoadMore();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '200px',
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [handleLoadMore, hasMore, loading, loadingMore]);
 
   if (authLoading && contacts.length === 0) {
     return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
@@ -399,7 +470,14 @@ export default function ContactsPage() {
       <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
-          <h1 className="text-xl sm:text-2xl font-bold">Contacts</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Contacts
+            {contactsCount !== null && (
+              <span className="ml-2 text-xs font-normal text-gray-500 sm:text-sm">
+                ({contactsCount.toLocaleString()} indexed)
+              </span>
+            )}
+          </h1>
           <div className="hidden items-center gap-2 sm:flex sm:gap-4">
             <FeedbackDialog
               userEmail={currentUser?.email}
@@ -423,24 +501,28 @@ export default function ContactsPage() {
                 <Button size="sm" onClick={openCreateDialog}>
                   Add contact
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadCsv}
-                  disabled={contacts.length === 0}
-                >
-                  Download CSV
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleDownloadJson}
-                  disabled={contacts.length === 0}
-                >
-                  Download JSON
-                </Button>
               </div>
             </div>
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="contact-search" className="sr-only">
+              Search contacts
+            </label>
+            <Input
+              id="contact-search"
+              ref={searchInputRef}
+              type="search"
+              placeholder="Search contacts..."
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+              className="h-12 w-full rounded-full border-2 border-gray-300 px-5 text-base font-medium shadow-sm transition-all focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-14 sm:px-6 sm:text-lg"
+            />
+            <p className="mt-2 text-xs text-muted-foreground">
+              Shortcut: ⌘K (Ctrl+K) to focus search
+            </p>
           </div>
 
           {error && (
@@ -455,11 +537,20 @@ export default function ContactsPage() {
             </div>
           ) : contacts.length === 0 ? (
             <div className="rounded-md border border-dashed border-gray-200 bg-white px-4 py-16 text-center text-sm text-muted-foreground">
-              No contacts detected yet. Upload files that include names, emails, or phone numbers to see them here.
+              {appliedSearch
+                ? 'No contacts match your search.'
+                : 'No contacts detected yet. Upload files that include names, emails, or phone numbers to see them here.'}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">
-              <table className="min-w-full divide-y divide-gray-200 text-sm">
+              <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
+                <colgroup>
+                  <col className="w-[32%] sm:w-[28%]" />
+                  <col className="w-[36%] sm:w-[32%]" />
+                  <col className="w-[16%] sm:w-[20%]" />
+                  <col className="w-[12%] sm:w-[14%]" />
+                  <col className="w-[4%] sm:w-[6%]" />
+                </colgroup>
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
@@ -491,16 +582,21 @@ export default function ContactsPage() {
                       ? new Date(contact.updated_at).toLocaleString()
                       : null;
 
+                    const nameLabel = displayName;
+
                     return (
                       <tr key={contact.id} className="hover:bg-gray-50">
-                        <td className="whitespace-nowrap px-4 py-3 font-medium text-gray-900">
-                          {displayName}
+                        <td className="px-4 py-3 font-medium text-gray-900 align-middle">
+                          <span className="block truncate" title={nameLabel}>
+                            {displayName}
+                          </span>
                         </td>
-                        <td className="px-4 py-3 text-gray-700">
+                        <td className="px-4 py-3 text-gray-700 align-middle">
                           {contact.email ? (
                             <a
                               href={`mailto:${contact.email}`}
-                              className="text-blue-600 hover:underline break-all"
+                              className="text-blue-600 break-words hover:underline"
+                              title={contact.email}
                             >
                               {contact.email}
                             </a>
@@ -553,18 +649,18 @@ export default function ContactsPage() {
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-
-          {hasMore && (
-            <div className="mt-6 flex justify-center">
-              <Button
-                variant="outline"
-                onClick={handleLoadMore}
-                disabled={loadingMore}
-              >
-                {loadingMore ? 'Loading…' : 'Load more contacts'}
-              </Button>
+              {hasMore ? (
+                <div
+                  ref={loadMoreSentinelRef}
+                  className="border-t border-gray-200 px-4 py-4 text-center text-sm text-muted-foreground"
+                >
+                  {loadingMore ? 'Loading more contacts…' : 'Scroll to load more contacts'}
+                </div>
+              ) : contacts.length > 0 ? (
+                <div className="border-t border-gray-200 px-4 py-4 text-center text-sm text-muted-foreground">
+                  All contacts loaded
+                </div>
+              ) : null}
             </div>
           )}
         </div>

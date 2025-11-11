@@ -3,7 +3,7 @@
 import { Fragment, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { FolderKanban, Home, Menu, UploadCloud, Users, X } from 'lucide-react';
+import { Code, FolderKanban, Home, Menu, UploadCloud, Users, X } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
@@ -36,6 +36,11 @@ const NAV_ITEMS = [
     href: '/contacts',
     label: 'Contacts',
     icon: Users,
+  },
+  {
+    href: '/developers',
+    label: 'API Docs',
+    icon: Code,
   },
 ];
 
@@ -124,32 +129,7 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
           </div>
         )}
 
-        <div className="mt-auto flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-3 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-gray-900">
-              {currentUser?.email ?? 'Guest'}
-            </p>
-            <p className="text-xs text-gray-500">
-              {isAuthenticated ? 'Manage your account' : 'Not signed in'}
-            </p>
-          </div>
-          {isAuthenticated ? (
-            <AvatarMenu
-              user={currentUser}
-              onLogout={() => {
-                onLogout();
-                onMobileToggle(false);
-              }}
-            />
-          ) : (
-            <Link
-              href="/login"
-              className="rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-100 hover:text-gray-900"
-            >
-              Sign in
-            </Link>
-          )}
-        </div>
+        <div className="mt-auto" />
       </aside>
 
       <button

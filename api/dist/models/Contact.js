@@ -34,6 +34,26 @@ const mergeMetadata = (existing, incoming) => {
         ...(incoming ?? {}),
     };
 };
+const buildContactSearchFilters = (ownerId, search) => {
+    const whereClauses = ['owner_id = $1'];
+    const params = [ownerId];
+    if (search && search.trim().length > 0) {
+        const normalizedQuery = search.trim().toLowerCase();
+        const likeQuery = `%${normalizedQuery}%`;
+        const digitsOnly = normalizedQuery.replace(/\D+/g, '');
+        params.push(likeQuery);
+        const searchConditions = [
+            `normalized_name LIKE $${params.length}`,
+            `normalized_email LIKE $${params.length}`,
+        ];
+        if (digitsOnly.length > 0) {
+            params.push(`%${digitsOnly}%`);
+            searchConditions.push(`normalized_phone LIKE $${params.length}`);
+        }
+        whereClauses.push(`(${searchConditions.join(' OR ')})`);
+    }
+    return { whereClauses, params };
+};
 export class ContactModel {
     static async upsert(input, client = pool) {
         const name = sanitizeNullable(input.name);
@@ -59,7 +79,7 @@ export class ContactModel {
           metadata
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (owner_id, normalized_email, normalized_phone, normalized_name)
+        ON CONFLICT (owner_id, normalized_email, normalized_phone)
         DO UPDATE SET
           name = CASE
             WHEN EXCLUDED.name IS NOT NULL THEN EXCLUDED.name
@@ -113,15 +133,31 @@ export class ContactModel {
         return results;
     }
     static async listByOwner(ownerId, options = {}) {
-        const { limit = 100, offset = 0 } = options;
+        const { limit = 100, offset = 0, search } = options;
+        const { whereClauses, params } = buildContactSearchFilters(ownerId, search);
+        const queryParams = [...params];
+        const limitParamIndex = queryParams.length + 1;
+        queryParams.push(limit);
+        const offsetParamIndex = queryParams.length + 1;
+        queryParams.push(offset);
         const result = await pool.query(`
         SELECT *
         FROM contacts
-        WHERE owner_id = $1
+        WHERE ${whereClauses.join(' AND ')}
         ORDER BY updated_at DESC
-        LIMIT $2 OFFSET $3
-      `, [ownerId, limit, offset]);
+        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
+      `, queryParams);
         return result.rows ?? [];
+    }
+    static async countByOwner(ownerId, options = {}) {
+        const { whereClauses, params } = buildContactSearchFilters(ownerId, options.search);
+        const result = await pool.query(`
+        SELECT COUNT(*)::text AS count
+        FROM contacts
+        WHERE ${whereClauses.join(' AND ')}
+      `, params);
+        const countValue = result.rows[0]?.count ?? '0';
+        return Number.parseInt(countValue, 10);
     }
     static async findByOwnerAndId(ownerId, contactId, client = pool) {
         const result = await client.query(`

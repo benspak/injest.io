@@ -1,7 +1,61 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
+import multer from 'multer';
 import { authMiddleware } from '../middleware/auth.js';
 import { ContactModel } from '../models/Contact.js';
+import { UserModel } from '../models/User.js';
+import { JWT_SECRET } from '../config/auth.js';
+import { contactStreamService } from '../services/contactStream.js';
+import { parseVCard } from '../utils/vcard.js';
 const router = express.Router();
+router.get('/stream', async (req, res) => {
+    try {
+        let token = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
+        }
+        else if (req.query.token && typeof req.query.token === 'string') {
+            token = req.query.token;
+        }
+        if (!token) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+        }
+        catch {
+            res.status(401).json({ error: 'Invalid token' });
+            return;
+        }
+        const user = await UserModel.findById(decoded.userId);
+        if (!user || !user.verified) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+        if (req.socket && typeof req.socket.setKeepAlive === 'function') {
+            req.socket.setKeepAlive(true);
+        }
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+        res.flushHeaders?.();
+        const client = contactStreamService.addClient(user.id, res);
+        const cleanup = () => {
+            contactStreamService.removeClient(user.id, client);
+        };
+        req.on('close', cleanup);
+        req.on('end', cleanup);
+    }
+    catch (error) {
+        console.error('[Contacts SSE] Failed to establish contact stream:', error);
+        if (!res.headersSent) {
+            res.status(500).json({ error: 'Failed to establish stream' });
+        }
+    }
+});
 router.use(authMiddleware);
 const sanitizeString = (value) => {
     if (typeof value !== 'string') {
@@ -10,6 +64,114 @@ const sanitizeString = (value) => {
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
 };
+const contactsUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB
+    },
+});
+router.post('/import', contactsUpload.single('contactsFile'), async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const file = req.file;
+        if (!file || !file.buffer) {
+            return res.status(400).json({ error: 'No contacts file provided.' });
+        }
+        const originalName = file.originalname || 'contacts.vcf';
+        const lowerName = originalName.toLowerCase();
+        const allowedExtensions = ['.vcf', '.vcard'];
+        const allowedMimeTypes = ['text/vcard', 'text/x-vcard', 'application/vcard', 'application/x-vcard'];
+        const hasAllowedExtension = allowedExtensions.some((ext) => lowerName.endsWith(ext));
+        const hasAllowedMimeType = allowedMimeTypes.includes(file.mimetype);
+        if (!hasAllowedExtension && !hasAllowedMimeType) {
+            return res.status(400).json({ error: 'Unsupported file type. Please upload a .vcf (vCard) file.' });
+        }
+        const content = file.buffer.toString('utf8');
+        const parsedEntries = parseVCard(content);
+        if (parsedEntries.length === 0) {
+            return res.status(400).json({ error: 'No contacts found in the uploaded file.' });
+        }
+        const dedupeKeys = new Set();
+        const inputs = [];
+        let skippedMissingDetails = 0;
+        let skippedDuplicates = 0;
+        for (const entry of parsedEntries) {
+            const name = sanitizeString(entry.name);
+            const email = entry.emails.map((value) => sanitizeString(value)).find((value) => value) ?? null;
+            const phone = entry.phones
+                .map((value) => sanitizeString(value))
+                .find((value) => value && value.replace(/\D+/g, '').length >= 6) ?? null;
+            if (!name && !email && !phone) {
+                skippedMissingDetails += 1;
+                continue;
+            }
+            const normalizedEmail = (email ?? '').toLowerCase();
+            const normalizedPhone = phone ? phone.replace(/\D+/g, '') : '';
+            const dedupeKey = `${normalizedEmail}::${normalizedPhone}`;
+            if (dedupeKeys.has(dedupeKey)) {
+                skippedDuplicates += 1;
+                continue;
+            }
+            dedupeKeys.add(dedupeKey);
+            inputs.push({
+                ownerId: req.user.id,
+                name,
+                email,
+                phone,
+                metadata: {
+                    source: 'vcf-import',
+                    importFilename: originalName,
+                    importTimestamp: new Date().toISOString(),
+                    emails: entry.emails,
+                    phones: entry.phones,
+                },
+            });
+        }
+        if (inputs.length === 0) {
+            return res.status(400).json({
+                error: 'No contacts with email or phone were found to import.',
+                skipped: {
+                    duplicates: skippedDuplicates,
+                    missingDetails: skippedMissingDetails,
+                },
+            });
+        }
+        const contacts = await ContactModel.upsertMany(inputs);
+        if (contacts.length > 0) {
+            contactStreamService.broadcastContacts(contacts);
+        }
+        return res.status(201).json({
+            message: `Processed ${parsedEntries.length} contact${parsedEntries.length === 1 ? '' : 's'}.`,
+            processed: parsedEntries.length,
+            imported: contacts.length,
+            skipped: {
+                duplicates: skippedDuplicates,
+                missingDetails: skippedMissingDetails,
+            },
+        });
+    }
+    catch (error) {
+        console.error('[Contacts] Failed to import contacts:', error);
+        return res.status(500).json({ error: 'Failed to import contacts' });
+    }
+});
+router.get('/count', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const searchParam = typeof req.query.search === 'string' ? req.query.search : undefined;
+        const search = searchParam ? searchParam.trim() : undefined;
+        const count = await ContactModel.countByOwner(req.user.id, { search });
+        return res.json({ count });
+    }
+    catch (error) {
+        console.error('[Contacts] Failed to count contacts:', error);
+        return res.status(500).json({ error: 'Failed to fetch contact count' });
+    }
+});
 router.get('/', async (req, res) => {
     try {
         if (!req.user) {
@@ -17,11 +179,17 @@ router.get('/', async (req, res) => {
         }
         const limitParam = typeof req.query.limit === 'string' ? req.query.limit : undefined;
         const offsetParam = typeof req.query.offset === 'string' ? req.query.offset : undefined;
+        const searchParam = typeof req.query.search === 'string' ? req.query.search : undefined;
         const parsedLimit = limitParam ? Number.parseInt(limitParam, 10) : 50;
         const parsedOffset = offsetParam ? Number.parseInt(offsetParam, 10) : 0;
         const limit = Number.isNaN(parsedLimit) ? 50 : Math.min(Math.max(parsedLimit, 1), 100);
         const offset = Number.isNaN(parsedOffset) ? 0 : Math.max(parsedOffset, 0);
-        const results = await ContactModel.listByOwner(req.user.id, { limit: limit + 1, offset });
+        const search = searchParam ? searchParam.trim() : undefined;
+        const results = await ContactModel.listByOwner(req.user.id, {
+            limit: limit + 1,
+            offset,
+            search,
+        });
         const hasMore = results.length > limit;
         const contacts = hasMore ? results.slice(0, limit) : results;
         res.json({
@@ -70,6 +238,7 @@ router.post('/', async (req, res) => {
         if (!contact) {
             return res.status(400).json({ error: 'Unable to create contact with provided details.' });
         }
+        contactStreamService.broadcastContact(contact);
         return res.status(201).json({ contact });
     }
     catch (error) {
@@ -99,6 +268,7 @@ router.patch('/:id', async (req, res) => {
             if (!contact) {
                 return res.status(404).json({ error: 'Contact not found' });
             }
+            contactStreamService.broadcastContact(contact);
             return res.json({ contact });
         }
         catch (updateError) {
@@ -128,6 +298,7 @@ router.delete('/:id', async (req, res) => {
         if (!deleted) {
             return res.status(404).json({ error: 'Contact not found' });
         }
+        contactStreamService.broadcastContactDeleted(req.user.id, contactId);
         return res.status(204).send();
     }
     catch (error) {

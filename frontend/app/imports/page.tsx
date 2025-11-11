@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { BookmarkImportCard } from '@/components/bookmark-import-card';
+import { ContactImportCard } from '@/components/contact-import-card';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
@@ -57,7 +58,56 @@ export default function ImportsPage() {
       </header>
 
       <main className="container mx-auto max-w-3xl px-3 py-6 sm:px-4 md:px-6 sm:py-8 space-y-6">
+        <ContactImportCard />
         <BookmarkImportCard />
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Export your contacts as vCard</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-sm text-muted-foreground">
+            <p>
+              Importing contacts requires a vCard (.vcf) export. Most address books let you download one directly.
+            </p>
+            <div className="space-y-3">
+              <div>
+                <p className="font-medium text-gray-900">Google Contacts</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open{' '}
+                    <Link
+                      href="https://contacts.google.com/"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      Google Contacts
+                    </Link>
+                    .
+                  </li>
+                  <li>Select the contacts you need (or leave all selected).</li>
+                  <li>Click <span className="font-medium text-gray-900">Export</span> and choose the vCard format.</li>
+                </ol>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Apple Contacts</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open Contacts on macOS.</li>
+                  <li>Select File → Export → Export vCard.</li>
+                  <li>Choose a destination and save the .vcf file.</li>
+                </ol>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Outlook</p>
+                <ol className="list-decimal list-inside space-y-1">
+                  <li>Open the People view.</li>
+                  <li>Select the contacts you want to export.</li>
+                  <li>Use File → Save As and pick vCard format.</li>
+                </ol>
+              </div>
+            </div>
+            <p>Upload the vCard above and we&apos;ll add each contact to your workspace automatically.</p>
+          </CardContent>
+        </Card>
 
         <Card>
           <CardHeader>

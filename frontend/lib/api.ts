@@ -118,6 +118,16 @@ export interface ContactListResponse {
   };
 }
 
+export interface ContactImportResponse {
+  message: string;
+  processed: number;
+  imported: number;
+  skipped: {
+    duplicates: number;
+    missingDetails: number;
+  };
+}
+
 export interface UploadAcknowledgementFile {
   filename: string;
   storedFilename: string;
@@ -460,6 +470,16 @@ class ApiClient {
     });
   }
 
+  async importContacts(file: File): Promise<ContactImportResponse> {
+    const formData = new FormData();
+    formData.append('contactsFile', file);
+
+    return this.request<ContactImportResponse>('/api/contacts/import', {
+      method: 'POST',
+      body: formData,
+    });
+  }
+
   async createBookmarkImportPaymentIntent(bookmarkCount: number): Promise<{
     clientSecret: string;
     paymentIntentId: string;
@@ -513,16 +533,29 @@ class ApiClient {
     });
   }
 
-  async getContacts(limit: number = 50, offset: number = 0): Promise<ContactListResponse> {
+  async getContacts(limit: number = 50, offset: number = 0, search?: string): Promise<ContactListResponse> {
     const params = new URLSearchParams();
     params.append('limit', String(limit));
     if (offset > 0) {
       params.append('offset', String(offset));
     }
+    if (search && search.trim().length > 0) {
+      params.append('search', search.trim());
+    }
 
     const query = params.toString();
 
     return this.request<ContactListResponse>(`/api/contacts${query ? `?${query}` : ''}`);
+  }
+
+  async getContactCount(search?: string): Promise<{ count: number }> {
+    const params = new URLSearchParams();
+    if (search && search.trim().length > 0) {
+      params.append('search', search.trim());
+    }
+
+    const query = params.toString();
+    return this.request<{ count: number }>(`/api/contacts/count${query ? `?${query}` : ''}`);
   }
 
   async createContact(payload: { name?: string | null; email?: string | null; phone?: string | null; metadata?: Record<string, unknown> | null; sourceItemId?: string | null }): Promise<Contact> {

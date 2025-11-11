@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation';
 import 'swagger-ui-react/swagger-ui.css';
 
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { API_URL, apiClient, type User } from '@/lib/api';
 import { auth } from '@/lib/auth';
+import { toast } from 'sonner';
 
 const SwaggerUI = dynamic(() => import('swagger-ui-react'), { ssr: false });
 
@@ -43,6 +44,43 @@ const exampleCurl = `curl \\
     "tags": ["brand", "design"]
   }'`;
 
+type ApiKeyInfoState = {
+  hasKey: boolean;
+  createdAt: string | null;
+  lastUsedAt: string | null;
+};
+
+type ExternalEndpoint = {
+  method: string;
+  path: string;
+  useCase: string;
+};
+
+const externalApiEndpoints: ExternalEndpoint[] = [
+  {
+    method: 'POST',
+    path: '/items',
+    useCase: 'Capture a new item, including optional attachments, from your own tools.',
+  },
+  {
+    method: 'GET',
+    path: '/items',
+    useCase: 'List your indexed items. Supports limit and offset for pagination.',
+  },
+  {
+    method: 'GET',
+    path: '/items/:id',
+    useCase: 'Retrieve full details for a specific item by its ID.',
+  },
+  {
+    method: 'GET',
+    path: '/search',
+    useCase: 'Search across your items with a query using the q parameter.',
+  },
+];
+
+const externalApiBaseUrl = `${API_URL.replace(/\/+$/, '')}/api/external`;
+
 export default function DeveloperDocsClient() {
   const router = useRouter();
   const docsRef = useRef<HTMLDivElement | null>(null);
@@ -52,6 +90,11 @@ export default function DeveloperDocsClient() {
   const [specLoading, setSpecLoading] = useState(false);
   const [specError, setSpecError] = useState<string | null>(null);
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [apiKeyInfo, setApiKeyInfo] = useState<ApiKeyInfoState | null>(null);
+  const [apiKeyInfoLoading, setApiKeyInfoLoading] = useState(true);
+  const [apiKeyActionLoading, setApiKeyActionLoading] = useState(false);
+  const [apiKeyActionType, setApiKeyActionType] = useState<'generate' | 'revoke' | null>(null);
+  const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
 
   useEffect(() => {
     const restoreAuth = async () => {
@@ -84,11 +127,95 @@ export default function DeveloperDocsClient() {
     }
   }, []);
 
+  const formatTimestamp = useCallback((value: string | null | undefined) => {
+    if (!value) {
+      return 'Never';
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return 'Never';
+    }
+    return date.toLocaleString();
+  }, []);
+
+  const loadApiKeyInfo = useCallback(async () => {
+    if (!auth.isAuthenticated()) {
+      setApiKeyInfo(null);
+      setApiKeyInfoLoading(false);
+      return;
+    }
+
+    setApiKeyInfoLoading(true);
+    try {
+      const info = await apiClient.getApiKeyInfo();
+      setApiKeyInfo(info);
+    } catch (error) {
+      console.error('Error loading API key info:', error);
+      setApiKeyInfo(null);
+    } finally {
+      setApiKeyInfoLoading(false);
+    }
+  }, []);
+
+  const handleGenerateApiKey = useCallback(async () => {
+    try {
+      setApiKeyActionLoading(true);
+      setApiKeyActionType('generate');
+      setGeneratedApiKey(null);
+      const response = await apiClient.createApiKey();
+      setGeneratedApiKey(response.apiKey);
+      setApiKeyInfo({
+        hasKey: true,
+        createdAt: response.createdAt ?? new Date().toISOString(),
+        lastUsedAt: response.lastUsedAt ?? null,
+      });
+      toast.success('New API key generated. Copy it now.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to generate API key';
+      toast.error(message);
+    } finally {
+      setApiKeyActionLoading(false);
+      setApiKeyActionType(null);
+    }
+  }, []);
+
+  const handleRevokeApiKey = useCallback(async () => {
+    if (!apiKeyInfo?.hasKey) {
+      toast.error('No API key to revoke');
+      return;
+    }
+
+    if (!confirm('Revoke your API key? Existing integrations will stop working.')) {
+      return;
+    }
+
+    try {
+      setApiKeyActionLoading(true);
+      setApiKeyActionType('revoke');
+      await apiClient.revokeApiKey();
+      setGeneratedApiKey(null);
+      await loadApiKeyInfo();
+      toast.success('API key revoked.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to revoke API key';
+      toast.error(message);
+    } finally {
+      setApiKeyActionLoading(false);
+      setApiKeyActionType(null);
+    }
+  }, [apiKeyInfo?.hasKey, loadApiKeyInfo]);
+
   useEffect(() => {
     if (!authLoading && allowed && !spec && !specLoading && !specError) {
       void loadSpec();
     }
   }, [allowed, authLoading, loadSpec, spec, specError, specLoading]);
+
+  useEffect(() => {
+    if (!authLoading && allowed) {
+      void loadApiKeyInfo();
+    }
+  }, [allowed, authLoading, loadApiKeyInfo]);
 
   const handleDownloadSpec = useCallback(async () => {
     try {
@@ -163,6 +290,99 @@ export default function DeveloperDocsClient() {
             <Button variant="ghost">← Back to Dashboard</Button>
           </Link>
         </div>
+
+        <Card className="border border-emerald-200 shadow-lg">
+          <CardHeader>
+            <CardTitle>External API Access</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Generate an API key to query your enriched data via REST without sharing your session token.
+            </p>
+
+            {apiKeyInfoLoading ? (
+              <p className="text-sm text-gray-500">Loading API key details…</p>
+            ) : (
+              <div className="space-y-3">
+                <div className="rounded-md border border-dashed bg-emerald-50/60 p-3 text-sm text-emerald-900">
+                  <p>
+                    Key status{' '}
+                    <span className="font-semibold">
+                      {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
+                    </span>
+                  </p>
+                  <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
+                  <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
+                </div>
+
+                {generatedApiKey && (
+                  <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                      Your new API key
+                    </p>
+                    <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
+                    <p className="mt-2 text-xs text-amber-700">
+                      Copy this key now—you won&apos;t be able to see it again.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button onClick={handleGenerateApiKey} disabled={apiKeyActionLoading}>
+                    {apiKeyActionLoading && apiKeyActionType === 'generate'
+                      ? 'Generating…'
+                      : apiKeyInfo?.hasKey
+                        ? 'Regenerate API Key'
+                        : 'Generate API Key'}
+                  </Button>
+                  {apiKeyInfo?.hasKey ? (
+                    <Button variant="destructive" onClick={handleRevokeApiKey} disabled={apiKeyActionLoading}>
+                      {apiKeyActionLoading && apiKeyActionType === 'revoke' ? 'Revoking…' : 'Revoke Key'}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Available endpoints</p>
+              <div className="space-y-2">
+                {externalApiEndpoints.map((endpoint) => (
+                  <div
+                    key={endpoint.path}
+                    className="space-y-1 rounded-md border border-dashed bg-gray-50 p-3"
+                  >
+                    <p className="font-mono text-[11px] sm:text-xs">
+                      <span className="mr-2 inline-block rounded-sm bg-emerald-100 px-1.5 py-[1px] font-semibold text-emerald-700">
+                        {endpoint.method}
+                      </span>
+                      {`${externalApiBaseUrl}${endpoint.path}`}
+                    </p>
+                    <p className="text-xs text-gray-600">{endpoint.useCase}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Use with the Chrome extension</p>
+              <ol className="list-decimal space-y-1 text-xs text-gray-600 list-inside">
+                <li>Install the Injest Capture extension and pin it from the puzzle icon.</li>
+                <li>
+                  Open the extension, click <span className="font-medium">Settings</span>, and set the External API URL to{' '}
+                  <code className="font-mono text-[11px] sm:text-xs">https://injest-api.onrender.com/api/external</code>.
+                </li>
+                <li>Paste your API key into the extension&apos;s API Key field.</li>
+                <li>
+                  Click <span className="font-medium">Test Connection</span>, then <span className="font-medium">Save Settings</span>.
+                </li>
+                <li>
+                  Use the popup or <kbd className="rounded border px-1 py-0.5 text-xs">Cmd/CTRL+Shift+V</kbd> to capture items directly.
+                </li>
+              </ol>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid gap-6 md:grid-cols-2">
           <Card className="border border-blue-200 shadow-lg">

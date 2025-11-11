@@ -24,6 +24,7 @@ export interface UpsertContactInput {
 export interface ListContactsOptions {
     limit?: number;
     offset?: number;
+    search?: string | null;
 }
 export interface UpdateContactInput {
     name?: string | null;
@@ -35,6 +36,9 @@ export declare class ContactModel {
     static upsert(input: UpsertContactInput, client?: Pool | PoolClient): Promise<Contact | null>;
     static upsertMany(inputs: UpsertContactInput[], client?: Pool | PoolClient): Promise<Contact[]>;
     static listByOwner(ownerId: string, options?: ListContactsOptions): Promise<Contact[]>;
+    static countByOwner(ownerId: string, options?: {
+        search?: string | null;
+    }): Promise<number>;
     static findByOwnerAndId(ownerId: string, contactId: string, client?: Pool | PoolClient): Promise<Contact | null>;
     static update(ownerId: string, contactId: string, updates: UpdateContactInput, client?: Pool | PoolClient): Promise<Contact | null>;
     static delete(ownerId: string, contactId: string, client?: Pool | PoolClient): Promise<boolean>;

@@ -23,6 +23,7 @@ import { emailService } from '../services/email.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
 import { ContactModel } from '../models/Contact.js';
 import { contactExtractor } from '../services/contactExtractor.js';
+import { contactStreamService } from '../services/contactStream.js';
 import { coerceSubscriptionTier, getMaxIndexedItems, getPlan, } from '../utils/subscriptionPlans.js';
 import { searchService } from '../services/search.js';
 const router = express.Router();
@@ -84,7 +85,7 @@ const extractContactCandidatesFromText = (text) => {
 async function persistContactCandidatesForItem(client, ownerId, itemId, candidates, context = {}) {
     const validCandidates = candidates.filter((candidate) => candidate.email);
     if (!validCandidates.length) {
-        return;
+        return [];
     }
     const metadataBase = {
         source: context.source ?? 'ocr',
@@ -96,7 +97,7 @@ async function persistContactCandidatesForItem(client, ownerId, itemId, candidat
     if (context.textSample) {
         metadataBase.textSample = context.textSample;
     }
-    await ContactModel.upsertMany(validCandidates.map((candidate) => ({
+    const contacts = await ContactModel.upsertMany(validCandidates.map((candidate) => ({
         ownerId,
         name: candidate.name ?? undefined,
         email: candidate.email ?? undefined,
@@ -106,6 +107,7 @@ async function persistContactCandidatesForItem(client, ownerId, itemId, candidat
             ...metadataBase,
         },
     })), client);
+    return contacts;
 }
 // Download file or serve inline (for images)
 // Note: This route is defined before authMiddleware to allow token in query string for images
@@ -375,6 +377,7 @@ async function processSingleFile(file, userId, options = {}) {
         }
     };
     const client = await pool.connect();
+    let contactsToBroadcast = [];
     try {
         await client.query('BEGIN');
         const isImageFile = ocrService.isImage(file.mimetype, file.originalname);
@@ -485,7 +488,7 @@ async function processSingleFile(file, userId, options = {}) {
             source: 'web',
         }, client);
         if (contactCandidates.length > 0) {
-            await persistContactCandidatesForItem(client, userId, item.id, contactCandidates, {
+            contactsToBroadcast = await persistContactCandidatesForItem(client, userId, item.id, contactCandidates, {
                 filename: file.originalname,
                 source: extractionSource,
                 textSample: contactTextSample,
@@ -493,6 +496,9 @@ async function processSingleFile(file, userId, options = {}) {
         }
         await client.query('COMMIT');
         log(`Stage 3/4 complete (item ${item.id})`);
+        if (contactsToBroadcast.length > 0) {
+            contactStreamService.broadcastContacts(contactsToBroadcast);
+        }
         log('Stage 4/4: Generating embeddings and indexing');
         try {
             const indexed = await indexingService.indexItem(item);
@@ -888,6 +894,7 @@ export async function handleCreateItem(req, res) {
             }
         }
         let item = null;
+        let contactsToBroadcast = [];
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
@@ -904,7 +911,7 @@ export async function handleCreateItem(req, res) {
                 link_metadata: linkMetadata || undefined,
             }, client);
             if (item && contactCandidates.length > 0) {
-                await persistContactCandidatesForItem(client, req.user.id, item.id, contactCandidates, {
+                contactsToBroadcast = await persistContactCandidatesForItem(client, req.user.id, item.id, contactCandidates, {
                     filename: contactFilename,
                     source: contactExtractionSource,
                     textSample: contactTextSample,
@@ -942,6 +949,9 @@ export async function handleCreateItem(req, res) {
         }
         if (!item) {
             return;
+        }
+        if (contactsToBroadcast.length > 0) {
+            contactStreamService.broadcastContacts(contactsToBroadcast);
         }
         // Trigger indexing in background (don't await - let it run async)
         indexingService.indexItem(item).catch((indexError) => {

@@ -28,6 +28,7 @@ export interface UpsertContactInput {
 export interface ListContactsOptions {
   limit?: number;
   offset?: number;
+  search?: string | null;
 }
 
 export interface UpdateContactInput {
@@ -80,6 +81,32 @@ const mergeMetadata = (
   };
 };
 
+const buildContactSearchFilters = (ownerId: string, search?: string | null) => {
+  const whereClauses = ['owner_id = $1'];
+  const params: Array<string | number> = [ownerId];
+
+  if (search && search.trim().length > 0) {
+    const normalizedQuery = search.trim().toLowerCase();
+    const likeQuery = `%${normalizedQuery}%`;
+    const digitsOnly = normalizedQuery.replace(/\D+/g, '');
+
+    params.push(likeQuery);
+    const searchConditions = [
+      `normalized_name LIKE $${params.length}`,
+      `normalized_email LIKE $${params.length}`,
+    ];
+
+    if (digitsOnly.length > 0) {
+      params.push(`%${digitsOnly}%`);
+      searchConditions.push(`normalized_phone LIKE $${params.length}`);
+    }
+
+    whereClauses.push(`(${searchConditions.join(' OR ')})`);
+  }
+
+  return { whereClauses, params };
+};
+
 export class ContactModel {
   static async upsert(
     input: UpsertContactInput,
@@ -113,7 +140,7 @@ export class ContactModel {
           metadata
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        ON CONFLICT (owner_id, normalized_email)
+        ON CONFLICT (owner_id, normalized_email, normalized_phone)
         DO UPDATE SET
           name = CASE
             WHEN EXCLUDED.name IS NOT NULL THEN EXCLUDED.name
@@ -180,20 +207,46 @@ export class ContactModel {
     ownerId: string,
     options: ListContactsOptions = {}
   ): Promise<Contact[]> {
-    const { limit = 100, offset = 0 } = options;
+    const { limit = 100, offset = 0, search } = options;
+
+    const { whereClauses, params } = buildContactSearchFilters(ownerId, search);
+    const queryParams = [...params];
+    const limitParamIndex = queryParams.length + 1;
+    queryParams.push(limit);
+    const offsetParamIndex = queryParams.length + 1;
+    queryParams.push(offset);
 
     const result = await pool.query<Contact>(
       `
         SELECT *
         FROM contacts
-        WHERE owner_id = $1
+        WHERE ${whereClauses.join(' AND ')}
         ORDER BY updated_at DESC
-        LIMIT $2 OFFSET $3
+        LIMIT $${limitParamIndex} OFFSET $${offsetParamIndex}
       `,
-      [ownerId, limit, offset]
+      queryParams
     );
 
     return result.rows ?? [];
+  }
+
+  static async countByOwner(
+    ownerId: string,
+    options: { search?: string | null } = {}
+  ): Promise<number> {
+    const { whereClauses, params } = buildContactSearchFilters(ownerId, options.search);
+
+    const result = await pool.query<{ count: string }>(
+      `
+        SELECT COUNT(*)::text AS count
+        FROM contacts
+        WHERE ${whereClauses.join(' AND ')}
+      `,
+      params
+    );
+
+    const countValue = result.rows[0]?.count ?? '0';
+    return Number.parseInt(countValue, 10);
   }
 
   static async findByOwnerAndId(
