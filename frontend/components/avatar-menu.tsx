@@ -10,9 +10,10 @@ import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionPlans';
 
 type AvatarMenuProps = {
   user: User | null;
+  onLogout?: () => void;
 };
 
-export function AvatarMenu({ user }: AvatarMenuProps) {
+export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -49,6 +50,9 @@ export function AvatarMenu({ user }: AvatarMenuProps) {
 
   const handleLogout = () => {
     auth.logout();
+    if (onLogout) {
+      onLogout();
+    }
     router.push('/login');
   };
 

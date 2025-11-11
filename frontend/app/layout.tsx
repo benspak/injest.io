@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import { Toaster } from 'sonner'
 import './globals.css'
+import { AppShell } from '@/components/app-shell'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -37,7 +38,9 @@ export default function RootLayout({
             gtag('config', 'G-F6DZ44M10R');
           `}
         </Script>
-        {children}
+        <AppShell>
+          {children}
+        </AppShell>
         <Toaster position="top-right" />
       </body>
     </html>

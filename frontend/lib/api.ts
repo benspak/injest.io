@@ -96,6 +96,28 @@ export interface Item {
   resendEmailId?: string;
 }
 
+export interface Contact {
+  id: string;
+  owner_id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  source_item_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactListResponse {
+  contacts: Contact[];
+  pagination: {
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+    nextOffset: number | null;
+  };
+}
+
 export interface UploadAcknowledgementFile {
   filename: string;
   storedFilename: string;
@@ -488,6 +510,55 @@ class ApiClient {
     return this.request<{ verified: boolean; message: string; premium?: boolean; subscriptionTier?: SubscriptionTier }>('/api/payment/verify', {
       method: 'POST',
       body: JSON.stringify({ paymentIntentId }),
+    });
+  }
+
+  async getContacts(limit: number = 50, offset: number = 0): Promise<ContactListResponse> {
+    const params = new URLSearchParams();
+    params.append('limit', String(limit));
+    if (offset > 0) {
+      params.append('offset', String(offset));
+    }
+
+    const query = params.toString();
+
+    return this.request<ContactListResponse>(`/api/contacts${query ? `?${query}` : ''}`);
+  }
+
+  async createContact(payload: { name?: string | null; email?: string | null; phone?: string | null; metadata?: Record<string, unknown> | null; sourceItemId?: string | null }): Promise<Contact> {
+    const body: Record<string, unknown> = {};
+    if (payload.name !== undefined) body.name = payload.name;
+    if (payload.email !== undefined) body.email = payload.email;
+    if (payload.phone !== undefined) body.phone = payload.phone;
+    if (payload.metadata !== undefined) body.metadata = payload.metadata;
+    if (payload.sourceItemId !== undefined) body.source_item_id = payload.sourceItemId;
+
+    const response = await this.request<{ contact: Contact }>('/api/contacts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+
+    return response.contact;
+  }
+
+  async updateContact(contactId: string, payload: { name?: string | null; email?: string | null; phone?: string | null; metadata?: Record<string, unknown> | null }): Promise<Contact> {
+    const body: Record<string, unknown> = {};
+    if (payload.name !== undefined) body.name = payload.name;
+    if (payload.email !== undefined) body.email = payload.email;
+    if (payload.phone !== undefined) body.phone = payload.phone;
+    if (payload.metadata !== undefined) body.metadata = payload.metadata;
+
+    const response = await this.request<{ contact: Contact }>(`/api/contacts/${contactId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+
+    return response.contact;
+  }
+
+  async deleteContact(contactId: string): Promise<void> {
+    await this.request(`/api/contacts/${contactId}`, {
+      method: 'DELETE',
     });
   }
 

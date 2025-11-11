@@ -45,6 +45,7 @@ const swaggerDefinition = {
   tags: [
     { name: 'Authentication', description: 'Authenticate users and manage API keys.' },
     { name: 'Items', description: 'Create, retrieve, and manage indexed content.' },
+    { name: 'Contacts', description: 'List contacts extracted from uploaded files.' },
     { name: 'Search', description: 'Semantic search across indexed items.' },
   ],
   components: {
@@ -168,6 +169,63 @@ const swaggerDefinition = {
         type: 'array',
         items: {
           $ref: '#/components/schemas/Item',
+        },
+      },
+      Contact: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          owner_id: { type: 'string', format: 'uuid' },
+          name: { type: 'string', nullable: true },
+          email: { type: 'string', format: 'email', nullable: true },
+          phone: { type: 'string', nullable: true },
+          source_item_id: { type: 'string', format: 'uuid', nullable: true },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+          },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+        },
+      },
+      ContactListResponse: {
+        type: 'object',
+        properties: {
+          contacts: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Contact' },
+          },
+          pagination: {
+            type: 'object',
+            properties: {
+              limit: { type: 'integer', example: 50 },
+              offset: { type: 'integer', example: 0 },
+              hasMore: { type: 'boolean', example: false },
+              nextOffset: { type: 'integer', nullable: true, example: null },
+            },
+          },
+        },
+      },
+      ContactRequest: {
+        type: 'object',
+        properties: {
+          name: { type: 'string', nullable: true, example: 'Avery Example' },
+          email: { type: 'string', format: 'email', nullable: true, example: 'avery@example.com' },
+          phone: { type: 'string', nullable: true, example: '+15551234567' },
+          metadata: {
+            type: 'object',
+            nullable: true,
+            additionalProperties: true,
+            example: { source: 'manual', notes: 'Met at conference' },
+          },
+          source_item_id: { type: 'string', format: 'uuid', nullable: true },
+        },
+      },
+      ContactResponse: {
+        type: 'object',
+        properties: {
+          contact: { $ref: '#/components/schemas/Contact' },
         },
       },
       ItemShareRequest: {
@@ -662,6 +720,213 @@ const swaggerDefinition = {
           },
           404: {
             description: 'Item not found.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/contacts': {
+      get: {
+        tags: ['Contacts'],
+        summary: 'List contacts detected for the authenticated user',
+        description:
+          'Returns contacts extracted from uploaded items (e.g., via OCR). Includes pagination metadata.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'limit',
+            in: 'query',
+            schema: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+            description: 'Maximum number of contacts to return.',
+          },
+          {
+            name: 'offset',
+            in: 'query',
+            schema: { type: 'integer', minimum: 0, default: 0 },
+            description: 'Number of contacts to skip before starting the page.',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Contacts for the current user.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ContactListResponse' },
+              },
+            },
+          },
+          401: {
+            description: 'Authentication failed.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          500: {
+            description: 'Unexpected error retrieving contacts.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Contacts'],
+        summary: 'Create or merge a contact',
+        description:
+          'Creates a new contact owned by the authenticated user. If the normalized name, email, and phone match an existing contact, the record is merged.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ContactRequest' },
+            },
+          },
+        },
+        responses: {
+          201: {
+            description: 'Contact created or merged successfully.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ContactResponse' },
+              },
+            },
+          },
+          400: {
+            description: 'Invalid contact payload.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          401: {
+            description: 'Authentication failed.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          500: {
+            description: 'Unexpected error creating contact.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+    },
+    '/api/contacts/{id}': {
+      patch: {
+        tags: ['Contacts'],
+        summary: 'Update an existing contact',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Contact identifier.',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ContactRequest' },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Contact updated successfully.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ContactResponse' },
+              },
+            },
+          },
+          400: {
+            description: 'Invalid contact payload.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          401: {
+            description: 'Authentication failed.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          404: {
+            description: 'Contact not found.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          500: {
+            description: 'Unexpected error updating contact.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+        },
+      },
+      delete: {
+        tags: ['Contacts'],
+        summary: 'Delete a contact',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Contact identifier.',
+          },
+        ],
+        responses: {
+          204: {
+            description: 'Contact deleted successfully.',
+          },
+          401: {
+            description: 'Authentication failed.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          404: {
+            description: 'Contact not found.',
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/ErrorResponse' },
+              },
+            },
+          },
+          500: {
+            description: 'Unexpected error deleting contact.',
             content: {
               'application/json': {
                 schema: { $ref: '#/components/schemas/ErrorResponse' },

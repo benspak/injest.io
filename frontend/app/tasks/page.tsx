@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -97,21 +96,8 @@ export default function TasksPage() {
       <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard" className="text-sm text-blue-600 hover:underline">
-              ← Back to Dashboard
-            </Link>
-            <h1 className="text-xl sm:text-2xl font-bold">Tasks</h1>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="text-xs sm:text-sm"
-            >
-              <Link href="/dashboard">Dashboard</Link>
-            </Button>
+          <h1 className="text-xl sm:text-2xl font-bold">Tasks</h1>
+          <div className="hidden items-center gap-2 sm:flex sm:gap-4">
             <FeedbackDialog
               userEmail={currentUser?.email}
               buttonVariant="outline"

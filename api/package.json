@@ -11,7 +11,8 @@
     "test": "tsx --test src/**/*.test.ts",
     "migrate": "tsx src/migrations/run.ts",
     "make-plus-user": "tsx src/scripts/makePlusUser.ts",
-    "reindex-all-items": "tsx src/scripts/reindexAllItems.ts"
+    "reindex-all-items": "tsx src/scripts/reindexAllItems.ts",
+    "extract-contacts-from-ocr-images": "tsx src/scripts/extractContactsFromOcrImages.ts"
   },
   "keywords": [],
   "author": "",

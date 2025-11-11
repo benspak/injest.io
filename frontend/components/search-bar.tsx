@@ -61,7 +61,7 @@ export function SearchBar({
   }, [minQueryLength, onLoadingChange, onResultsChange, query]);
 
   return (
-    <div className="relative w-full max-w-full sm:max-w-3xl mx-auto">
+    <div className="relative w-full">
       <div className="relative">
         <Input
           type="text"

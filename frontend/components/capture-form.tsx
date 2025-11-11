@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { apiClient, type Item, type UploadAcknowledgement, ApiError } from '@/lib/api';
+import { apiClient, type UploadAcknowledgement, ApiError } from '@/lib/api';
 import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
 import { SUBSCRIPTION_PLANS, type SubscriptionTier } from '@/lib/subscriptionPlans';
+import { ITEM_CREATED_EVENT } from '@/lib/events';
 
 interface CaptureFormProps {
   onItemCreated?: () => void;
@@ -155,6 +156,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         if (onItemCreated) {
           onItemCreated();
         }
+        window.dispatchEvent(new Event(ITEM_CREATED_EVENT));
       }
 
       // Reset form
@@ -314,8 +316,11 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             // Reload limit status after successful creation
             await loadItemLimitStatus();
 
-            if (!isUploadAcknowledgement(response) && onItemCreated) {
-              onItemCreated();
+            if (!isUploadAcknowledgement(response)) {
+              if (onItemCreated) {
+                onItemCreated();
+              }
+              window.dispatchEvent(new Event(ITEM_CREATED_EVENT));
             }
           } catch (retryError: unknown) {
             const message = retryError instanceof Error ? retryError.message : 'Failed to create item after subscription';
@@ -480,23 +485,6 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
             </p>
           )}
 
-          {duplicateConflicts.length > 0 && (
-            <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3">
-              <p className="text-sm font-medium text-amber-900">Already saved</p>
-              <p className="mt-1 text-xs text-amber-900">
-                The following file{duplicateConflicts.length > 1 ? 's are' : ' is'} already in your workspace:
-              </p>
-              <ul className="mt-2 space-y-1 text-xs text-amber-800">
-                {duplicateConflicts.map((duplicate) => (
-                  <li key={`${duplicate.itemId}-${duplicate.filename}`}>
-                    <span className="font-medium">{duplicate.filename}</span>
-                    {duplicate.title ? ` · ${duplicate.title}` : null}
-                    <span className="text-[11px] text-amber-700 block">Item ID: {duplicate.itemId}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
         </form>
       </CardContent>
 

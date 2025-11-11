@@ -2,17 +2,15 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
-import { SearchBar } from '@/components/search-bar';
-import { CaptureForm } from '@/components/capture-form';
-import { ItemList } from '@/components/item-list';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AvatarMenu } from '@/components/avatar-menu';
+import { SearchBar } from '@/components/search-bar';
+import { ItemList } from '@/components/item-list';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
+import { AvatarMenu } from '@/components/avatar-menu';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail, API_URL, type SearchResult } from '@/lib/api';
+import { BOOKMARK_IMPORT_EVENT, ITEM_CREATED_EVENT } from '@/lib/events';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -22,10 +20,10 @@ export default function DashboardPage() {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
-  const [importingBookmarks, setImportingBookmarks] = useState(false);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
-  const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const bookmarkPollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const bookmarkInitialTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('');
   const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
@@ -238,6 +236,15 @@ export default function DashboardPage() {
     return () => {
       if (bookmarkPollIntervalRef.current) {
         clearInterval(bookmarkPollIntervalRef.current);
+        bookmarkPollIntervalRef.current = null;
+      }
+      if (bookmarkPollTimeoutRef.current) {
+        clearTimeout(bookmarkPollTimeoutRef.current);
+        bookmarkPollTimeoutRef.current = null;
+      }
+      if (bookmarkInitialTimeoutRef.current) {
+        clearTimeout(bookmarkInitialTimeoutRef.current);
+        bookmarkInitialTimeoutRef.current = null;
       }
     };
   }, [loadIndexedCount, loadItems, router]);
@@ -426,82 +433,77 @@ export default function DashboardPage() {
     }
   };
 
-  const handleImportBookmarks = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const refreshItems = useCallback(() => {
+    setOffset(0);
+    setItems([]);
+    setHasMore(true);
+    loadItems(0, true);
+    loadIndexedCount();
+  }, [loadIndexedCount, loadItems]);
 
-    // Validate file type
-    if (!file.name.endsWith('.html') && file.type !== 'text/html') {
-      toast.error('Please select an HTML bookmark file');
-      return;
-    }
+  const startBookmarkPolling = useCallback(() => {
+    refreshItems();
 
-    setImportingBookmarks(true);
-    try {
-      const result = await apiClient.importBookmarks(file);
-      handleImportSuccess(result.total);
-    } catch (error: unknown) {
-      const err = error as { message?: string };
-      console.error('Error importing bookmarks:', error);
-      toast.error(err?.message || 'Failed to start bookmark import');
-      setImportingBookmarks(false);
-    }
-  };
-
-  const handleImportSuccess = (total: number) => {
-    // Show success message with note about background processing
-    toast.success(
-      `Import started! Processing ${total} bookmark${total !== 1 ? 's' : ''} in the background. They will appear in your list as they are imported.`,
-      { duration: 6000 }
-    );
-
-    // Clear any existing polling interval
     if (bookmarkPollIntervalRef.current) {
       clearInterval(bookmarkPollIntervalRef.current);
     }
-
-    // Start polling for new items periodically to show them as they appear
     bookmarkPollIntervalRef.current = setInterval(() => {
-      // Reset and reload from beginning to show new items
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
-    }, 3000); // Poll every 3 seconds
+      refreshItems();
+    }, 3000);
 
-    // Stop polling after 2 minutes (bookmarks should be processed by then)
-    setTimeout(() => {
+    if (bookmarkPollTimeoutRef.current) {
+      clearTimeout(bookmarkPollTimeoutRef.current);
+    }
+    bookmarkPollTimeoutRef.current = setTimeout(() => {
       if (bookmarkPollIntervalRef.current) {
         clearInterval(bookmarkPollIntervalRef.current);
         bookmarkPollIntervalRef.current = null;
       }
-      // Final refresh
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
+      refreshItems();
+      if (bookmarkPollTimeoutRef.current) {
+        clearTimeout(bookmarkPollTimeoutRef.current);
+        bookmarkPollTimeoutRef.current = null;
+      }
     }, 120000);
 
-    // Initial refresh after a short delay
-    setTimeout(() => {
-      setOffset(0);
-      setItems([]);
-      setHasMore(true);
-      loadItems(0, true);
-      loadIndexedCount();
-    }, 2000);
-
-    setImportingBookmarks(false);
-    // Reset file input
-    if (bookmarkFileInputRef.current) {
-      bookmarkFileInputRef.current.value = '';
+    if (bookmarkInitialTimeoutRef.current) {
+      clearTimeout(bookmarkInitialTimeoutRef.current);
     }
-  };
+    bookmarkInitialTimeoutRef.current = setTimeout(() => {
+      refreshItems();
+      if (bookmarkInitialTimeoutRef.current) {
+        clearTimeout(bookmarkInitialTimeoutRef.current);
+        bookmarkInitialTimeoutRef.current = null;
+      }
+    }, 2000);
+  }, [refreshItems]);
+
+  useEffect(() => {
+    const handleBookmarkImport = () => {
+      startBookmarkPolling();
+    };
+
+    window.addEventListener(BOOKMARK_IMPORT_EVENT, handleBookmarkImport);
+
+    return () => {
+      window.removeEventListener(BOOKMARK_IMPORT_EVENT, handleBookmarkImport);
+    };
+  }, [startBookmarkPolling]);
+
+  useEffect(() => {
+    const handleItemCreated = () => {
+      refreshItems();
+    };
+
+    window.addEventListener(ITEM_CREATED_EVENT, handleItemCreated);
+
+    return () => {
+      window.removeEventListener(ITEM_CREATED_EVENT, handleItemCreated);
+    };
+  }, [refreshItems]);
 
   if (authLoading || (loading && searchQuery.length < 2)) {
-    return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
+    return <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">Loading...</div>;
   }
 
   const currentUser = auth.getUser();
@@ -511,16 +513,8 @@ export default function DashboardPage() {
       <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
-          <h1 className="text-xl sm:text-2xl font-bold">Injest.io</h1>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs sm:text-sm"
-              onClick={() => router.push('/tasks')}
-            >
-              Tasks
-            </Button>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
+          <div className="hidden items-center gap-2 sm:flex sm:gap-4">
             <FeedbackDialog
               userEmail={currentUser?.email}
               buttonVariant="outline"
@@ -531,10 +525,8 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
-
-      {/* Search bar - first thing after nav, bold and wide like Google */}
-      <div className="bg-white border-b py-6 sm:py-8">
-        <div className="container mx-auto px-3 sm:px-4 md:px-6 max-w-full">
+      <div className="border-b bg-white py-6 sm:py-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <SearchBar
             onResultsChange={handleSearchResultsChange}
             onLoadingChange={handleSearchLoadingChange}
@@ -543,128 +535,80 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <main className="container mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8 max-w-full">
-        <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-          {/* Capture New Item - first column on desktop, first on mobile */}
-          <div className="lg:col-span-1 space-y-4">
-            <CaptureForm onItemCreated={() => {
-              // Reset and reload from beginning when new item is created
-              setOffset(0);
-              setItems([]);
-              setHasMore(true);
-              loadItems(0, true);
-              loadIndexedCount();
-            }} />
-
-            {/* Import Bookmarks Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Import Bookmarks</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <input
-                  ref={bookmarkFileInputRef}
-                  type="file"
-                  accept=".html,text/html"
-                  onChange={handleImportBookmarks}
-                  className="hidden"
-                  id="bookmark-file-input"
-                />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => bookmarkFileInputRef.current?.click()}
-                  disabled={importingBookmarks}
-                >
-                  {importingBookmarks ? 'Importing...' : 'Import Bookmarks from HTML'}
-                </Button>
-                <p className="text-xs text-muted-foreground">
-                  Export your browser bookmarks as HTML and import them here.
-                </p>
-              </CardContent>
-            </Card>
-
-          </div>
-
-          {/* Item list - second column on desktop, second on mobile */}
-          <div className="lg:col-span-2">
-            <div className="mb-4">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-3 sm:mb-4">
-                <h2 className="text-lg sm:text-xl font-semibold">
-                  Your Items
-                  {indexedCount !== null && (
-                    <span className="text-xs sm:text-sm font-normal text-gray-500 ml-2">
-                      ({indexedCount} indexed)
-                    </span>
-                  )}
-                </h2>
-                <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-                  {/* Source Filter */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <label htmlFor="source-filter" className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                      Source:
-                    </label>
-                    <select
-                      id="source-filter"
-                      value={sourceFilter}
-                      onChange={(e) => setSourceFilter(e.target.value)}
-                      className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">All Sources</option>
-                      <option value="web">Web</option>
-                      <option value="bookmark">Bookmark</option>
-                      <option value="email">Email</option>
-                    </select>
-                  </div>
-                  {/* Attachments Filter */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <label className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={hasAttachmentsFilter}
-                        onChange={(e) => setHasAttachmentsFilter(e.target.checked)}
-                        className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span>With Files</span>
-                    </label>
-                  </div>
-                  {/* File Type Filter */}
-                  <div className="flex items-center gap-1.5 sm:gap-2">
-                    <label htmlFor="file-type-filter" className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
-                      File Type:
-                    </label>
-                    <select
-                      id="file-type-filter"
-                      value={fileTypeFilter}
-                      onChange={(e) => setFileTypeFilter(e.target.value)}
-                      className="px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">All Types</option>
-                      <option value="image">Image</option>
-                      <option value="spreadsheet">Spreadsheet</option>
-                      <option value="document">Document</option>
-                    </select>
-                  </div>
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="space-y-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
+                Your Items
+                {indexedCount !== null && (
+                  <span className="ml-2 text-xs font-normal text-gray-500 sm:text-sm">
+                    ({indexedCount} indexed)
+                  </span>
+                )}
+              </h2>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <label htmlFor="source-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
+                    Source:
+                  </label>
+                  <select
+                    id="source-filter"
+                    value={sourceFilter}
+                    onChange={(e) => setSourceFilter(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Sources</option>
+                    <option value="web">Web</option>
+                    <option value="bookmark">Bookmark</option>
+                    <option value="email">Email</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 sm:gap-2 sm:text-sm">
+                    <input
+                      type="checkbox"
+                      checked={hasAttachmentsFilter}
+                      onChange={(e) => setHasAttachmentsFilter(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4"
+                    />
+                    <span>With Files</span>
+                  </label>
+                </div>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <label htmlFor="file-type-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
+                    File Type:
+                  </label>
+                  <select
+                    id="file-type-filter"
+                    value={fileTypeFilter}
+                    onChange={(e) => setFileTypeFilter(e.target.value)}
+                    className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">All Types</option>
+                    <option value="image">Image</option>
+                    <option value="spreadsheet">Spreadsheet</option>
+                    <option value="document">Document</option>
+                  </select>
                 </div>
               </div>
             </div>
+          </div>
 
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
             {searchQuery.length >= 2 ? (
-              <>
-                {searchLoading ? (
-                  <div className="py-8 text-center text-muted-foreground">Searching…</div>
-                ) : searchResults.length === 0 ? (
-                  <div className="py-8 text-center text-muted-foreground">
-                    No items match your search.
-                  </div>
-                ) : (
-                  <ItemList items={searchResults} onDelete={handleDelete} />
-                )}
-              </>
+              searchLoading ? (
+                <div className="py-8 text-center text-muted-foreground">Searching…</div>
+              ) : searchResults.length === 0 ? (
+                <div className="py-8 text-center text-muted-foreground">
+                  No items match your search.
+                </div>
+              ) : (
+                <ItemList items={searchResults} onDelete={handleDelete} />
+              )
             ) : (
               <>
                 <ItemList items={items} onDelete={handleDelete} />
-                {/* Sentinel element for infinite scroll */}
                 {hasMore && (
                   <div ref={loadMoreSentinelRef} className="py-4 text-center">
                     {loadingMore && (

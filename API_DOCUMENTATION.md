@@ -585,6 +585,131 @@ Generate a 3-bullet-point summary for an email item.
 
 ---
 
+### Contacts (`/api/contacts`)
+
+Contacts are automatically extracted from uploaded content. Image attachments are processed with OCR, and the resulting text is parsed for names, emails, and phone numbers. Each contact records attribution metadata and a reference back to the originating item so you can trace where the information came from.
+
+#### List Contacts
+
+Retrieve a paginated list of contacts for the authenticated user.
+
+- **Endpoint:** `GET /api/contacts`
+- **Authentication:** Required
+- **Query Parameters:**
+  - `limit` (number, optional, default `50`, maximum `100`) – number of contacts to return
+  - `offset` (number, optional, default `0`) – number of contacts to skip
+
+**Response:** `200 OK`
+```json
+{
+  "contacts": [
+    {
+      "id": "contact-id",
+      "owner_id": "user-id",
+      "name": "Avery Example",
+      "email": "avery@example.com",
+      "phone": "+15551234567",
+      "source_item_id": "item-id",
+      "metadata": {
+        "source": "ocr",
+        "textSample": "Reach Avery Example at avery@example.com"
+      },
+      "created_at": "2024-02-01T15:20:00.000Z",
+      "updated_at": "2024-02-01T15:20:00.000Z"
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "hasMore": false,
+    "nextOffset": null
+  }
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` – Not authenticated
+- `500 Internal Server Error` – Failed to fetch contacts
+
+**Notes:**
+- Contacts are deduplicated per user by normalized email, phone, and name.
+- Each contact persists enrichment metadata, including OCR snippets and the derivation source.
+- The dashboard supports CSV/JSON exports for the same payload shown above.
+- For backfilling legacy data, see the `extract-contacts-from-ocr-images` maintenance script in `api/src/scripts/`.
+
+#### Create Contact
+
+Manually create (or merge into) a contact.
+
+- **Endpoint:** `POST /api/contacts`
+- **Authentication:** Required
+- **Body (JSON):**
+  ```json
+  {
+    "name": "Avery Example",
+    "email": "avery@example.com",
+    "phone": "+15551234567",
+    "metadata": {
+      "notes": "Met at the community meetup"
+    },
+    "source_item_id": "item-id"
+  }
+  ```
+  At least one of `name`, `email`, or `phone` must be supplied. If a record with the same owner + normalized fields already exists, the payload is merged into that contact.
+
+- **Response:** `201 Created`
+  ```json
+  {
+    "contact": {
+      "id": "contact-id",
+      "owner_id": "user-id",
+      "name": "Avery Example",
+      "email": "avery@example.com",
+      "phone": "+15551234567",
+      "source_item_id": "item-id",
+      "metadata": {
+        "source": "manual",
+        "notes": "Met at the community meetup"
+      },
+      "created_at": "2024-02-01T15:20:00.000Z",
+      "updated_at": "2024-02-01T15:20:00.000Z"
+    }
+  }
+  ```
+
+#### Update Contact
+
+Edit a contact (any combination of name, email, phone, or metadata). Blank strings null out the respective fields.
+
+- **Endpoint:** `PATCH /api/contacts/:id`
+- **Authentication:** Required
+- **Body:** Same structure as the create endpoint.
+- **Response:** `200 OK`
+  ```json
+  {
+    "contact": {
+      "id": "contact-id",
+      "name": "Avery E.",
+      "email": "avery@example.com",
+      "phone": null,
+      "metadata": {
+        "source": "manual"
+      },
+      "updated_at": "2024-02-01T16:45:12.000Z"
+    }
+  }
+  ```
+
+#### Delete Contact
+
+Remove a contact permanently.
+
+- **Endpoint:** `DELETE /api/contacts/:id`
+- **Authentication:** Required
+- **Response:** `204 No Content`
+
+---
+
 ### Search (`/api/search`)
 
 #### Semantic Search
@@ -1041,6 +1166,22 @@ interface User {
   stripe_customer_id?: string;
   bookmark_import_count?: number;
   last_bookmark_import_payment?: Date;
+  created_at: Date;
+  updated_at: Date;
+}
+```
+
+### Contact
+
+```typescript
+interface Contact {
+  id: string;
+  owner_id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  source_item_id: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
 }
