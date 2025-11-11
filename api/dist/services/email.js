@@ -219,6 +219,63 @@ export class EmailService {
             attachments: emailAttachments,
         });
     }
+    async sendComposedEmail(params) {
+        const { to, subject, bodyHtml, bodyText, cc, bcc, replyTo, attachments, fromEmail, } = params;
+        if (!to || !to.trim()) {
+            throw new Error('Recipient email is required to send composed email');
+        }
+        if (!subject || !subject.trim()) {
+            throw new Error('Subject is required to send composed email');
+        }
+        const fromAddress = fromEmail || process.env.OUTBOUND_SEND_EMAIL || 'Injest <noreply@injest.io>';
+        const htmlContent = bodyHtml ??
+            (bodyText
+                ? bodyText
+                    .split('\n')
+                    .map((line) => line.trim().length > 0
+                    ? `<p>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`
+                    : '<br />')
+                    .join('\n')
+                : '<p></p>');
+        const textContent = bodyText ??
+            (bodyHtml
+                ? bodyHtml
+                    .replace(/<br\s*\/?>/gi, '\n')
+                    .replace(/<\/p>/gi, '\n\n')
+                    .replace(/<[^>]*>/g, '')
+                    .trim()
+                : '');
+        let preparedAttachments;
+        if (attachments && attachments.length > 0) {
+            preparedAttachments = [];
+            for (const attachment of attachments) {
+                if (!attachment?.storedFilename) {
+                    continue;
+                }
+                const filePath = fileStorageService.getFilePath(attachment.storedFilename);
+                const fileBuffer = await fs.readFile(filePath);
+                preparedAttachments.push({
+                    filename: attachment.displayName || attachment.storedFilename,
+                    content: fileBuffer.toString('base64'),
+                    contentType: attachment.mimetype || 'application/octet-stream',
+                });
+            }
+            if (preparedAttachments.length === 0) {
+                preparedAttachments = undefined;
+            }
+        }
+        await this.resend.emails.send({
+            from: fromAddress,
+            to,
+            cc,
+            bcc,
+            reply_to: replyTo || undefined,
+            subject,
+            html: htmlContent,
+            text: textContent,
+            attachments: preparedAttachments,
+        });
+    }
     async listReceivedEmails(limit, after, before) {
         const params = new URLSearchParams();
         if (limit)

@@ -51,6 +51,21 @@ export declare class EmailService {
         shareUrl: string;
         senderEmail?: string;
     }): Promise<void>;
+    sendComposedEmail(params: {
+        to: string;
+        subject: string;
+        bodyHtml?: string;
+        bodyText?: string;
+        cc?: string[];
+        bcc?: string[];
+        replyTo?: string;
+        attachments?: Array<{
+            storedFilename: string;
+            displayName?: string;
+            mimetype?: string;
+        }>;
+        fromEmail?: string;
+    }): Promise<void>;
     listReceivedEmails(limit?: number, after?: string, before?: string): Promise<ReceivedEmailListResponse>;
     getReceivedEmail(emailId: string): Promise<ReceivedEmail>;
     listEmailAttachments(emailId: string): Promise<{

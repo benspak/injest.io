@@ -3,7 +3,7 @@
 import { Fragment, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Code, FolderKanban, Home, Menu, UploadCloud, Users, X } from 'lucide-react';
+import { Code, FolderKanban, Home, Menu, Send, UploadCloud, Users, X } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
@@ -26,6 +26,11 @@ const NAV_ITEMS = [
     href: '/tasks',
     label: 'Tasks',
     icon: FolderKanban,
+  },
+  {
+    href: '/send',
+    label: 'Send',
+    icon: Send,
   },
   {
     href: '/imports',

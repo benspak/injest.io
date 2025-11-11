@@ -42,6 +42,13 @@ export declare class ContactModel {
     static findByOwnerAndId(ownerId: string, contactId: string, client?: Pool | PoolClient): Promise<Contact | null>;
     static update(ownerId: string, contactId: string, updates: UpdateContactInput, client?: Pool | PoolClient): Promise<Contact | null>;
     static delete(ownerId: string, contactId: string, client?: Pool | PoolClient): Promise<boolean>;
+    private static normalizeDomain;
+    static searchForSend(ownerId: string, options?: {
+        domain?: string | null;
+        keywords?: string[] | null;
+        limit?: number;
+        excludeIds?: string[] | null;
+    }): Promise<Contact[]>;
 }
 export declare const contactNormalizers: {
     email: (value?: string | null) => string;

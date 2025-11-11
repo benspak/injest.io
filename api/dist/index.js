@@ -11,6 +11,7 @@ import feedbackRoutes from './routes/feedback.js';
 import paymentRoutes from './routes/payment.js';
 import tasksRoutes from './routes/tasks.js';
 import contactsRoutes from './routes/contacts.js';
+import sendRoutes from './routes/send.js';
 import { swaggerSpec } from './swagger.js';
 import externalRoutes from './routes/external.js';
 import './config/database.js';
@@ -76,6 +77,7 @@ app.use('/api/feedback', feedbackRoutes);
 app.use('/api/payment', paymentRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/contacts', contactsRoutes);
+app.use('/api/send', sendRoutes);
 app.use('/api/external', externalRoutes);
 // Health check
 app.get('/health', (req, res) => {

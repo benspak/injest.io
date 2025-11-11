@@ -416,6 +416,212 @@ Email: ${contentPreview}`;
             taskUpdates: {},
         };
     }
+    async analyzeSendPrompt(prompt) {
+        const instruction = `You help a user draft outreach emails. Analyze the request and respond with JSON only:
+{
+  "summary": "short summary of what the user wants",
+  "intent": "primary goal (e.g. introduction, follow-up, pitch, update)",
+  "targetCompany": "company name if obvious else empty string",
+  "targetDomain": "domain like example.com without protocol or empty string",
+  "targetPersona": "intended recipient persona/job role if inferred else empty string",
+  "tone": "suggested tone adjective such as friendly, formal, persuasive",
+  "searchQuery": "succinct search query to find supporting materials",
+  "keyFacts": ["bullet", "points", "max 4"]
+}
+
+User request: ${prompt}`;
+        await this.waitForRateLimit();
+        const response = await this.executeWithRetry(async () => {
+            return await this.client.chat.completions.create({
+                model: this.SIMPLE_TASK_MODEL,
+                messages: [
+                    { role: 'system', content: 'Respond with concise JSON respecting camelCase keys.' },
+                    { role: 'user', content: instruction },
+                ],
+                temperature: 0.3,
+                max_tokens: 250,
+                response_format: { type: 'json_object' },
+            });
+        });
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+            return {
+                summary: prompt.slice(0, 120),
+                intent: 'general',
+                searchQuery: prompt.slice(0, 100),
+                keyFacts: [],
+            };
+        }
+        try {
+            const parsed = JSON.parse(content);
+            return {
+                summary: typeof parsed.summary === 'string' ? parsed.summary : prompt.slice(0, 120),
+                intent: typeof parsed.intent === 'string' ? parsed.intent : 'general',
+                targetCompany: typeof parsed.targetCompany === 'string' ? parsed.targetCompany || undefined : undefined,
+                targetDomain: typeof parsed.targetDomain === 'string' ? parsed.targetDomain || undefined : undefined,
+                targetPersona: typeof parsed.targetPersona === 'string' ? parsed.targetPersona || undefined : undefined,
+                tone: typeof parsed.tone === 'string' ? parsed.tone || undefined : undefined,
+                searchQuery: typeof parsed.searchQuery === 'string' && parsed.searchQuery.trim().length > 0
+                    ? parsed.searchQuery
+                    : prompt.slice(0, 100),
+                keyFacts: Array.isArray(parsed.keyFacts)
+                    ? parsed.keyFacts
+                        .filter((fact) => typeof fact === 'string' && fact.trim().length > 0)
+                        .slice(0, 4)
+                    : [],
+            };
+        }
+        catch (error) {
+            console.warn('[OpenAI] Failed to parse send prompt analysis JSON', error);
+            return {
+                summary: prompt.slice(0, 120),
+                intent: 'general',
+                searchQuery: prompt.slice(0, 100),
+                keyFacts: [],
+            };
+        }
+    }
+    async generateSendPlan(input) {
+        const { prompt, analysis } = input;
+        const trimmedContacts = input.contacts.slice(0, 8).map((contact) => ({
+            id: contact.id,
+            name: contact.name ?? null,
+            email: contact.email ?? null,
+            phone: contact.phone ?? null,
+            company: contact.company ?? null,
+            lastInteraction: contact.lastInteraction ?? null,
+        }));
+        const trimmedItems = input.items.slice(0, 8).map((item) => ({
+            id: item.id,
+            type: item.type ?? null,
+            title: item.title ?? null,
+            description: item.description ? item.description.slice(0, 400) : null,
+            tags: item.tags?.slice(0, 6) ?? null,
+            url: item.url ?? null,
+            attachments: item.attachments?.slice(0, 3) ?? null,
+        }));
+        const payload = {
+            prompt,
+            analysis,
+            contacts: trimmedContacts,
+            items: trimmedItems,
+        };
+        const instruction = `You assist the user in preparing an email. Review the JSON context and respond strictly with JSON:
+{
+  "subject": "recommended subject line",
+  "body": "multiline email body with placeholders already filled",
+  "recommendedContactId": "id from contacts array or empty string",
+  "recommendedContactEmail": "email from contacts array or empty string",
+  "contactReason": "brief justification",
+  "attachments": [
+    {
+      "itemId": "id from items array",
+      "attachmentFilename": "filename if needed else empty string",
+      "reason": "why this helps"
+    }
+  ],
+  "notes": "additional suggestions or follow-up reminders",
+  "confidence": 0.0-1.0 number,
+  "followUpTasks": ["optional checklist"],
+  "suggestedSearchQuery": "refined search query for more context"
+}
+
+Return valid JSON only.`;
+        await this.waitForRateLimit();
+        const response = await this.executeWithRetry(async () => {
+            return await this.client.chat.completions.create({
+                model: this.ADVANCED_TASK_MODEL,
+                messages: [
+                    {
+                        role: 'system',
+                        content: 'You are an expert outreach assistant. Always return valid JSON matching the requested schema.',
+                    },
+                    {
+                        role: 'user',
+                        content: `${instruction}\n\nContext:\n${JSON.stringify(payload, null, 2)}`,
+                    },
+                ],
+                temperature: 0.6,
+                max_tokens: 650,
+                response_format: { type: 'json_object' },
+            });
+        });
+        const content = response.choices[0]?.message?.content;
+        if (!content) {
+            return {
+                subject: analysis.summary.slice(0, 60) || 'Draft Email',
+                body: `Hi,\n\n${analysis.summary}\n\nBest regards,\n`,
+                attachments: [],
+                notes: null,
+                confidence: null,
+                recommendedContactId: null,
+                recommendedContactEmail: null,
+                contactReason: null,
+                followUpTasks: null,
+                suggestedSearchQuery: null,
+            };
+        }
+        try {
+            const parsed = JSON.parse(content);
+            return {
+                subject: typeof parsed.subject === 'string' && parsed.subject.trim() ? parsed.subject.trim() : 'Draft Email',
+                body: typeof parsed.body === 'string' && parsed.body.trim()
+                    ? parsed.body.trim()
+                    : `Hi,\n\n${analysis.summary}\n\nBest regards,\n`,
+                recommendedContactId: typeof parsed.recommendedContactId === 'string' && parsed.recommendedContactId
+                    ? parsed.recommendedContactId
+                    : null,
+                recommendedContactEmail: typeof parsed.recommendedContactEmail === 'string' && parsed.recommendedContactEmail
+                    ? parsed.recommendedContactEmail
+                    : null,
+                contactReason: typeof parsed.contactReason === 'string' && parsed.contactReason.trim()
+                    ? parsed.contactReason.trim()
+                    : null,
+                attachments: Array.isArray(parsed.attachments)
+                    ? parsed.attachments
+                        .filter((att) => typeof att === 'object' &&
+                        att !== null &&
+                        typeof att.itemId === 'string' &&
+                        att.itemId.trim().length > 0)
+                        .map((att) => ({
+                        itemId: att.itemId,
+                        attachmentFilename: typeof att.attachmentFilename === 'string' && att.attachmentFilename.trim().length > 0
+                            ? att.attachmentFilename.trim()
+                            : null,
+                        reason: typeof att.reason === 'string' && att.reason.trim().length > 0 ? att.reason.trim() : null,
+                    }))
+                        .slice(0, 5)
+                    : [],
+                notes: typeof parsed.notes === 'string' && parsed.notes.trim() ? parsed.notes.trim() : null,
+                confidence: typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence)
+                    ? Math.min(Math.max(parsed.confidence, 0), 1)
+                    : null,
+                followUpTasks: Array.isArray(parsed.followUpTasks)
+                    ? parsed.followUpTasks
+                        .filter((item) => typeof item === 'string' && item.trim().length > 0)
+                        .slice(0, 5)
+                    : null,
+                suggestedSearchQuery: typeof parsed.suggestedSearchQuery === 'string' && parsed.suggestedSearchQuery.trim()
+                    ? parsed.suggestedSearchQuery.trim()
+                    : null,
+            };
+        }
+        catch (error) {
+            console.warn('[OpenAI] Failed to parse send plan JSON', error);
+            return {
+                subject: analysis.summary.slice(0, 60) || 'Draft Email',
+                body: `Hi,\n\n${analysis.summary}\n\nBest regards,\n`,
+                attachments: [],
+                notes: null,
+                confidence: null,
+                recommendedContactId: null,
+                recommendedContactEmail: null,
+                contactReason: null,
+                followUpTasks: null,
+                suggestedSearchQuery: null,
+            };
+        }
+    }
 }
 export const openAIService = new OpenAIService();
 //# sourceMappingURL=openai.js.map

@@ -221,6 +221,77 @@ export class ContactModel {
       `, [contactId, ownerId]);
         return (result.rowCount ?? 0) > 0;
     }
+    static normalizeDomain(domain) {
+        if (!domain) {
+            return null;
+        }
+        const trimmed = domain.trim().toLowerCase();
+        if (!trimmed) {
+            return null;
+        }
+        return trimmed
+            .replace(/^https?:\/\//, '')
+            .replace(/^www\./, '')
+            .split(/[/?#]/)[0]
+            .trim();
+    }
+    static async searchForSend(ownerId, options = {}) {
+        const limit = Math.max(1, Math.min(options.limit ?? 10, 50));
+        const normalizedDomain = this.normalizeDomain(options.domain);
+        const keywords = Array.isArray(options.keywords)
+            ? options.keywords
+                .map((word) => word?.toString().trim().toLowerCase())
+                .filter((word) => Boolean(word))
+            : [];
+        const excludeIds = Array.isArray(options.excludeIds)
+            ? options.excludeIds
+                .map((id) => id?.toString().trim())
+                .filter((id) => Boolean(id))
+            : [];
+        const whereClauses = ['owner_id = $1'];
+        const params = [ownerId];
+        const orderSegments = [];
+        if (normalizedDomain) {
+            params.push(`%${normalizedDomain}`);
+            const domainIndex = params.length;
+            whereClauses.push(`normalized_email LIKE $${domainIndex}`);
+            orderSegments.push(`CASE WHEN normalized_email LIKE $${domainIndex} THEN 1 ELSE 0 END DESC`);
+        }
+        if (keywords.length > 0) {
+            const keywordClauses = [];
+            for (const keyword of keywords) {
+                params.push(`%${keyword}%`);
+                const keywordIndex = params.length;
+                keywordClauses.push(`normalized_name LIKE $${keywordIndex}`);
+                keywordClauses.push(`normalized_email LIKE $${keywordIndex}`);
+            }
+            if (keywordClauses.length > 0) {
+                const grouped = [];
+                for (let i = 0; i < keywordClauses.length; i += 2) {
+                    grouped.push(`(${keywordClauses[i]} OR ${keywordClauses[i + 1]})`);
+                }
+                whereClauses.push(`(${grouped.join(' OR ')})`);
+            }
+        }
+        if (excludeIds.length > 0) {
+            params.push(excludeIds);
+            const excludeIndex = params.length;
+            whereClauses.push(`id <> ALL($${excludeIndex}::uuid[])`);
+        }
+        const orderBy = orderSegments.length > 0
+            ? `${orderSegments.join(', ')}, updated_at DESC`
+            : 'updated_at DESC';
+        params.push(limit);
+        const limitIndex = params.length;
+        const result = await pool.query(`
+        SELECT *
+        FROM contacts
+        WHERE ${whereClauses.join(' AND ')}
+        ORDER BY ${orderBy}
+        LIMIT $${limitIndex}
+      `, params);
+        return result.rows ?? [];
+    }
 }
 export const contactNormalizers = {
     email: normalizeEmail,

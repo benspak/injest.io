@@ -1,26 +1,43 @@
 # Injest.io RAG System
 
-A knowledge recall system with email ingestion, vector indexing, semantic search, and AI-powered features.
+An AI-assisted knowledge recall platform with ingestion pipelines, semantic search, outbound communication workflows, and a Plus-tier external API. This repository hosts the full monorepo:
 
-## Setup
+- `api/` – Express + TypeScript backend (ES modules) with OpenAI-powered enrichment, Stripe billing, and REST APIs.
+- `frontend/` – Next.js 14 frontend with the authenticated dashboard, developer docs, and interactive API explorer.
+- `chrome-extension/` – Utility extension for capturing links and notes into Injest.
+- `*.md` – Developer documentation (`SETUP.md`, `API_DOCUMENTATION.md`, `OPENAI_OPTIMIZATION.md`, etc.).
 
-See SETUP.md
+## Getting Started
 
-## Seed Prompt Used
+1. Follow the full environment walkthrough in `SETUP.md` (PostgreSQL + pgvector, env vars, migrations).
+2. Start the backend (`cd api && npm run dev`) and frontend (`cd frontend && npm run dev`).
+3. Optional: create a Plus-tier test user with `npm run make-plus-user` so you can exercise external API flows locally.
 
-See SEED.md
+The backend exposes Swagger-based docs at `/api/openapi.json`, but access is gated by the Plus plan. The frontend’s `/developers` page loads the OpenAPI spec when the signed-in user has the necessary tier.
 
-## Ben to Dom Handoff Nov 5th 2025.
+## Developer Documentation
 
-Remember, remember ... that you're working on Google DOCs integration.
+- `SETUP.md` – Local development, env configuration, and deployment notes.
+- `API_DOCUMENTATION.md` – REST endpoints (authenticated vs. external API key access, tasks, send workflows, payments, etc.).
+- `OPENAI_OPTIMIZATION.md` – Guidance for tuning prompts, context windows, and model selection.
 
-## Search Improvements
+In-app developer docs live at `http://localhost:3000/developers` when running locally. Users below Plus see upgrade guidance; Plus users can generate API keys, download the spec, and explore endpoints via Swagger UI.
 
-- `/api/search` supports structured filters (type, tags, source, uploaded owner, attachments, date range) and returns detailed scoring metadata for each hit.
-- Search responses are cached per user for 60 seconds and automatically invalidated when items are indexed, shared, updated, or deleted.
-- The dashboard search bar now includes filter controls (type, uploaded by, tags, attachments) and highlights result metadata such as recency, source, and vector score breakdown.
-- Embeddings now default to `text-embedding-3-small` (1536 dims). Run migrations (including `016_force_small_embeddings.sql`) and re-index items when upgrading from older deployments that used 3072-dimension embeddings.
+## Maintenance & Operational Jobs
 
-## Maintenance Jobs
+- `npm run migrate` (backend) – Runs TypeScript-powered migrations.
+- `npm run reindex-all-items` – Re-enqueues every active item for embeddings and metadata refresh (configure `REINDEX_BATCH_SIZE`/`REINDEX_CONCURRENCY`).
+- `npm run extract-contacts-from-ocr-images` – Backfills contacts from historical OCR data.
 
-- Run `npm run reindex-all-items` from the `api` directory (ideally via a daily cron job) to reindex every active user item. Configure `REINDEX_BATCH_SIZE` and `REINDEX_CONCURRENCY` environment variables to tune throughput.
+All scripts should run from the `api` directory.
+
+## Search & Retrieval Highlights
+
+- `/api/search` supports structured filters (type, tags, source, uploaded owner, attachments, date range) and returns scoring metadata per hit.
+- Search responses cache per user for 60 seconds and automatically invalidate when items change.
+- The dashboard search bar mirrors the backend filters and surfaces similarity + recency insights.
+- Embedding defaults: `text-embedding-3-small` (1536 dimensions). If upgrading from 3k-dimension models, run migration `016_force_small_embeddings.sql` and reindex.
+
+## Support
+
+Questions or issues? Open a GitHub issue or contact the team. Internal handoff notes (e.g., Nov 5 2025 Google Docs integration) live in project planning docs rather than this README.

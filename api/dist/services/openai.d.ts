@@ -1,3 +1,50 @@
+export interface SendPromptAnalysis {
+    summary: string;
+    intent: string;
+    targetCompany?: string;
+    targetDomain?: string;
+    targetPersona?: string;
+    tone?: string;
+    searchQuery: string;
+    keyFacts: string[];
+}
+export interface SendPlanContactContext {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    company?: string | null;
+    lastInteraction?: string | null;
+}
+export interface SendPlanItemContext {
+    id: string;
+    type?: string | null;
+    title?: string | null;
+    description?: string | null;
+    tags?: string[] | null;
+    url?: string | null;
+    attachments?: Array<{
+        filename: string;
+        mimetype?: string;
+        size?: number;
+    }> | null;
+}
+export interface SendPlanRecommendation {
+    subject: string;
+    body: string;
+    recommendedContactId?: string | null;
+    recommendedContactEmail?: string | null;
+    contactReason?: string | null;
+    attachments: Array<{
+        itemId: string;
+        attachmentFilename?: string | null;
+        reason?: string | null;
+    }>;
+    notes?: string | null;
+    confidence?: number | null;
+    followUpTasks?: string[] | null;
+    suggestedSearchQuery?: string | null;
+}
 export declare class OpenAIService {
     private client;
     private readonly EMBEDDING_MODEL;
@@ -48,6 +95,13 @@ export declare class OpenAIService {
         itemUpdates: Record<string, unknown>;
         taskUpdates: Record<string, unknown>;
     }>;
+    analyzeSendPrompt(prompt: string): Promise<SendPromptAnalysis>;
+    generateSendPlan(input: {
+        prompt: string;
+        analysis: SendPromptAnalysis;
+        contacts: SendPlanContactContext[];
+        items: SendPlanItemContext[];
+    }): Promise<SendPlanRecommendation>;
 }
 export declare const openAIService: OpenAIService;
 //# sourceMappingURL=openai.d.ts.map

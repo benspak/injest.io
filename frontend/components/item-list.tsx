@@ -636,21 +636,9 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                       >
                         <Share2 className="h-4 w-4" />
                       </Button>
-                      {!item.isResendEmail && !taskifiedItems.has(item.id) && item.type !== 'task' ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleTaskifyItem(item);
-                          }}
-                          disabled={taskifyLoading.has(item.id)}
-                        >
-                          {taskifyLoading.has(item.id) ? 'Taskifying…' : 'Taskify'}
-                        </Button>
-                      ) : (!item.isResendEmail ? (
+                      {!item.isResendEmail && (taskifiedItems.has(item.id) || item.type === 'task') && (
                         <span className="text-xs text-green-600 font-medium ml-2">Task ready</span>
-                      ) : null)}
+                      )}
                     </div>
                   </div>
                 </CardHeader>

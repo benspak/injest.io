@@ -226,6 +226,98 @@ export interface SearchResultScores {
   ownerBoost: number;
 }
 
+export interface SendPlanAnalysis {
+  summary: string;
+  intent: string;
+  targetCompany?: string;
+  targetDomain?: string;
+  targetPersona?: string;
+  tone?: string;
+  searchQuery: string;
+  keyFacts: string[];
+}
+
+export interface SendPlanContact {
+  id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+  company: string | null;
+  sourceItemId: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface SendPlanItem {
+  id: string;
+  type?: string;
+  title?: string | null;
+  description?: string | null;
+  url?: string | null;
+  tags?: string[] | null;
+  source?: string | null;
+  similarity: number;
+  scores?: SearchResultScores;
+  attachments: ItemAttachment[];
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface SendPlanAttachmentSuggestion {
+  itemId: string;
+  attachmentFilename?: string | null;
+  reason?: string | null;
+}
+
+export interface SendPlanRecommendation {
+  subject: string;
+  body: string;
+  recommendedContactId?: string | null;
+  recommendedContactEmail?: string | null;
+  contactReason?: string | null;
+  attachments: SendPlanAttachmentSuggestion[];
+  notes?: string | null;
+  confidence?: number | null;
+  followUpTasks?: string[] | null;
+  suggestedSearchQuery?: string | null;
+}
+
+export interface SendPlanResponse {
+  analysis: SendPlanAnalysis;
+  prompt: string;
+  searchQuery: string;
+  contacts: SendPlanContact[];
+  items: SendPlanItem[];
+  recommendation: SendPlanRecommendation;
+  generatedAt: string;
+}
+
+export interface SendExecuteAttachment {
+  itemId: string;
+  attachmentFilename?: string | null;
+}
+
+export interface ExecuteSendRequest {
+  subject: string;
+  body: string;
+  contactId?: string | null;
+  toEmail?: string | null;
+  cc?: string[];
+  bcc?: string[];
+  replyTo?: string | null;
+  attachments?: SendExecuteAttachment[];
+  prompt?: string;
+  recommendation?: SendPlanRecommendation;
+}
+
+export interface ExecuteSendResponse {
+  success: boolean;
+  sentAt: string;
+  itemId: string;
+  contact: SendPlanContact | null;
+}
+
 export interface SearchFilters {
   types?: string[];
   tags?: string[];
@@ -887,6 +979,20 @@ class ApiClient {
   async generateItemEmailSummary(itemId: string): Promise<{ summary: string[] }> {
     return this.request<{ summary: string[] }>(`/api/items/${itemId}/email-summary`, {
       method: 'POST',
+    });
+  }
+
+  async planSend(prompt: string): Promise<SendPlanResponse> {
+    return this.request<SendPlanResponse>('/api/send/plan', {
+      method: 'POST',
+      body: JSON.stringify({ prompt }),
+    });
+  }
+
+  async executeSend(payload: ExecuteSendRequest): Promise<ExecuteSendResponse> {
+    return this.request<ExecuteSendResponse>('/api/send/execute', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     });
   }
 
