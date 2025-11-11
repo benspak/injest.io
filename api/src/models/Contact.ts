@@ -1,3 +1,4 @@
+import type { Pool, PoolClient } from 'pg';
 import pool from '../config/database.js';
 
 export interface Contact {
@@ -82,7 +83,7 @@ const mergeMetadata = (
 export class ContactModel {
   static async upsert(
     input: UpsertContactInput,
-    client = pool
+    client: Pool | PoolClient = pool
   ): Promise<Contact | null> {
     const name = sanitizeNullable(input.name);
     const email = sanitizeNullable(input.email);
@@ -161,7 +162,7 @@ export class ContactModel {
 
   static async upsertMany(
     inputs: UpsertContactInput[],
-    client = pool
+    client: Pool | PoolClient = pool
   ): Promise<Contact[]> {
     const results: Contact[] = [];
 
@@ -198,7 +199,7 @@ export class ContactModel {
   static async findByOwnerAndId(
     ownerId: string,
     contactId: string,
-    client = pool
+    client: Pool | PoolClient = pool
   ): Promise<Contact | null> {
     const result = await client.query<Contact>(
       `
@@ -218,7 +219,7 @@ export class ContactModel {
     ownerId: string,
     contactId: string,
     updates: UpdateContactInput,
-    client = pool
+    client: Pool | PoolClient = pool
   ): Promise<Contact | null> {
     const existing = await this.findByOwnerAndId(ownerId, contactId, client);
     if (!existing) {
@@ -280,7 +281,7 @@ export class ContactModel {
   static async delete(
     ownerId: string,
     contactId: string,
-    client = pool
+    client: Pool | PoolClient = pool
   ): Promise<boolean> {
     const result = await client.query(
       `
@@ -291,7 +292,7 @@ export class ContactModel {
       [contactId, ownerId]
     );
 
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 }
 

@@ -21,6 +21,8 @@ import { decodeOriginalFilename, normalizeItem, sanitizeOriginalFilename } from 
 import { itemStreamService } from '../services/itemStream.js';
 import { emailService } from '../services/email.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
+import { ContactModel } from '../models/Contact.js';
+import { contactExtractor } from '../services/contactExtractor.js';
 import { coerceSubscriptionTier, getMaxIndexedItems, getPlan, } from '../utils/subscriptionPlans.js';
 import { searchService } from '../services/search.js';
 const router = express.Router();
@@ -67,6 +69,44 @@ const resolveFrontendBaseUrl = () => {
     }
     return null;
 };
+const extractContactCandidatesFromText = (text) => {
+    if (!text || text.trim().length === 0) {
+        return [];
+    }
+    try {
+        return contactExtractor.extract(text);
+    }
+    catch (error) {
+        console.error('[Contacts] Failed to extract contact candidates from text:', error);
+        return [];
+    }
+};
+async function persistContactCandidatesForItem(client, ownerId, itemId, candidates, context = {}) {
+    const validCandidates = candidates.filter((candidate) => candidate.email);
+    if (!validCandidates.length) {
+        return;
+    }
+    const metadataBase = {
+        source: context.source ?? 'ocr',
+        itemId,
+    };
+    if (context.filename) {
+        metadataBase.filename = context.filename;
+    }
+    if (context.textSample) {
+        metadataBase.textSample = context.textSample;
+    }
+    await ContactModel.upsertMany(validCandidates.map((candidate) => ({
+        ownerId,
+        name: candidate.name ?? undefined,
+        email: candidate.email ?? undefined,
+        sourceItemId: itemId,
+        metadata: {
+            ...(candidate.metadata ?? {}),
+            ...metadataBase,
+        },
+    })), client);
+}
 // Download file or serve inline (for images)
 // Note: This route is defined before authMiddleware to allow token in query string for images
 router.get('/:id/files/:filename', async (req, res) => {
@@ -341,6 +381,8 @@ async function processSingleFile(file, userId, options = {}) {
         log('Stage 1/4: Extracting text content (OCR/Vision)');
         const parsedContent = await fileParserService.parseFile(file.filename, file.mimetype);
         const extractionSource = parsedContent.metadata?.source || (isImageFile ? 'ocr' : 'text');
+        const contactCandidates = extractContactCandidatesFromText(parsedContent.text);
+        const contactTextSample = parsedContent.text ? parsedContent.text.substring(0, 280) : undefined;
         log(`Stage 1/4 complete (${extractionSource.toUpperCase()})`);
         log('Stage 2/4: Generating metadata (title, description)');
         let finalTitle = providedTitle || undefined;
@@ -442,6 +484,13 @@ async function processSingleFile(file, userId, options = {}) {
             tags: parsedTags,
             source: 'web',
         }, client);
+        if (contactCandidates.length > 0) {
+            await persistContactCandidatesForItem(client, userId, item.id, contactCandidates, {
+                filename: file.originalname,
+                source: extractionSource,
+                textSample: contactTextSample,
+            });
+        }
         await client.query('COMMIT');
         log(`Stage 3/4 complete (item ${item.id})`);
         log('Stage 4/4: Generating embeddings and indexing');
@@ -655,6 +704,30 @@ export async function handleCreateItem(req, res) {
                 checksum: file.checksum,
             }));
         }
+        const primaryFile = files.length > 0 ? files[0] : undefined;
+        let parsedContentForContacts = null;
+        let contactCandidates = [];
+        let contactExtractionSource;
+        let contactTextSample;
+        let contactFilename;
+        const ensureContactExtraction = async () => {
+            if (!primaryFile || parsedContentForContacts) {
+                return;
+            }
+            try {
+                const parsed = await fileParserService.parseFile(primaryFile.filename, primaryFile.mimetype);
+                parsedContentForContacts = parsed;
+                contactCandidates = extractContactCandidatesFromText(parsed.text);
+                contactExtractionSource =
+                    parsed.metadata?.source ||
+                        (ocrService.isImage(primaryFile.mimetype, primaryFile.originalname) ? 'ocr' : 'text');
+                contactTextSample = parsed.text ? parsed.text.substring(0, 280) : undefined;
+                contactFilename = primaryFile.originalname;
+            }
+            catch (error) {
+                console.error('Error extracting contacts from primary file:', error);
+            }
+        };
         // Auto-fill title and description from file content if missing
         let finalTitle = title;
         let finalDescription = description;
@@ -677,13 +750,19 @@ export async function handleCreateItem(req, res) {
                 console.error('Error fetching link metadata:', error);
             }
         }
-        if ((!finalTitle || !finalDescription) && files.length > 0) {
+        if ((!finalTitle || !finalDescription) && primaryFile) {
             try {
-                // Use the first file for auto-filling title/description
-                const firstFile = files[0];
-                const isImageFile = ocrService.isImage(firstFile.mimetype, firstFile.originalname);
+                const isImageFile = ocrService.isImage(primaryFile.mimetype, primaryFile.originalname);
                 // Parse the file to extract content (for images, this will use OCR or Vision API)
-                const parsedContent = await fileParserService.parseFile(firstFile.filename, firstFile.mimetype);
+                const parsedContent = await fileParserService.parseFile(primaryFile.filename, primaryFile.mimetype);
+                if (!parsedContentForContacts) {
+                    parsedContentForContacts = parsedContent;
+                    contactCandidates = extractContactCandidatesFromText(parsedContent.text);
+                    contactExtractionSource =
+                        parsedContent.metadata?.source || (isImageFile ? 'ocr' : 'text');
+                    contactTextSample = parsedContent.text ? parsedContent.text.substring(0, 280) : undefined;
+                    contactFilename = primaryFile.originalname;
+                }
                 if (parsedContent.text && parsedContent.text.trim().length > 0) {
                     if (isImageFile) {
                         // Check if description came from Vision API (when OCR found no text)
@@ -699,7 +778,7 @@ export async function handleCreateItem(req, res) {
                             }
                             // Fallback if title wasn't set (shouldn't happen, but defensive)
                             if (!finalTitle) {
-                                finalTitle = path.basename(firstFile.originalname, path.extname(firstFile.originalname));
+                                finalTitle = path.basename(primaryFile.originalname, path.extname(primaryFile.originalname));
                             }
                         }
                         else {
@@ -712,20 +791,20 @@ export async function handleCreateItem(req, res) {
                             // Always try to generate title from OCR text for images if no title was provided
                             if (!finalTitle) {
                                 try {
-                                    const generated = await openAIService.generateTitleAndDescription(parsedContent.text, firstFile.originalname);
+                                    const generated = await openAIService.generateTitleAndDescription(parsedContent.text, primaryFile.originalname);
                                     finalTitle = generated.title;
                                 }
                                 catch (titleError) {
                                     // If title generation fails, fallback to filename
                                     console.error('Error generating title from OCR text:', titleError);
-                                    finalTitle = path.basename(firstFile.originalname, path.extname(firstFile.originalname));
+                                    finalTitle = path.basename(primaryFile.originalname, path.extname(primaryFile.originalname));
                                 }
                             }
                         }
                     }
                     else {
                         // For non-image files: generate both title and description from content
-                        const generated = await openAIService.generateTitleAndDescription(parsedContent.text, firstFile.originalname);
+                        const generated = await openAIService.generateTitleAndDescription(parsedContent.text, primaryFile.originalname);
                         // Only use generated values if the corresponding field is missing
                         if (!finalTitle) {
                             finalTitle = generated.title;
@@ -739,9 +818,8 @@ export async function handleCreateItem(req, res) {
             catch (error) {
                 // Log error but don't fail the request - fallback to filename if title is missing
                 console.error('Error auto-filling title/description from file:', error);
-                if (!finalTitle && files.length > 0) {
-                    const firstFile = files[0];
-                    finalTitle = path.basename(firstFile.originalname, path.extname(firstFile.originalname));
+                if (!finalTitle && primaryFile) {
+                    finalTitle = path.basename(primaryFile.originalname, path.extname(primaryFile.originalname));
                 }
             }
         }
@@ -772,10 +850,22 @@ export async function handleCreateItem(req, res) {
                 if (linkMetadata?.description)
                     contentForTagging.push(linkMetadata.description);
                 // If we have files, try to extract text content
-                if (files.length > 0) {
+                if (primaryFile) {
                     try {
-                        const firstFile = files[0];
-                        const parsedContent = await fileParserService.parseFile(firstFile.filename, firstFile.mimetype);
+                        if (!parsedContentForContacts) {
+                            await ensureContactExtraction();
+                        }
+                        let parsedContent = parsedContentForContacts;
+                        if (!parsedContent) {
+                            parsedContent = await fileParserService.parseFile(primaryFile.filename, primaryFile.mimetype);
+                            parsedContentForContacts = parsedContent;
+                            contactCandidates = extractContactCandidatesFromText(parsedContent.text);
+                            contactExtractionSource =
+                                parsedContent.metadata?.source ||
+                                    (ocrService.isImage(primaryFile.mimetype, primaryFile.originalname) ? 'ocr' : 'text');
+                            contactTextSample = parsedContent.text ? parsedContent.text.substring(0, 280) : undefined;
+                            contactFilename = primaryFile.originalname;
+                        }
                         if (parsedContent.text && parsedContent.text.trim().length > 0) {
                             // Add first 500 chars of file content for tagging
                             contentForTagging.push(parsedContent.text.substring(0, 500));
@@ -801,6 +891,7 @@ export async function handleCreateItem(req, res) {
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
+            await ensureContactExtraction();
             item = await ItemModel.create({
                 owner_id: req.user.id,
                 title: finalTitle || undefined,
@@ -812,6 +903,13 @@ export async function handleCreateItem(req, res) {
                 source: 'web',
                 link_metadata: linkMetadata || undefined,
             }, client);
+            if (item && contactCandidates.length > 0) {
+                await persistContactCandidatesForItem(client, req.user.id, item.id, contactCandidates, {
+                    filename: contactFilename,
+                    source: contactExtractionSource,
+                    textSample: contactTextSample,
+                });
+            }
             await client.query('COMMIT');
         }
         catch (error) {
