@@ -7,8 +7,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Injest.io - A personal search engine for your files',
-  description: 'Capture, search, and organize your knowledge with AI-powered search',
+  title: 'Injest.io - A personal search engine for your images, files, and notes.',
+  description: 'Capture, search, and organize with AI-powered search. Upload any image. We give you the text, labels, and structured data.',
 }
 
 export const viewport: Viewport = {

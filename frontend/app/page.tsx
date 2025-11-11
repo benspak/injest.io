@@ -1,130 +1,209 @@
-import Link from 'next/link';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import Link from "next/link";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Link2,
-  Mail,
-  FileText,
-  Search,
-  Tag,
-  Filter,
-  Sparkles,
-  Image as ImageIcon,
+  Code,
   Database,
-  Download
-} from 'lucide-react';
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Palette,
+  Search,
+  Sparkles,
+  Tag,
+} from "lucide-react";
+import {
+  PAID_PLAN_ORDER,
+  SUBSCRIPTION_PLANS,
+  formatPlanPrice,
+  type SubscriptionTier,
+} from "@/lib/subscriptionPlans";
 
 export default function Home() {
-  const keyFeatures = [
+  const coreValueProps = [
     {
-      id: 'capture',
-      icon: Link2,
-      title: 'Capture Everything',
-      description: 'Pull in bookmarks, files, and notes from anywhere with browser extensions, bulk uploads, or simple email forwarding.',
+      id: "extract",
+      icon: ImageIcon,
+      title: "Extract every word inside your images",
+      description: "Upload screenshots, scanned docs, slides, or memes and get high-accuracy OCR in seconds.",
     },
     {
-      id: 'summaries',
-      icon: Mail,
-      title: 'AI Email Summaries',
-      description: 'Forward any email to input@injest.io and instantly get concise bullet-point summaries that keep you up to speed.',
+      id: "label",
+      icon: Tag,
+      title: "Label, structure, and enrich automatically",
+      description: "Injest.io applies AI-generated titles, tags, captions, and metadata so every image becomes searchable.",
     },
     {
-      id: 'search',
-      icon: Search,
-      title: 'Semantic Search',
-      description: 'Ask questions in natural language and find the exact insight you captured—across documents, images, and messages.',
-    },
-    {
-      id: 'automation',
-      icon: Sparkles,
-      title: 'Automation Ready',
-      description: 'Auto-tag, categorize, and enrich every item with metadata so your knowledge base stays organized without manual effort.',
-    },
-    {
-      id: 'api',
+      id: "deliver",
       icon: Database,
-      title: 'REST API Access',
-      description: 'Integrate Injest.io into your workflows with a developer-friendly API for ingestion, syncing, and programmatic search.',
-    },
-    {
-      id: 'exports',
-      icon: Download,
-      title: 'Portable Data Exports',
-      description: 'Download everything you capture as CSV or JSON whenever you need a backup, audit trail, or deeper analysis.',
+      title: "Deliver the data anywhere",
+      description: "Access your structured results from the dashboard, export CSVs, or hit the REST API for JSON instantly.",
     },
   ];
 
-  const pricingPlans = [
+  const personaHighlights = [
     {
-      id: 'free',
-      name: 'Free',
-      priceDisplay: '$0',
-      priceNote: 'forever',
-      limit: 'Up to 500 indexed items',
-      description: 'Organize your knowledge base with core capture and search features.',
-      features: ['Text and image OCR', 'Semantic search & tagging', 'Bookmark and email capture'],
+      id: "developers",
+      icon: Code,
+      title: "For Developers & Indie Hackers",
+      subtitle: "Drop-in OCR & labeling API",
+      bullets: [
+        "Send an image URL or upload a file—receive JSON with extracted text, labels, and embeddings.",
+        "Pipe structured image data into internal tools, AI agents, or analytics workflows without building OCR yourself.",
+        "Trigger downstream jobs with background processing and manage keys, usage, and logs from the dashboard.",
+      ],
     },
     {
-      id: 'plus',
-      name: 'Plus',
-      badge: 'Most Popular',
-      priceDisplay: '$5',
-      priceNote: 'per month',
-      limit: 'Up to 5,000 indexed items',
-      description: 'Perfect for individuals who want more room to grow their second brain.',
-      features: ['Priority indexing for uploads', 'Unlimited bookmark imports', 'Bulk file capture (1,000 files at once)'],
+      id: "creators",
+      icon: Palette,
+      title: "For Content Creators & Researchers",
+      subtitle: "Organize visual libraries in minutes",
+      bullets: [
+        "Bulk upload moodboards, screenshot folders, and inspiration images to auto-tag what's inside.",
+        "Search by quotes, captions, or on-image text to instantly find the right asset for your next project.",
+        "Export collections as CSV or plug directly into planning tools with structured metadata.",
+      ],
+    },
+  ];
+
+  const workflowSteps = [
+    {
+      step: "1",
+      title: "Upload any image source",
+      description: "Drag photos, drop folders, or hit the API with URLs and files—no manual setup required.",
     },
     {
-      id: 'power',
-      name: 'Power User',
-      priceDisplay: '$15',
-      priceNote: 'per month',
-      limit: '5,000 – 25,000 indexed items',
-      description: 'Built for power users with large research archives and active workflows.',
-      features: ['Faster background processing', 'Advanced filtering & saved searches', 'Automation-ready email ingestion'],
+      step: "2",
+      title: "We extract & label automatically",
+      description: "OCR, captioning, entity detection, similar image grouping, and tagging happen in the background.",
     },
     {
-      id: 'pro',
-      name: 'Pro',
-      priceDisplay: '$30',
-      priceNote: 'per month',
-      limit: '25,000 – 75,000 indexed items',
-      description: 'Scale your personal knowledge infrastructure with dedicated capacity.',
-      features: ['Largest indexing capacity', 'Priority support & onboarding', 'Early access to new features'],
+      step: "3",
+      title: "Search or ship the results",
+      description: "Use the dashboard, API, or CSV exports to power search, automations, or creative workflows.",
     },
+  ];
+
+  const deliveryOptions = [
+    {
+      id: "api",
+      icon: Database,
+      title: "REST API",
+      description: "Integrate with a straightforward JSON API optimized for asynchronous processing.",
+    },
+    {
+      id: "dashboard",
+      icon: Search,
+      title: "Searchable Dashboard",
+      description: "Filter by text, tags, detected entities, or upload source to keep visual libraries organized.",
+    },
+    {
+      id: "exports",
+      icon: Download,
+      title: "CSV & Bulk Exports",
+      description: "Pull structured datasets for spreadsheets, CMS imports, or data science notebooks.",
+    },
+  ];
+
+  const planDisplayOrder: SubscriptionTier[] = ["free", ...PAID_PLAN_ORDER];
+
+  const planCopy: Record<
+    SubscriptionTier,
+    {
+      badge?: string;
+      priceNote: string;
+      features: string[];
+    }
+  > = {
+    free: {
+      priceNote: "forever",
+      features: [
+        "Dashboard",
+        "OCR with auto-tagging",
+      ],
+    },
+    plus: {
+      badge: "Most popular",
+      priceNote: "per month",
+      features: [
+        "Everything in Free",
+        "API access",
+        "CSV exports",
+        "JSON exports",
+      ],
+    },
+    power: {
+      priceNote: "per month",
+      features: [
+        "Everything in Plus",
+        "Priority processing queue",
+      ],
+    },
+    pro: {
+      priceNote: "per month",
+      features: [
+        "Everything in Power User",
+        "Dedicated onboarding & support",
+      ],
+    },
+  };
+
+  const pricingPlans = planDisplayOrder.map((tier) => {
+    const plan = SUBSCRIPTION_PLANS[tier];
+    const copy = planCopy[tier];
+    return {
+      id: plan.id,
+      name: plan.name,
+      badge: copy.badge,
+      priceDisplay: plan.monthlyPriceCents === 0 ? "$0" : formatPlanPrice(plan.monthlyPriceCents),
+      priceNote: copy.priceNote,
+      limit: `Up to ${plan.maxIndexedItems.toLocaleString()} indexed items`,
+      description: plan.description,
+      features: copy.features,
+    };
+  });
+
+  const developerUseCases = [
+    "Enrich product screenshots and UI datasets for AI training.",
+    "Pipe scanned documents into tooling that needs structured JSON.",
+    "Spin up automation that recognizes and tags memes, assets, or receipts.",
+  ];
+
+  const creatorUseCases = [
+    "Build searchable archives of inspiration boards, research, and references.",
+    "Extract captions and on-image text for social media planners or CMS publishing.",
+    "Tag and group media so the right asset is always a search away.",
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
-      {/* Hero Section */}
       <div className="container mx-auto px-4 sm:px-6 py-16 max-w-7xl">
-        <div className="grid gap-12 md:grid-cols-2 md:items-center mb-20">
+        {/* Hero Section */}
+        <div className="grid gap-12 md:grid-cols-2 md:items-center mb-24">
           <div className="text-center md:text-left">
+            <p className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700 mb-6">
+              <Sparkles className="w-4 h-4" />
+              Extract, label, and organize text from images — instantly.
+            </p>
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-              Keep Every Insight Searchable
+              The easiest way to turn images into structured data
             </h1>
-            <p className="text-xl text-gray-600 mb-4 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Injest.io is your personal search engine—capture links, emails, images, and documents, then surface the right detail in seconds.
+            <p className="text-xl text-gray-600 mb-6 max-w-2xl md:max-w-xl mx-auto md:mx-0">
+              Injest.io helps developers and creators capture screenshots, scans, and visual research—then returns clean text, labels, and metadata through a dashboard, CSV exports, or a drop-in API.
             </p>
-            <p className="text-lg font-semibold text-blue-600 mb-3 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Upload up to 1,000 images at once, summarize inbox overload, tap into the API, and unlock insights with semantic search.
+            <p className="text-lg text-blue-600 font-semibold mb-8 max-w-2xl md:max-w-lg mx-auto md:mx-0">
+              Upload any image. We give you the text, labels, and structured data instantly.
             </p>
-            <p className="text-base text-gray-600 mb-6 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Start free with up to 500 indexed items. Upgrade to Plus for 5,000 items, priority processing, and on-demand CSV or JSON exports.
-            </p>
-            <p className="text-lg text-gray-500 mb-8 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Capture, enrich, and search through all your information effortlessly
-            </p>
-            <div className="flex gap-4 justify-center md:justify-start">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
               <Link href="/login">
                 <Button size="lg" className="text-lg px-8">
-                  Get Started
+                  Start for free
                 </Button>
               </Link>
               <Link href="/dashboard">
                 <Button size="lg" variant="outline" className="text-lg px-8">
-                  Dashboard
+                  Explore the dashboard
                 </Button>
               </Link>
             </div>
@@ -133,7 +212,7 @@ export default function Home() {
             <div className="relative aspect-[4/3] rounded-3xl border-2 border-white/60 shadow-2xl overflow-hidden">
               <Image
                 src="/hero-image.png"
-                alt="Illustration of the Injest.io knowledge dashboard"
+                alt="Injest.io dashboard preview showing image extraction results"
                 fill
                 priority
                 className="object-cover"
@@ -144,23 +223,23 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Key Features */}
-        <div className="mb-20">
+        {/* Value Proposition */}
+        <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            What Makes Injest.io Different
+            Why builders and creators choose Injest.io
           </h2>
-          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto">
-            {keyFeatures.map((feature) => {
-              const Icon = feature.icon;
+          <div className="grid gap-8 md:grid-cols-3">
+            {coreValueProps.map((item) => {
+              const Icon = item.icon;
               return (
-                <Card key={feature.id} className="h-full shadow-lg border-2 border-gray-200 transition hover:-translate-y-1 hover:shadow-xl">
+                <Card key={item.id} className="h-full border-2 border-gray-200 shadow-lg transition hover:-translate-y-1 hover:shadow-xl">
                   <CardHeader className="space-y-4">
                     <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                       <Icon className="w-6 h-6" />
                     </div>
-                    <CardTitle className="text-2xl text-gray-900">{feature.title}</CardTitle>
+                    <CardTitle className="text-2xl text-gray-900">{item.title}</CardTitle>
                     <CardDescription className="text-base text-gray-600">
-                      {feature.description}
+                      {item.description}
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -169,224 +248,200 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Feature Showcase Section */}
-        <div className="mb-20">
+        {/* Persona Highlights */}
+        <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Powerful Features
+            Built for two core personas
           </h2>
-
-          <div className="grid md:grid-cols-2 gap-12 max-w-7xl mx-auto mb-16">
-            {/* Links & Bookmarks with Metadata Enrichment */}
-            <Card className="shadow-lg border-2">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <Link2 className="w-6 h-6 text-blue-600" />
-                  <CardTitle className="text-2xl">Smart Link & Bookmark Enrichment</CardTitle>
-                </div>
-                <CardDescription className="text-base">
-                  Add links or bookmarks and watch them come alive with rich metadata
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  When you add a link or bookmark, Injest.io automatically looks up metadata to enrich the UI with:
-                </p>
-                <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
-                  <li>Title extraction and preview images</li>
-                  <li>Source attribution and timestamps</li>
-                  <li>Rich preview cards with descriptions</li>
-                  <li>Multiple URL association</li>
-                </ul>
-                <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
-                  <div className="text-xs text-gray-500 mb-2">Example: LinkedIn News Item</div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-sm mb-1">Nvidia CEO Jensen Huang touted the company&apos;s latest advancements...</div>
-                    <div className="text-xs text-blue-600 mb-2">linkedin.com/news/story/nvidia...</div>
-                    <div className="text-xs text-gray-500">Source: web</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Email Summarization */}
-            <Card className="shadow-lg border-2">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <Mail className="w-6 h-6 text-blue-600" />
-                  <CardTitle className="text-2xl">Intelligent Email Summarization</CardTitle>
-                </div>
-                <CardDescription className="text-base">
-                  Emails are automatically summarized into three key bullet points
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Forward emails to input@injest.io and receive instant AI-powered summaries:
-                </p>
-                <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
-                  <div className="text-xs text-gray-500 mb-2">Example: Email Summary</div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-sm mb-2">Fwd: Your seed FOMO is costing you</div>
-                    <div className="text-xs text-gray-600 mb-2">Nov 5, 2025, 01:38 PM • email</div>
-                    <div className="text-xs text-gray-700 space-y-1">
-                      <div>• The concept of a fundraising &lsquo;round&rsquo; is becoming obsolete...</div>
-                      <div>• Following top-tier VCs into early-stage investments...</div>
-                      <div>• Investing alongside prominent VCs in late-stage rounds...</div>
+          <div className="grid gap-10 md:grid-cols-2">
+            {personaHighlights.map((persona) => {
+              const Icon = persona.icon;
+              return (
+                <Card key={persona.id} className="border-2 border-gray-200 shadow-lg">
+                  <CardHeader className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-2xl text-gray-900">{persona.title}</CardTitle>
+                        <CardDescription className="text-base text-indigo-600">
+                          {persona.subtitle}
+                        </CardDescription>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-4 text-gray-600">
+                      {persona.bullets.map((bullet) => (
+                        <li key={bullet} className="text-base leading-relaxed">
+                          {bullet}
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
 
-            {/* File Previews */}
-            <Card className="shadow-lg border-2">
+        {/* Workflow */}
+        <div className="mb-24">
+          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
+            From upload to structured data in three steps
+          </h2>
+          <div className="max-w-5xl mx-auto grid gap-10 md:grid-cols-3">
+            {workflowSteps.map((step) => (
+              <Card key={step.step} className="border-2 border-gray-200 shadow-lg h-full text-center">
+                <CardHeader className="space-y-4">
+                  <div className="w-16 h-16 mx-auto rounded-full bg-blue-500 text-white flex items-center justify-center text-2xl font-bold">
+                    {step.step}
+                  </div>
+                  <CardTitle className="text-xl text-gray-900">{step.title}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">{step.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        {/* API Example */}
+        <div className="mb-24">
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div>
+              <h2 className="text-4xl font-bold text-gray-900 mb-6">
+                Drop in a single API call and get JSON back
+              </h2>
+              <p className="text-lg text-gray-600 mb-6">
+                No model training, no DevOps. Injest.io handles the heavy lifting so you can focus on your product. Authenticate with your API key, send an image, and receive text, labels, entities, and embeddable vectors.
+              </p>
+              <ul className="space-y-3 text-gray-600">
+                <li>✓ 99.9% uptime with background processing</li>
+                <li>✓ Async job support for batch pipelines</li>
+                <li>✓ SDKs and Postman collections to get started fast</li>
+              </ul>
+            </div>
+            <Card className="border-2 border-gray-200 shadow-xl bg-gray-950 text-gray-100">
               <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <FileText className="w-6 h-6 text-blue-600" />
-                  <CardTitle className="text-2xl">Rich File Previews</CardTitle>
-                </div>
-                <CardDescription className="text-base">
-                  .json, .pdf, and .docx files display document previews with auto-generated descriptions
+                <CardTitle className="text-lg font-mono text-gray-200">POST /v1/images/extract</CardTitle>
+                <CardDescription className="text-sm text-gray-400">
+                  Example request returning structured metadata
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Upload documents and get intelligent previews:
-                </p>
-                <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside mb-4">
-                  <li>Top of documents displayed in details view</li>
-                  <li>Auto-generated descriptions when available</li>
-                  <li>Support for JSON, PDF, and DOCX formats</li>
-                  <li>Rich metadata extraction</li>
-                </ul>
-                <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
-                  <div className="text-xs text-gray-500 mb-2">Example: LinkedIn News Data</div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-sm mb-2">LinkedIn News Data</div>
-                    <div className="text-xs text-gray-600 mb-2">Nov 4, 2025, 08:57 PM • web</div>
-                    <div className="text-xs text-gray-500 mb-2">Attachments: news_data (1).csv (219 KB)</div>
-                    <div className="text-xs text-gray-700">
-                      <div>date,title,url</div>
-                      <div>2025-03-18,&quot;No title&quot;,&quot;linkedin.com/news/story/...&quot;</div>
-                      <div>2025-03-18,&quot;Google to acquire Wiz for $32B&quot;,&quot;linkedin.com/news/story/...&quot;</div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Auto Categorization & Search */}
-            <Card className="shadow-lg border-2">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <Tag className="w-6 h-6 text-blue-600" />
-                  <CardTitle className="text-2xl">Auto Categorization & Smart Search</CardTitle>
-                </div>
-                <CardDescription className="text-base">
-                  Items are automatically categorized, tagged, and fully searchable
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Powerful search capabilities across your entire knowledge base:
-                </p>
-                <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
-                  <li>Search on notes, descriptions, titles, and more</li>
-                  <li>Automatic categorization and tagging</li>
-                  <li>Semantic search understanding context</li>
-                  <li>Filter by file attachments</li>
-                </ul>
-                <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Search className="w-4 h-4 text-gray-500" />
-                    <div className="text-xs text-gray-500">Search across all your content</div>
-                  </div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="text-xs text-gray-700">
-                      Search notes, descriptions, titles, and content to find exactly what you need
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* OCR & Image Auto Titling */}
-            <Card className="shadow-lg border-2">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <ImageIcon className="w-6 h-6 text-blue-600" />
-                  <CardTitle className="text-2xl">OCR & Image Auto Titling</CardTitle>
-                </div>
-                <CardDescription className="text-base">
-                  Images are automatically processed with OCR and intelligent title generation
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600 mb-4">
-                  Upload images and get automatic text extraction and smart titles:
-                </p>
-                <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
-                  <li>Bulk upload up to 1,000 images and make them searchable in minutes</li>
-                  <li>Optical Character Recognition (OCR) extracts text from images</li>
-                  <li>AI-powered auto titling based on image content</li>
-                  <li>Searchable text content from images</li>
-                  <li>Automatic descriptions for better organization</li>
-                </ul>
-                <div className="mt-6 rounded-lg border-2 border-gray-200 p-4 bg-white">
-                  <div className="text-xs text-gray-500 mb-2">Example: Image with OCR</div>
-                  <div className="bg-gray-50 p-3 rounded border">
-                    <div className="font-semibold text-sm mb-1">Auto-generated title from image content</div>
-                    <div className="text-xs text-gray-600 mb-2">Extracted text: &quot;Meeting notes: Q4 planning session...&quot;</div>
-                    <div className="text-xs text-gray-500">Source: image • OCR processed</div>
-                  </div>
+                <pre className="text-sm leading-6 font-mono overflow-x-auto bg-gray-900 rounded-lg p-6 border border-gray-800">
+{`curl -X POST https://api.injest.io/v1/images/extract \
+  -H "Authorization: Bearer sk_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "url": "https://cdn.example.com/screenshots/v1.png"
+  }'`}
+                </pre>
+                <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
+                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Response preview</p>
+                  <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
+{`{
+  "id": "img_86h2",
+  "text": "Settings • Upload screenshots, control access...",
+  "labels": ["ui", "product", "settings"],
+  "entities": [{"type": "app_feature", "value": "upload"}],
+  "summary": "Dashboard page explaining upload and access controls.",
+  "vectors": "... truncated ..."
+}`}
+                  </pre>
                 </div>
               </CardContent>
             </Card>
           </div>
+        </div>
 
-          {/* Filter by Attachments */}
-          <Card className="max-w-3xl mx-auto shadow-lg border-2 mb-16">
-            <CardHeader>
-              <div className="flex items-center gap-3 mb-2">
-                <Filter className="w-6 h-6 text-blue-600" />
-                <CardTitle className="text-2xl">Advanced Filtering</CardTitle>
-              </div>
-              <CardDescription className="text-base">
-                Filter items based on file attachments
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <p className="text-gray-600 mb-4">
-                Quickly find items with or without file attachments. Perfect for organizing your knowledge base and locating documents.
-              </p>
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm">
-                  <Filter className="w-4 h-4 mr-2" />
-                  Has Attachments
-                </Button>
-                <Button variant="outline" size="sm">
-                  <Filter className="w-4 h-4 mr-2" />
-                  No Attachments
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Delivery Options */}
+        <div className="mb-24">
+          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
+            Turn extracted text into action
+          </h2>
+          <div className="grid gap-8 md:grid-cols-3">
+            {deliveryOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <Card key={option.id} className="border-2 border-gray-200 shadow-lg h-full">
+                  <CardHeader className="space-y-4">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <CardTitle className="text-2xl text-gray-900">{option.title}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-gray-600">{option.description}</p>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Use Cases */}
+        <div className="mb-24">
+          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
+            Go from messy image folders to searchable datasets
+          </h2>
+          <div className="grid gap-10 md:grid-cols-2">
+            <Card className="border-2 border-gray-200 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-2xl text-gray-900">Developer playbook</CardTitle>
+                <CardDescription className="text-base text-blue-600">
+                  JSON in, JSON out—ready for any stack
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-4 text-gray-600">
+                  {developerUseCases.map((item) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <FileText className="w-5 h-5 text-blue-500 mt-1" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+            <Card className="border-2 border-gray-200 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-2xl text-gray-900">Creator workflows</CardTitle>
+                <CardDescription className="text-base text-blue-600">
+                  Organize, search, and publish with confidence
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ul className="space-y-4 text-gray-600">
+                  {creatorUseCases.map((item) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <FileText className="w-5 h-5 text-blue-500 mt-1" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Pricing Section */}
-        <div className="mb-20">
+        <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-6 text-gray-900">
-            Flexible Pricing That Scales With You
+            Pricing that scales with your library
           </h2>
           <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-            Whether you&apos;re just getting started or curating a vast knowledge base, pick the plan that matches your workflow.
+            Start free, then unlock higher throughput when you're ready. Every plan includes API access, dashboard tools, and exports.
           </p>
-          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4 max-w-7xl mx-auto">
+          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
             {pricingPlans.map((plan) => (
               <Card
                 key={plan.id}
                 className={`relative h-full shadow-lg border-2 transition hover:-translate-y-1 hover:shadow-xl ${
-                  plan.badge ? 'border-blue-500' : 'border-gray-200'
+                  plan.badge ? "border-blue-500" : "border-gray-200"
                 }`}
               >
                 <CardHeader className="space-y-4">
@@ -419,117 +474,16 @@ export default function Home() {
           </div>
         </div>
 
-        {/* How It Works Section */}
-        <div className="mb-20">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            How It Works
-          </h2>
-          <div className="max-w-4xl mx-auto">
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-2xl mx-auto mb-4">
-                  1
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Connect Your Email</h3>
-                <p className="text-gray-600">Verify your email address to get started with Injest.io</p>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-2xl mx-auto mb-4">
-                  2
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Capture Content</h3>
-                <p className="text-gray-600">Send emails, add links, upload files, or import bookmarks</p>
-              </div>
-              <div className="text-center">
-                <div className="w-16 h-16 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-2xl mx-auto mb-4">
-                  3
-                </div>
-                <h3 className="font-semibold text-lg mb-2">Search & Discover</h3>
-                <p className="text-gray-600">Use natural language to search through all your enriched content</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Platform Showcase - Screenshots Section */}
-        <div className="mb-20">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Platform Showcase
-          </h2>
-          <div className="max-w-7xl mx-auto space-y-12">
-            {/* Dashboard Screenshot */}
-            <Card className="shadow-xl border-2 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
-                <CardTitle className="text-2xl">Interactive Dashboard</CardTitle>
-                <CardDescription className="text-blue-100">
-                  Create items, import bookmarks, and view your enriched content feed
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="relative w-full aspect-video bg-gray-100">
-                  <Image
-                    src="/dashboard-screenshot.png"
-                    alt="Interactive Dashboard showing two-column layout with create form and enriched content feed"
-                    fill
-                    className="object-contain"
-                    priority
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Item Detail Screenshot */}
-            <Card className="shadow-xl border-2 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
-                <CardTitle className="text-2xl">Rich Item Details</CardTitle>
-                <CardDescription className="text-indigo-100">
-                  View detailed information with attachments, summaries, and notes
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="relative w-full aspect-video bg-gray-100">
-                  <Image
-                    src="/item-detail-screenshot.png"
-                    alt="Rich Item Details modal showing LinkedIn News Data with CSV attachment and metadata"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Email Summary Screenshot */}
-            <Card className="shadow-xl border-2 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-purple-500 to-pink-600 text-white">
-                <CardTitle className="text-2xl">Email Summarization</CardTitle>
-                <CardDescription className="text-purple-100">
-                  See how emails are automatically summarized into key bullet points
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="relative w-full aspect-video bg-gray-100">
-                  <Image
-                    src="/email-summary-screenshot.png"
-                    alt="Email Summarization showing forwarded email with three bullet point summary"
-                    fill
-                    className="object-contain"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
         {/* CTA Section */}
         <div className="text-center py-16 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl text-white">
           <Sparkles className="w-12 h-12 mx-auto mb-4" />
-          <h2 className="text-4xl font-bold mb-4">Ready to Transform Your Knowledge Management?</h2>
+          <h2 className="text-4xl font-bold mb-4">Ready to search every image you capture?</h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Start capturing, enriching, and searching through all your information today
+            Join developers and creators who organize their visual knowledge base with Injest.io.
           </p>
           <Link href="/login">
             <Button size="lg" variant="secondary" className="text-lg px-8">
-              Get Started Free
+              Create your free account
             </Button>
           </Link>
         </div>
@@ -543,6 +497,10 @@ export default function Home() {
             <span className="hidden sm:inline">•</span>
             <Link href="/terms" className="hover:text-blue-600 transition-colors">
               Terms of Service
+            </Link>
+            <span className="hidden sm:inline">•</span>
+            <Link href="/developers" className="hover:text-blue-600 transition-colors">
+              Developer Docs
             </Link>
           </div>
         </footer>

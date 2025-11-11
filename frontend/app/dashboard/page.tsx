@@ -11,45 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
-import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
 import { auth } from '@/lib/auth';
-import { apiClient, Item, ReceivedEmail, API_URL } from '@/lib/api';
-import type { SubscriptionTier } from '@/lib/subscriptionPlans';
-
-type ApiKeyInfoState = {
-  hasKey: boolean;
-  createdAt: string | null;
-  lastUsedAt: string | null;
-};
-
-type ExternalEndpoint = {
-  method: string;
-  path: string;
-  useCase: string;
-};
-
-const externalApiEndpoints: ExternalEndpoint[] = [
-  {
-    method: 'POST',
-    path: '/items',
-    useCase: 'Capture a new item, including optional attachments, from your own tools.',
-  },
-  {
-    method: 'GET',
-    path: '/items',
-    useCase: 'List your indexed items. Supports limit and offset for pagination.',
-  },
-  {
-    method: 'GET',
-    path: '/items/:id',
-    useCase: 'Retrieve full details for a specific item by its ID.',
-  },
-  {
-    method: 'GET',
-    path: '/search',
-    useCase: 'Search across your items with a query using the q parameter.',
-  },
-];
+import { apiClient, Item, ReceivedEmail, API_URL, type SearchResult } from '@/lib/api';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -60,16 +23,7 @@ export default function DashboardPage() {
   const [offset, setOffset] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
   const [importingBookmarks, setImportingBookmarks] = useState(false);
-  const [exportingFormat, setExportingFormat] = useState<'json' | 'csv' | null>(null);
-  const [apiKeyInfo, setApiKeyInfo] = useState<ApiKeyInfoState | null>(null);
-  const [apiKeyInfoLoading, setApiKeyInfoLoading] = useState(true);
-  const [apiKeyActionLoading, setApiKeyActionLoading] = useState(false);
-  const [apiKeyActionType, setApiKeyActionType] = useState<'generate' | 'revoke' | null>(null);
-  const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
-  const [itemLimit, setItemLimit] = useState<number | null>(null);
-  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const bookmarkFileInputRef = useRef<HTMLInputElement>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
@@ -78,72 +32,27 @@ export default function DashboardPage() {
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('');
   const itemStreamRef = useRef<EventSource | null>(null);
   const [itemStreamRetry, setItemStreamRetry] = useState(0);
+  const [searchResults, setSearchResults] = useState<Item[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const BATCH_SIZE = 50;
-  const externalApiBaseUrl = `${API_URL.replace(/\/+$/, '')}/api/external`;
-
-  const formatTimestamp = useCallback((value: string | null | undefined) => {
-    if (!value) {
-      return 'Never';
-    }
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return 'Never';
-    }
-    return date.toLocaleString();
+  const handleSearchResultsChange = useCallback((results: SearchResult[]) => {
+    setSearchResults(results.map((result) => result.item));
   }, []);
 
-  const loadApiKeyInfo = useCallback(async () => {
-    if (!auth.isAuthenticated()) {
-      setApiKeyInfo(null);
-      setApiKeyInfoLoading(false);
-      return;
-    }
-
-    setApiKeyInfoLoading(true);
-    try {
-      const info = await apiClient.getApiKeyInfo();
-      setApiKeyInfo(info);
-    } catch (error) {
-      console.error('Error loading API key info:', error);
-      setApiKeyInfo(null);
-    } finally {
-      setApiKeyInfoLoading(false);
-    }
+  const handleSearchLoadingChange = useCallback((isLoading: boolean) => {
+    setSearchLoading(isLoading);
   }, []);
 
-  const refreshCurrentUser = useCallback(async () => {
-    try {
-      const response = await apiClient.getCurrentUser();
-      if (response.user) {
-        auth.setUser(response.user);
-        if (response.user.subscription_tier) {
-          setSubscriptionTier(response.user.subscription_tier);
-        } else if (response.user.is_premium) {
-          setSubscriptionTier('plus');
-        }
-      }
-    } catch (error) {
-      console.error('Error refreshing current user:', error);
-    }
+  const handleSearchQueryChange = useCallback((value: string) => {
+    setSearchQuery(value);
   }, []);
+
 
   const loadIndexedCount = useCallback(async () => {
     try {
       const response = await apiClient.getIndexedItemCount();
       setIndexedCount(response.count);
-      setItemLimit(typeof response.limit === 'number' ? response.limit : null);
-      if (response.subscriptionTier) {
-        setSubscriptionTier(response.subscriptionTier);
-      } else {
-        const user = auth.getUser();
-        if (user?.subscription_tier) {
-          setSubscriptionTier(user.subscription_tier);
-        } else if (user?.is_premium) {
-          setSubscriptionTier('plus');
-        } else {
-          setSubscriptionTier('free');
-        }
-      }
     } catch (error: unknown) {
       console.error('Error loading indexed count:', error);
     }
@@ -322,7 +231,6 @@ export default function DashboardPage() {
       setHasMore(true);
       loadItems(0, true);
       loadIndexedCount();
-      await loadApiKeyInfo();
     };
 
     checkAuth();
@@ -332,7 +240,7 @@ export default function DashboardPage() {
         clearInterval(bookmarkPollIntervalRef.current);
       }
     };
-  }, [loadApiKeyInfo, loadIndexedCount, loadItems, router]);
+  }, [loadIndexedCount, loadItems, router]);
 
   const loadMoreItems = useCallback(async () => {
     if (loadingMore || !hasMore || loading) return;
@@ -388,36 +296,6 @@ export default function DashboardPage() {
       setLoadingMore(false);
     }
   }, [loadingMore, hasMore, loading, offset, sourceFilter, hasAttachmentsFilter, fileTypeFilter]);
-
-  const handleSubscriptionComplete = useCallback(async (paymentIntentId: string) => {
-    try {
-      const verification = await apiClient.verifyPayment(paymentIntentId);
-      if (verification.verified && verification.premium) {
-        if (verification.subscriptionTier) {
-          setSubscriptionTier(verification.subscriptionTier);
-        }
-        toast.success('Subscription upgraded! Downloads and API access unlocked.');
-        await refreshCurrentUser();
-        await loadIndexedCount();
-      } else {
-        toast.error(verification.message || 'Unable to verify payment');
-      }
-    } catch (error: unknown) {
-      console.error('Error verifying subscription payment:', error);
-      const err = error as { message?: string };
-      toast.error(err?.message || 'Failed to verify subscription payment');
-    } finally {
-      setSubscriptionDialogOpen(false);
-    }
-  }, [loadIndexedCount, refreshCurrentUser]);
-
-  const handleSubscriptionCancel = useCallback(() => {
-    setSubscriptionDialogOpen(false);
-  }, []);
-
-  const openSubscriptionDialog = useCallback(() => {
-    setSubscriptionDialogOpen(true);
-  }, []);
 
   // Reload items when filters change
   useEffect(() => {
@@ -622,77 +500,11 @@ export default function DashboardPage() {
     }
   };
 
-  const handleExportItems = async (format: 'json' | 'csv') => {
-    try {
-      setExportingFormat(format);
-      await apiClient.downloadItemsExport(format);
-      toast.success(`Export started in ${format.toUpperCase()} format`);
-    } catch (error: unknown) {
-      const err = error as { message?: string };
-      toast.error(err?.message || 'Failed to export items');
-    } finally {
-      setExportingFormat(null);
-    }
-  };
-
-  const handleGenerateApiKey = async () => {
-    try {
-      setApiKeyActionLoading(true);
-      setApiKeyActionType('generate');
-      setGeneratedApiKey(null);
-      const response = await apiClient.createApiKey();
-      setGeneratedApiKey(response.apiKey);
-      setApiKeyInfo({
-        hasKey: true,
-        createdAt: response.createdAt ?? new Date().toISOString(),
-        lastUsedAt: response.lastUsedAt ?? null,
-      });
-      toast.success('New API key generated. Copy it now.');
-    } catch (error: unknown) {
-      const err = error as { message?: string };
-      toast.error(err?.message || 'Failed to generate API key');
-    } finally {
-      setApiKeyActionLoading(false);
-      setApiKeyActionType(null);
-    }
-  };
-
-  const handleRevokeApiKey = async () => {
-    if (!apiKeyInfo?.hasKey) {
-      toast.error('No API key to revoke');
-      return;
-    }
-
-    if (!confirm('Revoke your API key? Existing integrations will stop working.')) {
-      return;
-    }
-
-    try {
-      setApiKeyActionLoading(true);
-      setApiKeyActionType('revoke');
-      await apiClient.revokeApiKey();
-      setGeneratedApiKey(null);
-      await loadApiKeyInfo();
-      toast.success('API key revoked.');
-    } catch (error: unknown) {
-      const err = error as { message?: string };
-      toast.error(err?.message || 'Failed to revoke API key');
-    } finally {
-      setApiKeyActionLoading(false);
-      setApiKeyActionType(null);
-    }
-  };
-
-  if (authLoading || loading) {
+  if (authLoading || (loading && searchQuery.length < 2)) {
     return <div className="container mx-auto px-3 sm:px-4 md:px-6 py-8">Loading...</div>;
   }
 
   const currentUser = auth.getUser();
-  const effectiveSubscriptionTier: SubscriptionTier =
-    currentUser?.subscription_tier ?? (currentUser?.is_premium ? 'plus' : subscriptionTier);
-  const isSubscriber = Boolean(
-    currentUser?.is_premium || (effectiveSubscriptionTier && effectiveSubscriptionTier !== 'free')
-  );
 
   return (
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
@@ -723,7 +535,11 @@ export default function DashboardPage() {
       {/* Search bar - first thing after nav, bold and wide like Google */}
       <div className="bg-white border-b py-6 sm:py-8">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 max-w-full">
-          <SearchBar />
+          <SearchBar
+            onResultsChange={handleSearchResultsChange}
+            onLoadingChange={handleSearchLoadingChange}
+            onQueryChange={handleSearchQueryChange}
+          />
         </div>
       </div>
 
@@ -767,172 +583,6 @@ export default function DashboardPage() {
                 </p>
               </CardContent>
             </Card>
-
-            {isSubscriber ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Downloads</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Export all enriched items as structured data. Hosted attachments are not included.
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Button
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                      onClick={() => handleExportItems('json')}
-                      disabled={exportingFormat !== null}
-                    >
-                      {exportingFormat === 'json' ? 'Preparing JSON...' : 'Download JSON'}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                      onClick={() => handleExportItems('csv')}
-                      disabled={exportingFormat !== null}
-                    >
-                      {exportingFormat === 'csv' ? 'Preparing CSV...' : 'Download CSV'}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Downloads</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Unlock JSON and CSV exports when you upgrade your plan. Paid tiers also include higher item limits.
-                  </p>
-                  <Button onClick={openSubscriptionDialog} className="w-full sm:w-auto">
-                    Upgrade to unlock exports
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Starting at $5/month with priority processing and API access.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-
-            {isSubscriber ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle>External API Access</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-sm text-muted-foreground">
-                    Generate an API key to query your enriched data via REST without sharing your account token.
-                  </p>
-
-                  {apiKeyInfoLoading ? (
-                    <p className="text-sm text-muted-foreground">Loading API key details...</p>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="rounded-md border border-dashed bg-muted/40 p-3 text-sm">
-                        <p>
-                          Key status:{' '}
-                          <span className="font-semibold">
-                            {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
-                          </span>
-                        </p>
-                        <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
-                        <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
-                      </div>
-
-                      {generatedApiKey && (
-                        <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
-                          <p className="text-xs font-semibold uppercase text-amber-800 tracking-wide">
-                            Your new API key
-                          </p>
-                          <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
-                          <p className="mt-2 text-xs text-amber-700">
-                            Copy this key now—you won&apos;t be able to see it again.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <Button
-                          onClick={handleGenerateApiKey}
-                          disabled={apiKeyActionLoading}
-                        >
-                          {apiKeyActionLoading && apiKeyActionType === 'generate'
-                            ? 'Generating...'
-                            : apiKeyInfo?.hasKey
-                              ? 'Regenerate API Key'
-                              : 'Generate API Key'}
-                        </Button>
-                        {apiKeyInfo?.hasKey && (
-                          <Button
-                            variant="destructive"
-                            onClick={handleRevokeApiKey}
-                            disabled={apiKeyActionLoading}
-                          >
-                            {apiKeyActionLoading && apiKeyActionType === 'revoke'
-                              ? 'Revoking...'
-                              : 'Revoke Key'}
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Available endpoints
-                    </p>
-                    <div className="space-y-2">
-                      {externalApiEndpoints.map((endpoint) => (
-                        <div
-                          key={endpoint.path}
-                          className="rounded-md border border-dashed bg-muted/40 p-3 space-y-1"
-                        >
-                          <p className="font-mono text-[11px] sm:text-xs">
-                            <span className="mr-2 inline-block rounded-sm bg-emerald-100 px-1.5 py-[1px] font-semibold text-emerald-700">
-                              {endpoint.method}
-                            </span>
-                            {`${externalApiBaseUrl}${endpoint.path}`}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{endpoint.useCase}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      Use with the Chrome extension
-                    </p>
-                    <ol className="space-y-1 text-xs text-muted-foreground list-decimal list-inside">
-                      <li>Install the Injest Capture extension and click the puzzle icon to pin it.</li>
-                      <li>Open the extension, click <span className="font-medium">Settings</span>, and set the External API URL to <code className="font-mono">https://injest-api.onrender.com/api/external</code>.</li>
-                      <li>Paste the API key from above into the extension&apos;s API Key field.</li>
-                      <li>Click <span className="font-medium">Test Connection</span>, then <span className="font-medium">Save Settings</span> to finish.</li>
-                      <li>Use the popup or <kbd className="rounded border px-1 py-0.5">Cmd/CTRL+Shift+V</kbd> to capture items directly into Injest.</li>
-                    </ol>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card>
-                <CardHeader>
-                  <CardTitle>External API Access</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="text-sm text-muted-foreground">
-                    Bring your workspace data into your own tools with a personal API key—available on paid plans.
-                  </p>
-                  <Button onClick={openSubscriptionDialog} className="w-full sm:w-auto">
-                    Upgrade to enable API access
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    Paid tiers include API access plus larger indexing limits and data exports.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
 
           </div>
 
@@ -998,35 +648,40 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
-            <ItemList
-              items={items}
-              onDelete={handleDelete}
-            />
-            {/* Sentinel element for infinite scroll */}
-            {hasMore && (
-              <div ref={loadMoreSentinelRef} className="py-4 text-center">
-                {loadingMore && (
-                  <p className="text-sm text-muted-foreground">Loading more items...</p>
+
+            {searchQuery.length >= 2 ? (
+              <>
+                {searchLoading ? (
+                  <div className="py-8 text-center text-muted-foreground">Searching…</div>
+                ) : searchResults.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground">
+                    No items match your search.
+                  </div>
+                ) : (
+                  <ItemList items={searchResults} onDelete={handleDelete} />
                 )}
-              </div>
-            )}
-            {!hasMore && items.length > 0 && (
-              <div className="py-4 text-center">
-                <p className="text-sm text-muted-foreground">All items loaded</p>
-              </div>
+              </>
+            ) : (
+              <>
+                <ItemList items={items} onDelete={handleDelete} />
+                {/* Sentinel element for infinite scroll */}
+                {hasMore && (
+                  <div ref={loadMoreSentinelRef} className="py-4 text-center">
+                    {loadingMore && (
+                      <p className="text-sm text-muted-foreground">Loading more items...</p>
+                    )}
+                  </div>
+                )}
+                {!hasMore && items.length > 0 && (
+                  <div className="py-4 text-center">
+                    <p className="text-sm text-muted-foreground">All items loaded</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       </main>
-      <SubscriptionPaymentDialog
-        open={subscriptionDialogOpen}
-        onOpenChange={setSubscriptionDialogOpen}
-        onPaymentComplete={handleSubscriptionComplete}
-        onCancel={handleSubscriptionCancel}
-        currentTier={effectiveSubscriptionTier}
-        currentLimit={itemLimit}
-        currentCount={indexedCount}
-      />
     </div>
   );
 }

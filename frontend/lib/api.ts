@@ -362,6 +362,10 @@ class ApiClient {
     return this.request<{ user: User }>('/api/auth/me', { method: 'GET' });
   }
 
+  async getOpenApiSpec(): Promise<Record<string, unknown>> {
+    return this.request<Record<string, unknown>>('/api/openapi.json', { method: 'GET' });
+  }
+
   async getApiKeyInfo(): Promise<{ hasKey: boolean; createdAt: string | null; lastUsedAt: string | null }> {
     return this.request<{ hasKey: boolean; createdAt: string | null; lastUsedAt: string | null }>('/api/auth/api-key', {
       method: 'GET',

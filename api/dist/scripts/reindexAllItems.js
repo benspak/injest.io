@@ -3,7 +3,7 @@ import pool from '../config/database.js';
 import { indexingService } from '../services/indexing.js';
 dotenv.config();
 const DEFAULT_BATCH_SIZE = 50;
-const DEFAULT_CONCURRENCY = 2;
+const DEFAULT_CONCURRENCY = 3;
 function resolveBatchSize() {
     const value = Number.parseInt(process.env.REINDEX_BATCH_SIZE ?? '', 10);
     if (Number.isNaN(value) || value <= 0) {

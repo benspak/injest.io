@@ -6,7 +6,7 @@ import { indexingService } from '../services/indexing.js';
 dotenv.config();
 
 const DEFAULT_BATCH_SIZE = 50;
-const DEFAULT_CONCURRENCY = 2;
+const DEFAULT_CONCURRENCY = 3;
 
 interface Cursor {
   createdAt: string;

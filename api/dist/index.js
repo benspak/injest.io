@@ -10,8 +10,10 @@ import emailRoutes from './routes/email.js';
 import feedbackRoutes from './routes/feedback.js';
 import paymentRoutes from './routes/payment.js';
 import tasksRoutes from './routes/tasks.js';
+import { swaggerSpec } from './swagger.js';
 import externalRoutes from './routes/external.js';
 import './config/database.js';
+import { requirePlusTier } from './middleware/requirePlusTier.js';
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5555;
@@ -56,6 +58,14 @@ app.use((req, res, next) => {
     next();
 });
 // Routes
+app.get('/api/docs', requirePlusTier, (req, res) => {
+    res.json({
+        message: 'Interactive API documentation is available inside the Injest web app for Plus plans and above.',
+    });
+});
+app.get('/api/openapi.json', requirePlusTier, (req, res) => {
+    res.json(swaggerSpec);
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/search', searchRoutes);

@@ -316,7 +316,7 @@ export class SearchService {
     }
 
     const normalizedEmail = user.email ? itemAccessEmailNormalizer(user.email) : null;
-    const params: any[] = [user.id, normalizedEmail];
+    const params: any[] = [user.id];
 
     const addParam = (value: any) => {
       params.push(value);
@@ -401,6 +401,7 @@ export class SearchService {
       ELSE 0.5
     END`;
 
+    const normalizedEmailPlaceholder = addParam(normalizedEmail);
     const typesPlaceholder = addParam(sanitizedFilters.types);
     const tagsPlaceholder = addParam(sanitizedFilters.tags);
     const dateFromPlaceholder = addParam(sanitizedFilters.dateFrom);
@@ -421,13 +422,13 @@ export class SearchService {
       WHERE i.deleted_at IS NULL
         AND (
           i.owner_id = $1
-          OR EXISTS (
+        OR EXISTS (
             SELECT 1
             FROM item_access ia
             WHERE ia.item_id = i.id
               AND (
                 ia.user_id = $1
-                OR ($2 IS NOT NULL AND ia.normalized_email = $2)
+                OR (${normalizedEmailPlaceholder}::text IS NOT NULL AND ia.normalized_email = ${normalizedEmailPlaceholder}::text)
               )
           )
         )
