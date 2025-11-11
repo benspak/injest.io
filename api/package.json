@@ -33,7 +33,7 @@
     "pdf-parse": "^1.1.4",
     "pg": "^8.11.3",
     "pgvector": "^0.1.8",
-    "resend": "^3.2.0",
+    "resend": "^3.5.0",
     "stripe": "^19.2.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",

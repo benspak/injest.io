@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
-const ANNOUNCEMENT_STORAGE_KEY = 'announcement-dismiss-2025-11-image-persist';
+const ANNOUNCEMENT_STORAGE_KEY = 'announcement-dismiss-2025-11-chrome-extension';
 
 export function AnnouncementBanner() {
   const [isOpen, setIsOpen] = useState(true);
@@ -34,9 +34,16 @@ export function AnnouncementBanner() {
     <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-500 text-white">
       <div className="container mx-auto flex max-w-full items-start gap-4 px-3 py-3 sm:px-4 md:px-6">
         <p className="text-sm leading-relaxed sm:text-base">
-          Image persisting issue should now be resolved. If you have items that have metadata, but no image preview,
-          please use the feedback button and let us know. We will purge your indexed files and ask you to reupload them.
-          Afterwards, all image previews should persist.
+          New: Capture links, files, and screenshots straight from your browser with our Chrome extension.
+          <a
+            href="https://chromewebstore.google.com/detail/injest-capture/goiocnfkcilgalpmbjbkhdjdblcokpjl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-2 inline-flex items-center font-semibold text-white underline underline-offset-4 hover:text-blue-100"
+          >
+            Install Injest Capture
+          </a>
+          .
         </p>
         <button
           type="button"

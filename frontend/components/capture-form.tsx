@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -348,6 +349,18 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     <Card>
       <CardHeader>
         <CardTitle>Capture New Item</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          New: Install the{' '}
+          <Link
+            href="https://chromewebstore.google.com/detail/injest-capture/goiocnfkcilgalpmbjbkhdjdblcokpjl"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 text-blue-600 hover:text-blue-500"
+          >
+            Injest Capture Chrome extension
+          </Link>{' '}
+          to save items to your workspace with CMD+SHIFT+V.
+        </p>
       </CardHeader>
       <CardContent>
         {/* Warning banner when approaching limit */}
