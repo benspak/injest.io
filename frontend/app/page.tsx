@@ -1,491 +1,532 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  FileText,
-  Image as ImageIcon,
-  Inbox,
-  Link2,
-  Search,
-  Send,
-  Sparkles,
-} from "lucide-react";
-import {
-  PAID_PLAN_ORDER,
-  SUBSCRIPTION_PLANS,
-  formatPlanPrice,
-  type SubscriptionTier,
-} from "@/lib/subscriptionPlans";
 import { HomepagePricingPlans } from "@/components/homepage-pricing-plans";
 
 export default function Home() {
-  const valuePillars = [
+  const pricingPlans = [
     {
-      id: "capture",
-      icon: Inbox,
-      title: "Capture files, email, and bookmarks",
-      description:
-        "Upload up to 50 MB attachments with checksum dedupe, forward to input@injest.io, and import bookmarks or Chrome captures without hand-tagging.",
-    },
-    {
-      id: "search",
-      icon: Search,
-      title: "Search items and contacts together",
-      description:
-        "Semantic and keyword search covers notes, documents, and extracted contacts with filters for type, tags, source, attachments, and date.",
-    },
-    {
-      id: "act",
-      icon: Send,
-      title: "Act on results immediately",
-      description:
-        "Generate send plans, email contacts with tracked attachments, convert items into tasks, and export JSON or CSV inside the same workspace.",
-    },
-  ];
-
-  const connectedSurfaces = [
-    {
-      id: "uploads",
-      icon: ImageIcon,
-      title: "File uploads",
-      subtitle: "50 MB per file with dedupe",
-      bullets: [
-        "Drag and drop PDFs, docs, and images; unsupported audio and video are blocked up front.",
-        "OCR, text extraction, and entity detection run during background processing.",
-        "Checksum matching skips duplicates and links back to the item already on file.",
-      ],
-    },
-    {
-      id: "email",
-      icon: Inbox,
-      title: "Forwarded email",
-      subtitle: "input@injest.io webhook",
-      bullets: [
-        "Verified users can forward through Resend; inbound mail becomes an indexed item automatically.",
-        "Attachments are preserved and searchable alongside the message body.",
-        "Received threads also show inside the dashboard for review next to other items.",
-      ],
-    },
-    {
-      id: "bookmarks",
-      icon: Link2,
-      title: "Bookmarks & extension",
-      subtitle: "Chrome capture plus HTML import",
-      bullets: [
-        "Use the open-source Chrome extension to save the current tab with one click.",
-        "Import browser bookmark HTML files; large batches queue in the background.",
-        "Metadata is normalized so saved links surface with notes, tags, and source context.",
-      ],
-    },
-  ];
-
-  const workflowSteps = [
-    {
-      step: "1",
-      title: "Capture or forward content",
-      description:
-        "Upload attachments, send email to input@injest.io, or capture tabs and bookmarks from the browser.",
-    },
-    {
-      step: "2",
-      title: "Injest enriches in the background",
-      description:
-        "Text extraction, embeddings, tagging, and contact detection run automatically while uploads finish.",
-    },
-    {
-      step: "3",
-      title: "Search, share, and follow up",
-      description:
-        "Run semantic search, build send plans, share items, or convert any record into a task without leaving the dashboard.",
-    },
-  ];
-
-  const actionOptions = [
-    {
-      id: "send-plan",
-      icon: Sparkles,
-      title: "Generate send plan drafts",
-      description:
-        "Use /api/send/plan to summarise contacts and matching items for any outbound prompt.",
-    },
-    {
-      id: "execute-send",
-      icon: Send,
-      title: "Send tracked emails",
-      description:
-        "Compose with attachments and send through Resend via /api/send/execute while updating contact history.",
-    },
-    {
-      id: "export",
-      icon: FileText,
-      title: "Share or export items",
-      description:
-        "Create share links, email items to teammates, or download JSON and CSV exports on demand.",
-    },
-  ];
-
-  const planDisplayOrder: SubscriptionTier[] = ["free", ...PAID_PLAN_ORDER];
-
-  const planCopy: Record<
-    SubscriptionTier,
-    {
-      badge?: string;
-      priceNote: string;
-      features: string[];
-    }
-  > = {
-    free: {
-      priceNote: "forever",
+      tier: 'free' as const,
+      name: "Free",
+      priceDisplay: "$0",
+      priceNote: "",
+      limit: "Up to 500 items",
+      description: "Get started with up to 500 indexed items.",
       features: [
-        "Up to 500 indexed items",
-        "Semantic search with filters",
-        "File & bookmark ingestion",
+        "Text extraction from images",
+        "Smart search",
+        "Basic tagging",
       ],
     },
-    plus: {
-      badge: "Most popular",
-      priceNote: "per month",
+    {
+      tier: 'plus' as const,
+      name: "Plus",
+      priceDisplay: "$5",
+      priceNote: "/mo",
+      limit: "Up to 5,000 items",
+      description: "Perfect for growing libraries.",
       features: [
         "Everything in Free",
-        "Up to 5,000 indexed items",
-        "Generate API keys for /api/external",
-        "Send plan automation endpoints",
+        "Advanced search filters",
+        "Email forwarding",
+        "Priority support",
       ],
     },
-    power: {
-      priceNote: "per month",
+    {
+      tier: 'power' as const,
+      name: "Power User",
+      priceDisplay: "$15",
+      priceNote: "/mo",
+      limit: "Up to 25,000 items",
+      description: "For serious collectors.",
       features: [
         "Everything in Plus",
-        "Up to 25,000 indexed items",
+        "Priority processing",
+        "Advanced exports",
+        "Team collaboration",
       ],
     },
-    pro: {
-      priceNote: "per month",
+    {
+      tier: 'pro' as const,
+      name: "Pro",
+      priceDisplay: "$30",
+      priceNote: "/mo",
+      limit: "Up to 75,000 items",
+      description: "Scale to enterprise needs.",
       features: [
-        "Everything in Power",
-        "Up to 75,000 indexed items",
-      ],
-    },
-  };
-
-  const pricingPlans = planDisplayOrder.map((tier) => {
-    const plan = SUBSCRIPTION_PLANS[tier];
-    const copy = planCopy[tier];
-    return {
-      tier: plan.id,
-      name: plan.name,
-      badge: copy.badge,
-      priceDisplay: plan.monthlyPriceCents === 0 ? "$0" : formatPlanPrice(plan.monthlyPriceCents),
-      priceNote: copy.priceNote,
-      limit: `Up to ${plan.maxIndexedItems.toLocaleString()} indexed items`,
-      description: plan.description,
-      features: copy.features,
-    };
-  });
-
-  const teamPlays = [
-    {
-      id: "contacts",
-      title: "Contacts stay in sync",
-      subtitle: "Auto-extracted and editable",
-      bullets: [
-        "Email and file parsing detects contacts automatically and adds them to the workspace.",
-        "Manage contacts with search, streaming updates, and manual edits from the contacts page.",
-        "Send workflows record last interaction metadata the moment an email is delivered.",
-      ],
-    },
-    {
-      id: "tasks",
-      title: "Tasks from any item",
-      subtitle: "Track follow-ups in place",
-      bullets: [
-        "Convert items to tasks with /api/tasks/taskify/:itemId and keep them linked to the source content.",
-        "Update status, due dates, or descriptions directly from the dashboard or API.",
-        "Use prompts on a task to rewrite summaries or next steps without leaving the record.",
-      ],
-    },
-    {
-      id: "sharing",
-      title: "Sharing and exports",
-      subtitle: "Keep context intact",
-      bullets: [
-        "Share items via email or copy a restricted link with access checks.",
-        "Download JSON or CSV exports containing normalized metadata and attachments.",
-        "Live item streams refresh the dashboard as enrichment finishes in the background.",
+        "Everything in Power User",
+        "Dedicated support",
+        "Custom workflows",
+        "Advanced team features",
       ],
     },
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
-      <div className="container mx-auto px-4 sm:px-6 py-16 max-w-7xl">
-        {/* Hero Section */}
-        <div className="grid gap-12 md:grid-cols-2 md:items-center mb-24">
-          <div className="text-center md:text-left">
-            <p className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700 mb-6">
-              <Sparkles className="w-4 h-4" />
-              Capture. Search. Act.
-            </p>
-            <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-              Keep files, email, and contacts searchable and ready to move.
-            </h1>
-            <p className="text-xl text-gray-600 mb-6 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Injest stores uploads, forwarded mail, and saved links in one workspace. Each item is enriched with OCR, embeddings, and detected contacts so it shows up the moment you need it.
-            </p>
-            <p className="text-lg text-blue-600 font-semibold mb-8 max-w-2xl md:max-w-lg mx-auto md:mx-0">
-              Search from the dashboard or API, share items with access checks, generate send plans, and export records without juggling extra tools.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
-              <Link href="/login">
-                <Button size="lg" className="text-lg px-8">
-                  Start for free
-                </Button>
-              </Link>
-              <Link href="/dashboard">
-                <Button size="lg" variant="outline" className="text-lg px-8">
-                  Explore the dashboard
-                </Button>
-              </Link>
-            </div>
-          </div>
-          <div className="relative mx-auto w-full max-w-xl">
-            <div className="relative aspect-[4/3] rounded-3xl border-2 border-white/60 shadow-2xl overflow-hidden">
-              <Image
-                src="/hero-image.png"
-                alt="Injest.io workspace showing unified search and send flows"
-                fill
-                priority
-                className="object-cover"
-                sizes="(min-width: 1024px) 42rem, 100vw"
-              />
-              <div className="absolute inset-0 rounded-3xl ring-1 ring-black/5 pointer-events-none" />
-            </div>
+      {/* Hero Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="text-center max-w-4xl mx-auto">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+            Never lose track of your files, notes, and ideas again.
+          </h1>
+          <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
+            Whether you're saving research, organizing receipts, or collecting inspiration — Injest makes every image, document, and message instantly searchable and ready to use.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Button asChild size="lg" className="text-lg px-8 py-6">
+              <Link href="/login">Start Free</Link>
+            </Button>
+            <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6">
+              <Link href="/dashboard">Explore the Dashboard</Link>
+            </Button>
           </div>
         </div>
+      </section>
 
-        {/* Value Pillars */}
-        <div className="mb-24">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            What Injest ships today
+      {/* Problem Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+            You save everything — but can't find anything.
           </h2>
-          <div className="grid gap-8 md:grid-cols-3">
-            {valuePillars.map((pillar) => {
-              const Icon = pillar.icon;
-              return (
-                <Card
-                  key={pillar.id}
-                  className="h-full border-2 border-gray-200 shadow-lg transition hover:-translate-y-1 hover:shadow-xl"
-                >
-                  <CardHeader className="space-y-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <CardTitle className="text-2xl text-gray-900">{pillar.title}</CardTitle>
-                    <CardDescription className="text-base text-gray-600">
-                      {pillar.description}
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              );
-            })}
-          </div>
+          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
+            You save receipts, screenshots, research notes, and important documents — but when you need them, they're lost in folders, buried in email threads, or forgotten in your downloads. Teams share files and links that disappear when they're needed most. Injest solves this by making every captured file, email, or bookmark instantly searchable, shareable, and ready to use.
+          </p>
         </div>
+      </section>
 
-        {/* Connected Surfaces */}
-        <div className="mb-24">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Ways to bring data in
+      {/* Solution Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
+            One workspace for all your data
           </h2>
-          <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
-            {connectedSurfaces.map((surface) => {
-              const Icon = surface.icon;
-              return (
-                <Card key={surface.id} className="border-2 border-gray-200 shadow-lg h-full">
-                  <CardHeader className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                        <Icon className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <CardTitle className="text-2xl text-gray-900">{surface.title}</CardTitle>
-                        <CardDescription className="text-base text-indigo-600">
-                          {surface.subtitle}
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <ul className="space-y-4 text-gray-600">
-                      {surface.bullets.map((bullet) => (
-                        <li key={bullet} className="text-base leading-relaxed">
-                          {bullet}
-                        </li>
-                      ))}
-                    </ul>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Workflow */}
-        <div className="mb-24">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            From capture to action in three steps
-          </h2>
-          <div className="max-w-5xl mx-auto grid gap-10 md:grid-cols-3">
-            {workflowSteps.map((step) => (
-              <Card key={step.step} className="border-2 border-gray-200 shadow-lg h-full text-center">
-                <CardHeader className="space-y-4">
-                  <div className="w-16 h-16 mx-auto rounded-full bg-blue-500 text-white flex items-center justify-center text-2xl font-bold">
-                    {step.step}
-                  </div>
-                  <CardTitle className="text-xl text-gray-900">{step.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">{step.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* API Example */}
-        <div className="mb-24">
-          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
-            <div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-6">
-                Use the REST API for ingestion and search
-              </h2>
-              <p className="text-lg text-gray-600 mb-6">
-                Plus-tier users can generate API keys and call the `/api/external` endpoints from their own tools. Create items, search with the same filters used in the dashboard, and pull full records when you need to sync downstream.
-              </p>
-              <ul className="space-y-3 text-gray-600">
-                <li>✓ Upload JSON or multipart payloads and let enrichment run asynchronously.</li>
-                <li>✓ Duplicate file hashes are skipped automatically with references to the original item.</li>
-                <li>✓ Search responses include semantic scores, item metadata, and source details.</li>
-              </ul>
-            </div>
-            <Card className="border-2 border-gray-200 shadow-xl bg-gray-950 text-gray-100">
+          <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
+            Upload images, forward emails, or save links — all flow into a single searchable workspace. Each item is automatically organized with text extraction, smart tagging, and contact detection so it shows up the moment you need it.
+          </p>
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card>
               <CardHeader>
-                <CardTitle className="text-lg font-mono text-gray-200">POST /api/external/items</CardTitle>
-                <CardDescription className="text-sm text-gray-400">
-                  Create an item with attachments using an external API key
-                </CardDescription>
+                <CardTitle>Extract text from images</CardTitle>
               </CardHeader>
               <CardContent>
-                <pre className="text-sm leading-6 font-mono overflow-x-auto bg-gray-900 rounded-lg p-6 border border-gray-800">
-{`curl -X POST https://api.injest.io/api/external/items \\
-  -H "x-api-key: injest_sk_live_..." \\
-  -F 'title=Launch checklist' \\
-  -F 'tags=product,launch' \\
-  -F 'attachments=@/path/to/brief.pdf;type=application/pdf'`}
-                </pre>
-                <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
-                  <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Response preview</p>
-                  <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
-{`{
-  "queued": true,
-  "uploadedCount": 1,
-  "duplicateCount": 0,
-  "message": "Queued 1 file(s) for enrichment. Processing may take a few minutes.",
-  "files": [
-    {
-      "filename": "brief.pdf",
-      "storedFilename": "3c8971f4-launch-checklist.pdf",
-      "mimetype": "application/pdf",
-      "size": 452381
-    }
-  ]
-}`}
-                  </pre>
-                </div>
+                <p className="text-gray-600">
+                  Read text from photos, screenshots, and PDFs automatically
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Search by meaning</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Find what you're looking for even if you don't remember the exact words
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Smart organization</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Filter by type, tags, source, and date to find anything quickly
+                </p>
               </CardContent>
             </Card>
           </div>
         </div>
+      </section>
 
-        {/* Action Options */}
-        <div className="mb-24">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Automation tools built in
+      {/* Search Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+            Search smarter, not harder
           </h2>
-          <div className="grid gap-8 md:grid-cols-3">
-            {actionOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <Card key={option.id} className="border-2 border-gray-200 shadow-lg h-full">
-                  <CardHeader className="space-y-4">
-                    <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
-                      <Icon className="w-6 h-6" />
-                    </div>
-                    <CardTitle className="text-2xl text-gray-900">{option.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-gray-600">{option.description}</p>
-                  </CardContent>
-                </Card>
-              );
-            })}
+          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
+            Search by keywords or describe what you're looking for — Injest finds notes, documents, and contacts even when you don't remember the exact words. Filter by type, tags, source, or date to narrow down results instantly.
+          </p>
+        </div>
+      </section>
+
+      {/* Action Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
+            Act on what you find
+          </h2>
+          <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
+            Injest isn't just storage — it's where actions happen.
+          </p>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Generate send plans or follow-up drafts</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Email contacts with tracked attachments</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Convert items into tasks</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Export your data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Download your organized information in spreadsheets or structured formats
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
+      </section>
 
-        {/* Team Plays */}
-        <div className="mb-24">
-          <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Operations covered out of the box
-          </h2>
-          <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
-            {teamPlays.map((play) => (
-              <Card key={play.id} className="border-2 border-gray-200 shadow-lg h-full">
+      {/* Use Cases Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+              Perfect for Your Workflow
+            </h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
                 <CardHeader>
-                  <CardTitle className="text-2xl text-gray-900">{play.title}</CardTitle>
-                  <CardDescription className="text-base text-blue-600">{play.subtitle}</CardDescription>
+                  <CardTitle>Research & Reference</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="space-y-4 text-gray-600">
-                    {play.bullets.map((item) => (
-                      <li key={item} className="flex items-start gap-3">
-                        <FileText className="w-5 h-5 text-blue-500 mt-1" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <p className="text-gray-600">
+                    Save articles, screenshots, and notes. Find them instantly with smart search, even months later.
+                  </p>
                 </CardContent>
               </Card>
-            ))}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Receipts & Documents</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Capture receipts, invoices, and important papers. Extract text automatically and organize by date or category.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Team Collaboration</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Share items securely with teammates, track who accessed what, and keep everything organized in one place.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Project Planning</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Collect inspiration, save reference materials, and convert items into actionable tasks for your projects.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
+      </section>
 
-        {/* Pricing Section */}
-        <div className="mb-24">
-          <h2 className="text-4xl font-bold text-center mb-6 text-gray-900">
-            Pricing that scales with your library
+      {/* Steps Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+              From Capture to Action in Three Steps
+            </h2>
+            <div className="space-y-8">
+              <div className="flex gap-6">
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                  1
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Capture or forward content
+                  </h3>
+                  <p className="text-gray-600">
+                    Upload attachments, send email, or save browser tabs.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-6">
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                  2
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Injest organizes automatically
+                  </h3>
+                  <p className="text-gray-600">
+                    Text extraction, smart tagging, and contact detection happen in the background.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-6">
+                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                  3
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                    Search, share, and follow up
+                  </h3>
+                  <p className="text-gray-600">
+                    Find what you need and take action instantly.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Ingestion Methods Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+            Ways to Bring Data In
           </h2>
-          <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-            Start free, then raise the item cap as your archive grows. Every plan keeps OCR, enrichment, contacts, exports, and the dashboard included.
-          </p>
-          <HomepagePricingPlans plans={pricingPlans} />
+          <div className="grid md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>File Uploads</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Upload files up to 50 MB each. Text is extracted automatically, and duplicates are skipped.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Forwarded Email</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Send to input@injest.io. Attachments and threads are preserved and indexed.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Bookmarks Extension</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Save tabs from Chrome with one click or import HTML files in bulk.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
+      </section>
 
-        {/* CTA Section */}
-        <div className="text-center py-16 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl text-white">
-          <Sparkles className="w-12 h-12 mx-auto mb-4" />
-          <h2 className="text-4xl font-bold mb-4">Ready to keep every asset searchable and actionable?</h2>
-          <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Create an account to capture files, mail, and bookmarks in one place, then search, share, and send without switching tools.
-          </p>
-          <Link href="/login">
-            <Button size="lg" variant="secondary" className="text-lg px-8">
-              Create your free account
-            </Button>
-          </Link>
+      {/* Automation Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+              Automation Tools Built In
+            </h2>
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Draft follow-up emails</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Generate email drafts from your saved items
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Send tracked emails</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Email contacts directly with tracked attachments
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Share and export</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Share items with others or export your collections
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Turn items into tasks</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Convert any saved item into an actionable task
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
         </div>
+      </section>
 
-        {/* Footer */}
-        <footer className="mt-20 py-8 border-t border-gray-200">
+      {/* Collaboration Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+            Collaboration and Access
+          </h2>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Invite teammates via email</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Access checks on shared items</CardTitle>
+              </CardHeader>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Real-time updates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  See new items appear as they're processed
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Full context preserved</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  In exports
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+              Pricing That Scales With Your Library
+            </h2>
+            <HomepagePricingPlans plans={pricingPlans} />
+          </div>
+        </div>
+      </section>
+
+      {/* Advantage Section */}
+      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+            The Injest Advantage
+          </h2>
+          <div className="space-y-8">
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  You're drowning in screenshots and files.
+                </h3>
+              </div>
+              <div className="flex-1">
+                <p className="text-gray-600 text-lg">
+                  Injest captures and organizes them automatically.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  You can't remember where that one quote, receipt, or contact was.
+                </h3>
+              </div>
+              <div className="flex-1">
+                <p className="text-gray-600 text-lg">
+                  Injest makes it searchable by text, label, or date.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  You're switching between tools to take action.
+                </h3>
+              </div>
+              <div className="flex-1">
+                <p className="text-gray-600 text-lg">
+                  Injest keeps search, sharing, and sending in one place.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col md:flex-row gap-6 items-start">
+              <div className="flex-1">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                  You waste time switching between apps.
+                </h3>
+              </div>
+              <div className="flex-1">
+                <p className="text-gray-600 text-lg">
+                  Injest keeps everything in one place — search, organize, share, and take action without leaving your workspace.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA Section */}
+      <section className="bg-gradient-to-r from-blue-600 to-indigo-600 py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-3xl mx-auto text-center text-white">
+            <h2 className="text-4xl sm:text-5xl font-bold mb-6">
+              Ready to make every file, screenshot, and email searchable?
+            </h2>
+            <p className="text-xl mb-10 text-blue-100">
+              Knowledge workers, researchers, and teams use Injest to capture, search, and act — without juggling extra tools.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
+                <Link href="/login">Start Free</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6 bg-transparent border-white text-white hover:bg-white hover:text-blue-600">
+                <Link href="/dashboard">Explore the Dashboard</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="mt-20 py-8 border-t border-gray-200">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4 sm:gap-8 text-sm text-gray-600">
             <Link href="/privacy" className="hover:text-blue-600 transition-colors">
               Privacy Policy
@@ -499,8 +540,8 @@ export default function Home() {
               Developer Docs
             </Link>
           </div>
-        </footer>
-      </div>
+        </div>
+      </footer>
     </div>
   );
 }

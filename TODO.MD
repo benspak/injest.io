@@ -2,6 +2,11 @@
 - PWA (Progressive web application with offline mode)
 - Item and collection sharing (can be shared publicly if user selects)
 - Google Drive Sync https://developers.google.com/drive/api
+ Shared Workspace View (Team Dashboard)
+ Comments & Collaboration Thread
+ Activity & Audit Logs
+ Permissions & Roles
+ Notifications & Digest Emails
 - Reindexing of items
 •	⚙️ SDKs or client wrappers (JS, Python)
 •	🔄 Webhooks (“notify me when image is processed”)
@@ -20,3 +25,5 @@
 
 - Item collections (one item can be in many collections)
 •	🧭 Smart folders (auto-group images by detected topics or keywords)
+- Github integration
+- Markdown file support
