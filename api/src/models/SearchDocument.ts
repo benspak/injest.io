@@ -1,6 +1,6 @@
 import pool from '../config/database.js';
 
-export type SearchEntityType = 'item' | 'contact';
+export type SearchEntityType = 'item' | 'contact' | 'user';
 
 export interface SearchDocument {
   id: string;

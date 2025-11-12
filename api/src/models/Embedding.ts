@@ -1,6 +1,7 @@
 import pool from '../config/database.js';
 import type { Item } from './Item.js';
 import type { Contact } from './Contact.js';
+import type { User } from './User.js';
 import { itemAccessEmailNormalizer } from './ItemAccess.js';
 import type { SearchFilters } from '../types/search.js';
 import type { SearchEntityType } from './SearchDocument.js';
@@ -17,6 +18,7 @@ export interface SemanticSimilarityResult {
   };
   item?: Item;
   contact?: Contact;
+  user?: User;
   vectorScore: number;
   recencyScore: number;
   tagBoost: number;
@@ -135,6 +137,7 @@ export class EmbeddingModel {
             sd.metadata AS document_metadata,
             row_to_json(i) AS item_json,
             row_to_json(c) AS contact_json,
+            row_to_json(u) AS user_json,
             1 - (se.embedding <=> qe.embedding) AS vector_score,
             EXP(
               -GREATEST(
@@ -143,6 +146,7 @@ export class EmbeddingModel {
                     NOW() - COALESCE(
                       i.created_at,
                       c.updated_at,
+                      u.updated_at,
                       sd.updated_at,
                       sd.created_at
                     )
@@ -175,6 +179,7 @@ export class EmbeddingModel {
           JOIN query_embedding qe ON TRUE
           LEFT JOIN items i ON sd.entity_type = 'item' AND sd.entity_id = i.id
           LEFT JOIN contacts c ON sd.entity_type = 'contact' AND sd.entity_id = c.id
+          LEFT JOIN users u ON sd.entity_type = 'user' AND sd.entity_id = u.id
           WHERE (
             sd.entity_type <> 'item'
             OR (i.deleted_at IS NULL OR i.deleted_at > NOW())
@@ -192,6 +197,10 @@ export class EmbeddingModel {
                     OR (($3)::text IS NOT NULL AND ia.normalized_email = $3::text)
                   )
               )
+            )
+            OR (
+              sd.entity_type = 'user'
+              AND sd.owner_id = $2
             )
           )
           AND (
@@ -214,11 +223,11 @@ export class EmbeddingModel {
           )
           AND (
             $8::timestamptz IS NULL
-            OR COALESCE(i.created_at, c.updated_at, sd.updated_at, sd.created_at) >= $8::timestamptz
+            OR COALESCE(i.created_at, c.updated_at, u.updated_at, sd.updated_at, sd.created_at) >= $8::timestamptz
           )
           AND (
             $9::timestamptz IS NULL
-            OR COALESCE(i.created_at, c.updated_at, sd.updated_at, sd.created_at) <= $9::timestamptz
+            OR COALESCE(i.created_at, c.updated_at, u.updated_at, sd.updated_at, sd.created_at) <= $9::timestamptz
           )
           AND (
             $10::boolean IS NULL
@@ -289,6 +298,7 @@ export class EmbeddingModel {
           document_metadata,
           item_json,
           contact_json,
+          user_json,
           vector_score,
           recency_score,
           tag_boost,
@@ -333,6 +343,7 @@ export class EmbeddingModel {
         document_metadata,
         item_json,
         contact_json,
+        user_json,
         vector_score,
         recency_score,
         tag_boost,
@@ -361,6 +372,10 @@ export class EmbeddingModel {
         contact:
           contact_json && typeof contact_json === 'object'
             ? (contact_json as Contact)
+            : undefined,
+        user:
+          user_json && typeof user_json === 'object'
+            ? (user_json as User)
             : undefined,
         vectorScore: typeof vector_score === 'number' ? vector_score : parseFloat(vector_score),
         recencyScore:

@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import authRoutes from './routes/auth.js';
 import itemsRoutes from './routes/items.js';
 import searchRoutes from './routes/search.js';
@@ -12,6 +14,7 @@ import paymentRoutes from './routes/payment.js';
 import tasksRoutes from './routes/tasks.js';
 import contactsRoutes from './routes/contacts.js';
 import sendRoutes from './routes/send.js';
+import profilesRoutes from './routes/profiles.js';
 import { swaggerSpec } from './swagger.js';
 import externalRoutes from './routes/external.js';
 import './config/database.js';
@@ -31,12 +34,12 @@ const urlencodedParser = express.urlencoded({ extended: true });
 app.use((req, res, next) => {
     const contentType = req.headers['content-type'] || '';
     // Debug logging (remove after testing)
-    if (req.method === 'POST' && req.path.includes('/items')) {
+    if (req.method === 'POST' && (req.path.includes('/items') || req.path.includes('/profiles'))) {
         console.log(`[DEBUG] ${req.method} ${req.path} - Content-Type: ${contentType}`);
     }
     // Skip parsing for multipart/form-data - let multer handle it
     if (contentType.includes('multipart/form-data')) {
-        if (req.method === 'POST' && req.path.includes('/items')) {
+        if (req.method === 'POST' && (req.path.includes('/items') || req.path.includes('/profiles'))) {
             console.log('[DEBUG] Skipping body parsing for multipart/form-data');
         }
         return next();
@@ -78,7 +81,39 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/tasks', tasksRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/send', sendRoutes);
+app.use('/api/profiles', profilesRoutes);
 app.use('/api/external', externalRoutes);
+// Serve uploaded files (avatars, attachments, etc.)
+app.get('/api/uploads/:path(*)', (req, res) => {
+    try {
+        const filePath = req.params.path;
+        const fullPath = path.join(process.env.UPLOAD_DIR || './uploads', filePath);
+        // Security: prevent directory traversal
+        const resolvedPath = path.resolve(fullPath);
+        const uploadDir = path.resolve(process.env.UPLOAD_DIR || './uploads');
+        if (!resolvedPath.startsWith(uploadDir)) {
+            res.status(403).json({ error: 'Access denied' });
+            return;
+        }
+        // Check if file exists
+        if (!fs.existsSync(resolvedPath)) {
+            res.status(404).json({ error: 'File not found' });
+            return;
+        }
+        // Set appropriate content type
+        const ext = path.extname(resolvedPath).toLowerCase();
+        const contentType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : ext === '.webp' ? 'image/webp' : 'application/octet-stream';
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        // Stream the file
+        const fileStream = fs.createReadStream(resolvedPath);
+        fileStream.pipe(res);
+    }
+    catch (error) {
+        console.error('Error serving file:', error);
+        res.status(500).json({ error: 'Failed to serve file' });
+    }
+});
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok' });

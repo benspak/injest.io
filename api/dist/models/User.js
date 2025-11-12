@@ -77,6 +77,50 @@ export class UserModel {
             fields.push(`two_factor_recovery_codes = $${paramCount++}`);
             values.push(updates.two_factor_recovery_codes);
         }
+        if (updates.public_username !== undefined) {
+            fields.push(`public_username = $${paramCount++}`);
+            values.push(updates.public_username);
+        }
+        if (updates.first_name !== undefined) {
+            fields.push(`first_name = $${paramCount++}`);
+            values.push(updates.first_name);
+        }
+        if (updates.last_name !== undefined) {
+            fields.push(`last_name = $${paramCount++}`);
+            values.push(updates.last_name);
+        }
+        if (updates.zip_code !== undefined) {
+            fields.push(`zip_code = $${paramCount++}`);
+            values.push(updates.zip_code);
+        }
+        if (updates.city !== undefined) {
+            fields.push(`city = $${paramCount++}`);
+            values.push(updates.city);
+        }
+        if (updates.avatar_url !== undefined) {
+            fields.push(`avatar_url = $${paramCount++}`);
+            values.push(updates.avatar_url);
+        }
+        if (updates.x_profile_url !== undefined) {
+            fields.push(`x_profile_url = $${paramCount++}`);
+            values.push(updates.x_profile_url);
+        }
+        if (updates.youtube_url !== undefined) {
+            fields.push(`youtube_url = $${paramCount++}`);
+            values.push(updates.youtube_url);
+        }
+        if (updates.github_url !== undefined) {
+            fields.push(`github_url = $${paramCount++}`);
+            values.push(updates.github_url);
+        }
+        if (updates.linkedin_url !== undefined) {
+            fields.push(`linkedin_url = $${paramCount++}`);
+            values.push(updates.linkedin_url);
+        }
+        if (updates.profile_private !== undefined) {
+            fields.push(`profile_private = $${paramCount++}`);
+            values.push(updates.profile_private);
+        }
         if (fields.length === 0) {
             return await this.findById(id);
         }
@@ -133,6 +177,18 @@ export class UserModel {
         return await this.update(userId, {
             two_factor_recovery_codes: recoveryCodes,
         });
+    }
+    static async findByPublicUsername(username) {
+        // Case-insensitive username lookup
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(public_username) = LOWER($1) AND public_username IS NOT NULL', [username]);
+        return result.rows[0] || null;
+    }
+    static async isProfilePrivate(userId) {
+        const result = await pool.query('SELECT profile_private FROM users WHERE id = $1', [userId]);
+        return result.rows[0]?.profile_private === true;
+    }
+    static async updateProfile(userId, profileData) {
+        return await this.update(userId, profileData);
     }
 }
 //# sourceMappingURL=User.js.map

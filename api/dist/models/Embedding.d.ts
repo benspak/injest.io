@@ -1,5 +1,6 @@
 import type { Item } from './Item.js';
 import type { Contact } from './Contact.js';
+import type { User } from './User.js';
 import type { SearchFilters } from '../types/search.js';
 import type { SearchEntityType } from './SearchDocument.js';
 export interface SemanticSimilarityResult {
@@ -14,6 +15,7 @@ export interface SemanticSimilarityResult {
     };
     item?: Item;
     contact?: Contact;
+    user?: User;
     vectorScore: number;
     recencyScore: number;
     tagBoost: number;

@@ -1,5 +1,6 @@
 import { ItemModel, type Item } from '../models/Item.js';
 import { ContactModel, type Contact } from '../models/Contact.js';
+import { UserModel, type User } from '../models/User.js';
 import { embeddingService } from './embeddings.js';
 import { openAIService } from './openai.js';
 import { itemStreamService } from './itemStream.js';
@@ -117,6 +118,25 @@ export class IndexingService {
     }
 
     const document = await this.performContactIndexing(contact);
+    if (!document) {
+      return false;
+    }
+
+    return true;
+  }
+
+  async indexUser(userOrId: User | string): Promise<boolean> {
+    const userId = typeof userOrId === 'string' ? userOrId : userOrId.id;
+
+    const user: User | null =
+      typeof userOrId === 'string' ? await UserModel.findById(userId) : userOrId;
+
+    if (!user) {
+      console.warn(`[Indexing] User ${userId} not found; skipping indexing.`);
+      return false;
+    }
+
+    const document = await this.performUserIndexing(user);
     if (!document) {
       return false;
     }
@@ -277,6 +297,97 @@ export class IndexingService {
     }
 
     console.log(`[Indexing] Indexed contact ${contact.id}`);
+    return true;
+  }
+
+  private async performUserIndexing(user: User): Promise<boolean> {
+    const textParts: string[] = [];
+
+    if (user.first_name) textParts.push(user.first_name);
+    if (user.last_name) textParts.push(user.last_name);
+    if (user.public_username) textParts.push(user.public_username);
+
+    // Add social links as searchable text
+    if (user.x_profile_url) textParts.push(user.x_profile_url);
+    if (user.youtube_url) textParts.push(user.youtube_url);
+    if (user.github_url) textParts.push(user.github_url);
+    if (user.linkedin_url) textParts.push(user.linkedin_url);
+
+    const textContent = textParts.join(' ').trim();
+    if (textContent.length === 0) {
+      console.warn(`[Indexing] User ${user.id} has no text content to index; skipping.`);
+      return false;
+    }
+
+    // Build title from name or username
+    const title = user.first_name && user.last_name
+      ? `${user.first_name} ${user.last_name}`
+      : user.first_name || user.last_name || user.public_username || user.email || 'User';
+
+    // Build summary
+    const summaryParts: string[] = [];
+    if (user.first_name || user.last_name) {
+      summaryParts.push(`${user.first_name || ''} ${user.last_name || ''}`.trim());
+    }
+    if (user.public_username) {
+      summaryParts.push(`@${user.public_username}`);
+    }
+    const summary = summaryParts.join(' ') || title;
+
+    // Build tags
+    const tags = new Set<string>();
+    tags.add('user');
+    tags.add('profile');
+    if (user.public_username) {
+      tags.add(user.public_username.toLowerCase());
+    }
+    if (user.x_profile_url) {
+      tags.add('x');
+      tags.add('twitter');
+    }
+    if (user.youtube_url) {
+      tags.add('youtube');
+    }
+    if (user.github_url) {
+      tags.add('github');
+    }
+    if (user.linkedin_url) {
+      tags.add('linkedin');
+    }
+
+    const document = await SearchDocumentModel.upsert({
+      ownerId: user.id, // User profiles are owned by themselves
+      entityType: 'user',
+      entityId: user.id,
+      title,
+      content: textContent,
+      summary,
+      tags: Array.from(tags),
+      metadata: {
+        first_name: user.first_name,
+        last_name: user.last_name,
+        public_username: user.public_username,
+        x_profile_url: user.x_profile_url,
+        youtube_url: user.youtube_url,
+        github_url: user.github_url,
+        linkedin_url: user.linkedin_url,
+        city: user.city,
+      },
+    });
+
+    try {
+      await embeddingService.createEmbedding(document.id, textContent);
+    } catch (error: any) {
+      if (error?.code === '23503') {
+        console.warn(
+          `[Indexing] Embedding skipped because search document ${document.id} was not found when creating embedding.`
+        );
+        return false;
+      }
+      throw error;
+    }
+
+    console.log(`[Indexing] Indexed user ${user.id}`);
     return true;
   }
 }

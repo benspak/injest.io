@@ -1,4 +1,4 @@
-export type SearchEntityType = 'item' | 'contact';
+export type SearchEntityType = 'item' | 'contact' | 'user';
 export interface SearchDocument {
     id: string;
     owner_id: string;

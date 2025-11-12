@@ -15,6 +15,17 @@ export interface User {
     two_factor_secret?: string | null;
     two_factor_confirmed_at?: Date | null;
     two_factor_recovery_codes?: string[] | null;
+    public_username?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    zip_code?: string | null;
+    city?: string | null;
+    avatar_url?: string | null;
+    x_profile_url?: string | null;
+    youtube_url?: string | null;
+    github_url?: string | null;
+    linkedin_url?: string | null;
+    profile_private?: boolean;
     created_at: Date;
     updated_at: Date;
 }
@@ -32,5 +43,8 @@ export declare class UserModel {
     static enableTwoFactor(userId: string, secret: string, recoveryCodes: string[]): Promise<User>;
     static disableTwoFactor(userId: string): Promise<User>;
     static updateRecoveryCodes(userId: string, recoveryCodes: string[] | null): Promise<User>;
+    static findByPublicUsername(username: string): Promise<User | null>;
+    static isProfilePrivate(userId: string): Promise<boolean>;
+    static updateProfile(userId: string, profileData: Partial<User>): Promise<User>;
 }
 //# sourceMappingURL=User.d.ts.map

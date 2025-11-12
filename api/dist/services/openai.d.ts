@@ -101,6 +101,10 @@ export declare class OpenAIService {
         analysis: SendPromptAnalysis;
         contacts: SendPlanContactContext[];
         items: SendPlanItemContext[];
+        user?: {
+            first_name?: string | null;
+            last_name?: string | null;
+        };
     }): Promise<SendPlanRecommendation>;
 }
 export declare const openAIService: OpenAIService;

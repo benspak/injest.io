@@ -47,6 +47,7 @@ const swaggerDefinition = {
         { name: 'Send', description: 'Generate outreach plans and send contextual emails.' },
         { name: 'Feedback', description: 'Collect feedback from authenticated users.' },
         { name: 'Payments', description: 'Stripe payment intents for bookmark imports and subscriptions.' },
+        { name: 'Profiles', description: 'Manage user profiles and public profile information.' },
     ],
     components: {
         securitySchemes: {
@@ -1956,6 +1957,210 @@ const swaggerDefinition = {
                     },
                     500: {
                         description: 'Failed to verify payment.',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/api/profiles/{username}': {
+            get: {
+                tags: ['Profiles'],
+                summary: 'Get public profile by username',
+                description: 'Retrieve a user\'s public profile information by their username. Returns 403 if the profile is private.',
+                parameters: [
+                    {
+                        name: 'username',
+                        in: 'path',
+                        required: true,
+                        schema: { type: 'string' },
+                        description: 'Public username of the profile to retrieve',
+                    },
+                ],
+                responses: {
+                    200: {
+                        description: 'Public profile retrieved successfully.',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        profile: {
+                                            type: 'object',
+                                            properties: {
+                                                id: { type: 'string', format: 'uuid' },
+                                                public_username: { type: 'string', nullable: true },
+                                                first_name: { type: 'string', nullable: true },
+                                                last_name: { type: 'string', nullable: true },
+                                                city: { type: 'string', nullable: true },
+                                                avatar_url: { type: 'string', nullable: true },
+                                                x_profile_url: { type: 'string', nullable: true },
+                                                youtube_url: { type: 'string', nullable: true },
+                                                github_url: { type: 'string', nullable: true },
+                                                linkedin_url: { type: 'string', nullable: true },
+                                                created_at: { type: 'string', format: 'date-time' },
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    403: {
+                        description: 'Profile is private.',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                    404: {
+                        description: 'Profile not found.',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/api/profiles/me': {
+            get: {
+                tags: ['Profiles'],
+                summary: 'Get own profile',
+                description: 'Retrieve the authenticated user\'s own profile information.',
+                security: [{ bearerAuth: [] }, { apiKeyAuth: [] }],
+                responses: {
+                    200: {
+                        description: 'Profile retrieved successfully.',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        profile: { $ref: '#/components/schemas/UserSummary' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    401: {
+                        description: 'Authentication required.',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                },
+            },
+            put: {
+                tags: ['Profiles'],
+                summary: 'Update own profile',
+                description: 'Update the authenticated user\'s profile information. Supports avatar upload via multipart/form-data.',
+                security: [{ bearerAuth: [] }, { apiKeyAuth: [] }],
+                requestBody: {
+                    required: false,
+                    content: {
+                        'multipart/form-data': {
+                            schema: {
+                                type: 'object',
+                                properties: {
+                                    public_username: { type: 'string', minLength: 3, maxLength: 30 },
+                                    first_name: { type: 'string' },
+                                    last_name: { type: 'string' },
+                                    zip_code: { type: 'string', maxLength: 20 },
+                                    x_profile_url: { type: 'string', format: 'uri' },
+                                    youtube_url: { type: 'string', format: 'uri' },
+                                    github_url: { type: 'string', format: 'uri' },
+                                    linkedin_url: { type: 'string', format: 'uri' },
+                                    avatar: { type: 'string', format: 'binary' },
+                                },
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    200: {
+                        description: 'Profile updated successfully.',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        profile: { $ref: '#/components/schemas/UserSummary' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    400: {
+                        description: 'Invalid request data (e.g., username already taken, invalid URL format).',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                    401: {
+                        description: 'Authentication required.',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        '/api/profiles/me/privacy': {
+            put: {
+                tags: ['Profiles'],
+                summary: 'Update profile privacy',
+                description: 'Toggle the privacy setting for the authenticated user\'s profile.',
+                security: [{ bearerAuth: [] }, { apiKeyAuth: [] }],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                type: 'object',
+                                required: ['profile_private'],
+                                properties: {
+                                    profile_private: { type: 'boolean', description: 'Whether the profile should be private' },
+                                },
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    200: {
+                        description: 'Privacy setting updated successfully.',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        profile: { $ref: '#/components/schemas/UserSummary' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    400: {
+                        description: 'Invalid request data.',
+                        content: {
+                            'application/json': {
+                                schema: { $ref: '#/components/schemas/ErrorResponse' },
+                            },
+                        },
+                    },
+                    401: {
+                        description: 'Authentication required.',
                         content: {
                             'application/json': {
                                 schema: { $ref: '#/components/schemas/ErrorResponse' },

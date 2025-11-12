@@ -482,7 +482,21 @@ User request: ${prompt}`;
         }
     }
     async generateSendPlan(input) {
-        const { prompt, analysis } = input;
+        const { prompt, analysis, user } = input;
+        // Build signature based on user profile
+        const buildSignature = () => {
+            if (user?.first_name && user?.last_name) {
+                return `Best Regards,\n${user.first_name} ${user.last_name}`;
+            }
+            else if (user?.first_name) {
+                return `Best Regards,\n${user.first_name}`;
+            }
+            else if (user?.last_name) {
+                return `Best Regards,\n${user.last_name}`;
+            }
+            return 'Best regards,';
+        };
+        const signature = buildSignature();
         const trimmedContacts = input.contacts.slice(0, 8).map((contact) => ({
             id: contact.id,
             name: contact.name ?? null,
@@ -509,7 +523,7 @@ User request: ${prompt}`;
         const instruction = `You assist the user in preparing an email. Review the JSON context and respond strictly with JSON:
 {
   "subject": "recommended subject line",
-  "body": "multiline email body with placeholders already filled",
+  "body": "multiline email body with placeholders already filled. End with the signature: ${signature}",
   "recommendedContactId": "id from contacts array or empty string",
   "recommendedContactEmail": "email from contacts array or empty string",
   "contactReason": "brief justification",
@@ -526,7 +540,7 @@ User request: ${prompt}`;
   "suggestedSearchQuery": "refined search query for more context"
 }
 
-Return valid JSON only.`;
+Return valid JSON only. Always end the email body with the signature: ${signature}`;
         await this.waitForRateLimit();
         const response = await this.executeWithRetry(async () => {
             return await this.client.chat.completions.create({
@@ -550,7 +564,7 @@ Return valid JSON only.`;
         if (!content) {
             return {
                 subject: analysis.summary.slice(0, 60) || 'Draft Email',
-                body: `Hi,\n\n${analysis.summary}\n\nBest regards,\n`,
+                body: `Hi,\n\n${analysis.summary}\n\n${signature}\n`,
                 attachments: [],
                 notes: null,
                 confidence: null,
@@ -563,11 +577,17 @@ Return valid JSON only.`;
         }
         try {
             const parsed = JSON.parse(content);
+            // Ensure signature is included in body
+            let body = typeof parsed.body === 'string' && parsed.body.trim()
+                ? parsed.body.trim()
+                : `Hi,\n\n${analysis.summary}\n\n${signature}\n`;
+            // If signature is not already in body, append it
+            if (!body.includes(signature) && !body.toLowerCase().includes('best regards')) {
+                body = `${body}\n\n${signature}\n`;
+            }
             return {
                 subject: typeof parsed.subject === 'string' && parsed.subject.trim() ? parsed.subject.trim() : 'Draft Email',
-                body: typeof parsed.body === 'string' && parsed.body.trim()
-                    ? parsed.body.trim()
-                    : `Hi,\n\n${analysis.summary}\n\nBest regards,\n`,
+                body,
                 recommendedContactId: typeof parsed.recommendedContactId === 'string' && parsed.recommendedContactId
                     ? parsed.recommendedContactId
                     : null,
@@ -610,7 +630,7 @@ Return valid JSON only.`;
             console.warn('[OpenAI] Failed to parse send plan JSON', error);
             return {
                 subject: analysis.summary.slice(0, 60) || 'Draft Email',
-                body: `Hi,\n\n${analysis.summary}\n\nBest regards,\n`,
+                body: `Hi,\n\n${analysis.summary}\n\n${signature}\n`,
                 attachments: [],
                 notes: null,
                 confidence: null,

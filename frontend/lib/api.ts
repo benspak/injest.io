@@ -154,6 +154,43 @@ export interface User {
   subscription_tier?: SubscriptionTier;
   two_factor_enabled?: boolean;
   two_factor_confirmed_at?: string | null;
+  public_username?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  zip_code?: string | null;
+  city?: string | null;
+  avatar_url?: string | null;
+  x_profile_url?: string | null;
+  youtube_url?: string | null;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  profile_private?: boolean;
+}
+
+export interface PublicProfile {
+  id: string;
+  public_username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  city: string | null;
+  avatar_url: string | null;
+  x_profile_url: string | null;
+  youtube_url: string | null;
+  github_url: string | null;
+  linkedin_url: string | null;
+  created_at: string;
+}
+
+export interface ProfileUpdateData {
+  public_username?: string;
+  first_name?: string;
+  last_name?: string;
+  zip_code?: string;
+  x_profile_url?: string;
+  youtube_url?: string;
+  github_url?: string;
+  linkedin_url?: string;
+  avatar?: File;
 }
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
@@ -1077,6 +1114,63 @@ class ApiClient {
     return this.request<Task>(`/api/tasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
+    });
+  }
+
+  // Profiles
+  async getPublicProfile(username: string): Promise<{ profile: PublicProfile }> {
+    return this.request<{ profile: PublicProfile }>(`/api/profiles/${encodeURIComponent(username)}`, {
+      method: 'GET',
+    });
+  }
+
+  async getMyProfile(): Promise<{ profile: User }> {
+    return this.request<{ profile: User }>('/api/profiles/me', {
+      method: 'GET',
+    });
+  }
+
+  async updateProfile(profileData: ProfileUpdateData): Promise<{ profile: User }> {
+    const formData = new FormData();
+
+    if (profileData.public_username !== undefined) {
+      formData.append('public_username', profileData.public_username);
+    }
+    if (profileData.first_name !== undefined) {
+      formData.append('first_name', profileData.first_name);
+    }
+    if (profileData.last_name !== undefined) {
+      formData.append('last_name', profileData.last_name);
+    }
+    if (profileData.zip_code !== undefined) {
+      formData.append('zip_code', profileData.zip_code);
+    }
+    if (profileData.x_profile_url !== undefined) {
+      formData.append('x_profile_url', profileData.x_profile_url);
+    }
+    if (profileData.youtube_url !== undefined) {
+      formData.append('youtube_url', profileData.youtube_url);
+    }
+    if (profileData.github_url !== undefined) {
+      formData.append('github_url', profileData.github_url);
+    }
+    if (profileData.linkedin_url !== undefined) {
+      formData.append('linkedin_url', profileData.linkedin_url);
+    }
+    if (profileData.avatar) {
+      formData.append('avatar', profileData.avatar);
+    }
+
+    return this.request<{ profile: User }>('/api/profiles/me', {
+      method: 'PUT',
+      body: formData,
+    });
+  }
+
+  async updateProfilePrivacy(isPrivate: boolean): Promise<{ profile: User }> {
+    return this.request<{ profile: User }>('/api/profiles/me/privacy', {
+      method: 'PUT',
+      body: JSON.stringify({ profile_private: isPrivate }),
     });
   }
 

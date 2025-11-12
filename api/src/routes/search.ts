@@ -130,6 +130,7 @@ router.get('/', async (req: AuthRequest, res: express.Response) => {
         entityId: result.entityId,
         item: result.item,
         contact: result.contact,
+        user: result.user,
         document: result.document,
         similarity: result.similarity,
         scores: result.scores,

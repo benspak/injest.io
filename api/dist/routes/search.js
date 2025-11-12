@@ -107,6 +107,7 @@ router.get('/', async (req, res) => {
                 entityId: result.entityId,
                 item: result.item,
                 contact: result.contact,
+                user: result.user,
                 document: result.document,
                 similarity: result.similarity,
                 scores: result.scores,

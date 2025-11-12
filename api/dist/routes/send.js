@@ -2,6 +2,7 @@ import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import { openAIService } from '../services/openai.js';
 import { ContactModel } from '../models/Contact.js';
+import { UserModel } from '../models/User.js';
 import { searchService } from '../services/search.js';
 import { emailService } from '../services/email.js';
 import { ItemModel } from '../models/Item.js';
@@ -179,11 +180,17 @@ router.post('/plan', async (req, res) => {
         const items = itemResults.slice(0, 8);
         const contactContext = buildContactContext(contacts);
         const itemContext = buildItemContext(items);
+        // Fetch user profile for signature generation
+        const user = await UserModel.findById(req.user.id);
         const plan = await openAIService.generateSendPlan({
             prompt,
             analysis,
             contacts: contactContext,
             items: itemContext,
+            user: user ? {
+                first_name: user.first_name ?? undefined,
+                last_name: user.last_name ?? undefined,
+            } : undefined,
         });
         res.json({
             analysis,

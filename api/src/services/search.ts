@@ -20,10 +20,11 @@ export interface SearchResultDocument {
 }
 
 export interface SearchResult {
-  entityType: 'item' | 'contact';
+  entityType: 'item' | 'contact' | 'user';
   entityId: string;
   item?: any;
   contact?: any;
+  user?: any;
   document?: SearchResultDocument;
   similarity: number;
   scores?: SearchResultScores;
@@ -326,6 +327,8 @@ export class SearchService {
           ? result.item?.id
           : result.entityType === 'contact'
           ? result.contact?.id
+          : result.entityType === 'user'
+          ? result.user?.id
           : undefined;
 
       if (!entityId) {
@@ -337,6 +340,7 @@ export class SearchService {
         entityId,
         item: result.item ?? undefined,
         contact: result.contact ?? undefined,
+        user: result.user ?? undefined,
         document: result.document
           ? {
               title: result.document.title,
@@ -455,6 +459,7 @@ export class SearchService {
         sd.metadata,
         row_to_json(i) AS item_json,
         row_to_json(c) AS contact_json,
+        row_to_json(u) AS user_json,
         CASE
           WHEN sd.title IS NOT NULL AND LOWER(sd.title) LIKE ${rawLikeParam} THEN 1.0
           WHEN sd.summary IS NOT NULL AND LOWER(sd.summary) LIKE ${rawLikeParam} THEN 0.9
@@ -464,6 +469,7 @@ export class SearchService {
       FROM search_documents sd
       LEFT JOIN items i ON sd.entity_type = 'item' AND sd.entity_id = i.id
       LEFT JOIN contacts c ON sd.entity_type = 'contact' AND sd.entity_id = c.id
+      LEFT JOIN users u ON sd.entity_type = 'user' AND sd.entity_id = u.id
       WHERE ${textClause}
         AND (
           sd.entity_type <> 'item'
@@ -482,6 +488,10 @@ export class SearchService {
                   OR (${normalizedEmailPlaceholder}::text IS NOT NULL AND ia.normalized_email = ${normalizedEmailPlaceholder}::text)
                 )
             )
+          )
+          OR (
+            sd.entity_type = 'user'
+            AND sd.owner_id = $1
           )
         )
         AND (
@@ -508,11 +518,11 @@ export class SearchService {
         )
         AND (
           ${dateFromPlaceholder}::timestamptz IS NULL
-          OR COALESCE(i.created_at, c.updated_at, sd.updated_at, sd.created_at) >= ${dateFromPlaceholder}::timestamptz
+          OR COALESCE(i.created_at, c.updated_at, u.updated_at, sd.updated_at, sd.created_at) >= ${dateFromPlaceholder}::timestamptz
         )
         AND (
           ${dateToPlaceholder}::timestamptz IS NULL
-          OR COALESCE(i.created_at, c.updated_at, sd.updated_at, sd.created_at) <= ${dateToPlaceholder}::timestamptz
+          OR COALESCE(i.created_at, c.updated_at, u.updated_at, sd.updated_at, sd.created_at) <= ${dateToPlaceholder}::timestamptz
         )
         AND (
           ${hasAttachmentsPlaceholder}::boolean IS NULL
@@ -583,6 +593,8 @@ export class SearchService {
               ? row.item_json?.id
               : row.entity_type === 'contact'
               ? row.contact_json?.id
+              : row.entity_type === 'user'
+              ? row.user_json?.id
               : undefined;
 
           if (!entityId) {
@@ -591,7 +603,7 @@ export class SearchService {
 
           const similarity = parseFloat(row.text_similarity) || 0.6;
           return {
-            entityType: row.entity_type as 'item' | 'contact',
+            entityType: row.entity_type as 'item' | 'contact' | 'user',
             entityId,
             item:
               row.item_json && typeof row.item_json === 'object'
@@ -600,6 +612,10 @@ export class SearchService {
             contact:
               row.contact_json && typeof row.contact_json === 'object'
                 ? row.contact_json
+                : undefined,
+            user:
+              row.user_json && typeof row.user_json === 'object'
+                ? row.user_json
                 : undefined,
             document: {
               title: row.title ?? null,

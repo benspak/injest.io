@@ -14,10 +14,11 @@ export interface SearchResultDocument {
     metadata: Record<string, unknown> | null;
 }
 export interface SearchResult {
-    entityType: 'item' | 'contact';
+    entityType: 'item' | 'contact' | 'user';
     entityId: string;
     item?: any;
     contact?: any;
+    user?: any;
     document?: SearchResultDocument;
     similarity: number;
     scores?: SearchResultScores;
