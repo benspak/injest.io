@@ -29,8 +29,7 @@ import { searchService } from '../services/search.js';
 const router = express.Router();
 const TIER_UPGRADE_PATH = {
     free: 'plus',
-    plus: 'power',
-    power: 'pro',
+    plus: 'pro',
     pro: null,
 };
 const formatCurrency = (cents) => `$${(cents / 100).toFixed(2)}`;
@@ -274,7 +273,7 @@ const storage = multer.diskStorage({
 export const upload = multer({
     storage,
     limits: {
-        fileSize: 50 * 1024 * 1024, // 50MB
+        fileSize: 25 * 1024 * 1024, // 25MB
     },
 });
 /**
@@ -606,7 +605,7 @@ export async function handleCreateItem(req, res) {
             console.error('Invalid user ID:', req.user.id);
             return res.status(400).json({ error: 'Invalid user ID' });
         }
-        // Check item creation limit (500 items unless premium or purchased bookmark import)
+        // Check item creation limit (250 items for free tier, higher limits for paid tiers)
         const limitCheck = await checkItemCreationLimit(req.user.id);
         if (limitCheck) {
             return res.status(limitCheck.status).json({

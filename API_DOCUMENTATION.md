@@ -8,7 +8,7 @@ External (Plus-tier API key): https://api.injest.io/api/external | http://localh
 OpenAPI spec (Plus required): https://api.injest.io/api/openapi.json
 ```
 
-Use the internal base URL when calling endpoints with a session token (standard web app traffic). The `/api/external` namespace is optimized for integrations that send an `x-api-key` header and is only available to Plus, Power, or Pro plans.
+Use the internal base URL when calling endpoints with a session token (standard web app traffic). The `/api/external` namespace is optimized for integrations that send an `x-api-key` header and is only available to Plus or Pro plans.
 
 ## Authentication
 
@@ -154,7 +154,7 @@ Create a new item (note, link, file, or email). Supports file uploads via multip
 - `url` (string, optional) - URL for link items
 - `notes` (string, optional) - User notes
 - `tags` (string or array, optional) - Tags (comma-separated string or array)
-- `attachments` (file[], optional) - Files to attach (max 10 files, 50MB each)
+- `attachments` (file[], optional) - Files to attach (max 10 files, 25MB each)
 
 **Note:** At least one of `title`, `description`, `url`, or `attachments` must be provided.
 
@@ -1338,7 +1338,7 @@ Non-premium user:
 
 #### Create Premium Subscription Payment Intent
 
-Upgrade a user to a paid subscription tier (Plus, Power, or Pro).
+Upgrade a user to a paid subscription tier (Plus or Pro).
 
 - **Endpoint:** `POST /api/payment/premium-subscription`
 - **Authentication:** Required
@@ -1348,7 +1348,7 @@ Upgrade a user to a paid subscription tier (Plus, Power, or Pro).
     "tier": "plus"
   }
   ```
-  - `tier` defaults to `"plus"` if omitted. Valid values: `"plus"`, `"power"`, `"pro"`.
+  - `tier` defaults to `"plus"` if omitted. Valid values: `"plus"`, `"pro"`.
 - **Response:** `200 OK`
   ```json
   {
@@ -1408,7 +1408,7 @@ Verify a completed payment intent.
 
 ## External API (Plus Tier)
 
-Plus, Power, and Pro plans can access an API-key protected namespace for integrations and third-party tools. Base URL: `https://api.injest.io/api/external` (or `http://localhost:5555/api/external` in development).
+Plus and Pro plans can access an API-key protected namespace for integrations and third-party tools. Base URL: `https://api.injest.io/api/external` (or `http://localhost:5555/api/external` in development).
 
 Authenticate with either:
 
@@ -1541,7 +1541,7 @@ Rate limiting may be applied to prevent abuse. Check response headers for rate l
 
 ## File Upload Limits
 
-- Maximum file size: 50MB per file
+- Maximum file size: 25MB per file
 - Maximum files per request: 10 files
 - Supported file types: All (images, PDFs, documents, etc.)
 

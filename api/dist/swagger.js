@@ -1861,7 +1861,7 @@ const swaggerDefinition = {
                             schema: {
                                 type: 'object',
                                 properties: {
-                                    tier: { type: 'string', enum: ['plus', 'power', 'pro'] },
+                                    tier: { type: 'string', enum: ['plus', 'pro'] },
                                 },
                             },
                         },

@@ -223,7 +223,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
         originalMessage.includes('File too large') ||
         originalMessage.includes('LIMIT_FILE_SIZE')
       ) {
-        errorMessage = 'File too large. Maximum file size is 50MB. Please choose a smaller file.';
+        errorMessage = 'File too large. Maximum file size is 25MB. Please choose a smaller file.';
       } else if (
         errorMessage.includes('Too many files') ||
         originalMessage.includes('Too many files') ||

@@ -42,8 +42,7 @@ const router = express.Router();
 
 const TIER_UPGRADE_PATH: Record<SubscriptionTier, SubscriptionTier | null> = {
   free: 'plus',
-  plus: 'power',
-  power: 'pro',
+  plus: 'pro',
   pro: null,
 };
 
@@ -340,7 +339,7 @@ const storage = multer.diskStorage({
 export const upload = multer({
   storage,
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB
+    fileSize: 25 * 1024 * 1024, // 25MB
   },
 });
 
@@ -783,7 +782,7 @@ export async function handleCreateItem(req: AuthRequest, res: express.Response) 
       return res.status(400).json({ error: 'Invalid user ID' });
     }
 
-    // Check item creation limit (500 items unless premium or purchased bookmark import)
+    // Check item creation limit (250 items for free tier, higher limits for paid tiers)
     const limitCheck = await checkItemCreationLimit(req.user.id);
     if (limitCheck) {
       return res.status(limitCheck.status).json({

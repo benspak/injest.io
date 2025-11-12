@@ -147,7 +147,7 @@ form.addEventListener('submit', async (e) => {
 
       // Provide user-friendly messages
       if (errorMessage.includes('File too large') || errorMessage.includes('LIMIT_FILE_SIZE')) {
-        errorMessage = 'File too large. Maximum file size is 50MB.';
+        errorMessage = 'File too large. Maximum file size is 25MB.';
       } else if (errorMessage.includes('Too many files') || errorMessage.includes('LIMIT_FILE_COUNT')) {
         errorMessage = 'Too many files. Maximum 10 files at once.';
       } else if (errorMessage.includes('Unauthorized') || errorMessage.includes('Invalid token') || errorMessage.includes('API key')) {

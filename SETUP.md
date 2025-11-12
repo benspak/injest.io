@@ -180,7 +180,7 @@ API key generation, the `/developers` portal, and `/api/external` routes require
 - **OpenAI issues**: Verify credits, model name, and network access; errors surface in API logs.
 - **Resend webhooks**: For local development, expose `/api/email/inbound` via ngrok (Resend requires a public URL).
 - **Swagger/OpenAPI blocked**: Only Plus+ accounts can fetch `/api/openapi.json` or load the embedded docs. Upgrade the test user via `npm run make-plus-user`.
-- **Large uploads**: Files over 50 MB are rejected. Ensure `UPLOAD_DIR` exists and the process has write permissions.
+- **Large uploads**: Files over 25 MB are rejected. Ensure `UPLOAD_DIR` exists and the process has write permissions.
 
 ## Production Deployment
 

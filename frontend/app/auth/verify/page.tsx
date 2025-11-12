@@ -29,7 +29,7 @@ function VerifyForm() {
       return null;
     }
     const stored = sessionStorage.getItem('checkoutPlan');
-    if (stored && ['plus', 'power', 'pro'].includes(stored)) {
+    if (stored && ['plus', 'pro'].includes(stored)) {
       sessionStorage.removeItem('checkoutPlan');
       return stored as SubscriptionTier;
     }

@@ -1,4 +1,4 @@
-export type SubscriptionTier = 'free' | 'plus' | 'power' | 'pro';
+export type SubscriptionTier = 'free' | 'plus' | 'pro';
 
 export interface SubscriptionPlan {
   id: SubscriptionTier;
@@ -14,37 +14,29 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
     id: 'free',
     name: 'Free',
     monthlyPriceCents: 0,
-    maxIndexedItems: 500,
+    maxIndexedItems: 250,
     minIndexedItems: 0,
-    description: 'Get started with up to 500 indexed items.',
+    description: 'Get started with up to 250 indexed items.',
   },
   plus: {
     id: 'plus',
     name: 'Plus',
     monthlyPriceCents: 500,
-    maxIndexedItems: 5000,
+    maxIndexedItems: 2500,
     minIndexedItems: 0,
-    description: 'Perfect for growing libraries up to 5,000 items.',
-  },
-  power: {
-    id: 'power',
-    name: 'Power User',
-    monthlyPriceCents: 1500,
-    maxIndexedItems: 25000,
-    minIndexedItems: 5000,
-    description: 'For serious collectors managing up to 25,000 items.',
+    description: 'Perfect for growing libraries up to 2,500 items.',
   },
   pro: {
     id: 'pro',
     name: 'Pro',
-    monthlyPriceCents: 3000,
-    maxIndexedItems: 75000,
-    minIndexedItems: 25000,
-    description: 'Scale to 75,000 indexed items with priority capacity.',
+    monthlyPriceCents: 2500,
+    maxIndexedItems: 25000,
+    minIndexedItems: 0,
+    description: 'Scale to 25,000 indexed items with priority capacity.',
   },
 };
 
-export const PAID_PLAN_ORDER: SubscriptionTier[] = ['plus', 'power', 'pro'];
+export const PAID_PLAN_ORDER: SubscriptionTier[] = ['plus', 'pro'];
 
 export const DEFAULT_PAID_TIER: SubscriptionTier = 'plus';
 

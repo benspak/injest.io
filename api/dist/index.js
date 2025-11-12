@@ -126,7 +126,7 @@ app.use((err, req, res, next) => {
         if (err.code === 'LIMIT_FILE_SIZE') {
             return res.status(400).json({
                 error: 'File too large',
-                details: 'The file you are trying to upload exceeds the maximum size limit of 50MB. Please choose a smaller file.'
+                details: 'The file you are trying to upload exceeds the maximum size limit of 25MB. Please choose a smaller file.'
             });
         }
         if (err.code === 'LIMIT_FILE_COUNT') {

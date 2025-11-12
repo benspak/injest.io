@@ -1,4 +1,4 @@
-export type SubscriptionTier = 'free' | 'plus' | 'power' | 'pro';
+export type SubscriptionTier = 'free' | 'plus' | 'pro';
 
 export interface SubscriptionPlan {
   id: SubscriptionTier;
@@ -14,32 +14,25 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
     name: 'Free',
     monthlyPriceCents: 0,
     minIndexedItems: 0,
-    maxIndexedItems: 500,
+    maxIndexedItems: 250,
   },
   plus: {
     id: 'plus',
     name: 'Plus',
     monthlyPriceCents: 500,
     minIndexedItems: 0,
-    maxIndexedItems: 5000,
-  },
-  power: {
-    id: 'power',
-    name: 'Power User',
-    monthlyPriceCents: 1500,
-    minIndexedItems: 5000,
-    maxIndexedItems: 25000,
+    maxIndexedItems: 2500,
   },
   pro: {
     id: 'pro',
     name: 'Pro',
-    monthlyPriceCents: 3000,
-    minIndexedItems: 25000,
-    maxIndexedItems: 75000,
+    monthlyPriceCents: 2500,
+    minIndexedItems: 0,
+    maxIndexedItems: 25000,
   },
 };
 
-export const PAID_TIERS: SubscriptionTier[] = ['plus', 'power', 'pro'];
+export const PAID_TIERS: SubscriptionTier[] = ['plus', 'pro'];
 
 export function getPlan(tier: SubscriptionTier): SubscriptionPlan {
   return SUBSCRIPTION_PLANS[tier];
@@ -54,7 +47,7 @@ export function isPaidTier(tier: SubscriptionTier): boolean {
 }
 
 export function coerceSubscriptionTier(value: unknown): SubscriptionTier {
-  if (value === 'plus' || value === 'power' || value === 'pro') {
+  if (value === 'plus' || value === 'pro') {
     return value;
   }
   return 'free';

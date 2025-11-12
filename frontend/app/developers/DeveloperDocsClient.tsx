@@ -45,7 +45,7 @@ function hasPlusAccess(user: User | null): boolean {
   }
 
   const tier = user.subscription_tier;
-  return tier === 'plus' || tier === 'power' || tier === 'pro';
+  return tier === 'plus' || tier === 'pro';
 }
 
 const openApiUrl = joinUrl(API_URL, '/api/openapi.json');
@@ -313,7 +313,7 @@ export default function DeveloperDocsClient() {
       icon: Inbox,
       title: 'Capture files, email, and bookmarks',
       description:
-        'Upload up to 50 MB attachments with checksum dedupe, forward to input@injest.io, and import bookmarks or Chrome captures without hand-tagging.',
+        'Upload up to 25 MB attachments with checksum dedupe, forward to input@injest.io, and import bookmarks or Chrome captures without hand-tagging.',
     },
     {
       id: 'search',
@@ -336,7 +336,7 @@ export default function DeveloperDocsClient() {
       id: 'uploads',
       icon: ImageIcon,
       title: 'File uploads',
-      subtitle: '50 MB per file with dedupe',
+      subtitle: '25 MB per file with dedupe',
       bullets: [
         'Drag and drop PDFs, docs, and images; unsupported audio and video are blocked up front.',
         'OCR, text extraction, and entity detection run during background processing.',
@@ -422,25 +422,21 @@ export default function DeveloperDocsClient() {
   > = {
     free: {
       priceNote: 'forever',
-      features: ['Up to 500 indexed items', 'Semantic search with filters', 'File & bookmark ingestion'],
+      features: ['Up to 250 indexed items', 'Semantic search with filters', 'File & bookmark ingestion'],
     },
     plus: {
       badge: 'Most popular',
       priceNote: 'per month',
       features: [
         'Everything in Free',
-        'Up to 5,000 indexed items',
+        'Up to 2,500 indexed items',
         'Generate API keys for /api/external',
         'Send plan automation endpoints',
       ],
     },
-    power: {
-      priceNote: 'per month',
-      features: ['Everything in Plus', 'Up to 25,000 indexed items'],
-    },
     pro: {
       priceNote: 'per month',
-      features: ['Everything in Power', 'Up to 75,000 indexed items'],
+      features: ['Everything in Plus', 'Up to 25,000 indexed items'],
     },
   };
 

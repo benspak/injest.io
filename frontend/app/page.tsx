@@ -10,8 +10,8 @@ export default function Home() {
       name: "Free",
       priceDisplay: "$0",
       priceNote: "",
-      limit: "Up to 500 items",
-      description: "Get started with up to 500 indexed items.",
+      limit: "Up to 250 items",
+      description: "Get started with up to 250 indexed items.",
       features: [
         "Text extraction from images",
         "Smart search",
@@ -23,7 +23,7 @@ export default function Home() {
       name: "Plus",
       priceDisplay: "$5",
       priceNote: "/mo",
-      limit: "Up to 5,000 items",
+      limit: "Up to 2,500 items",
       description: "Perfect for growing libraries.",
       features: [
         "Everything in Free",
@@ -33,31 +33,16 @@ export default function Home() {
       ],
     },
     {
-      tier: 'power' as const,
-      name: "Power User",
-      priceDisplay: "$15",
-      priceNote: "/mo",
-      limit: "Up to 25,000 items",
-      description: "For serious collectors.",
-      features: [
-        "Everything in Plus",
-        "Priority processing",
-        "Advanced exports",
-        "Team collaboration",
-      ],
-    },
-    {
       tier: 'pro' as const,
       name: "Pro",
-      priceDisplay: "$30",
+      priceDisplay: "$25",
       priceNote: "/mo",
-      limit: "Up to 75,000 items",
+      limit: "Up to 25,000 items",
       description: "Scale to enterprise needs.",
       features: [
-        "Everything in Power User",
+        "Everything in Plus",
         "Dedicated support",
         "Custom workflows",
-        "Advanced team features",
       ],
     },
   ];
@@ -309,7 +294,7 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Upload files up to 50 MB each. Text is extracted automatically, and duplicates are skipped.
+                  Upload files up to 25 MB each. Text is extracted automatically, and duplicates are skipped.
                 </p>
               </CardContent>
             </Card>

@@ -182,7 +182,7 @@ function SettingsPageContent() {
       return;
     }
 
-    if (['plus', 'power', 'pro'].includes(upgradeParam)) {
+    if (['plus', 'pro'].includes(upgradeParam)) {
       const tier = upgradeParam as SubscriptionTier;
       setRequestedTier(tier);
       setSubscriptionDialogOpen(true);

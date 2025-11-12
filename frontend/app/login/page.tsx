@@ -18,7 +18,7 @@ function LoginForm() {
   const error = searchParams.get('error');
   const planParam = searchParams.get('plan');
   const plan: SubscriptionTier | null =
-    planParam && ['free', 'plus', 'power', 'pro'].includes(planParam)
+    planParam && ['free', 'plus', 'pro'].includes(planParam)
       ? (planParam as SubscriptionTier)
       : null;
 
