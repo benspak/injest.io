@@ -3,7 +3,6 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Database,
   FileText,
   Image as ImageIcon,
   Inbox,
@@ -11,7 +10,6 @@ import {
   Search,
   Send,
   Sparkles,
-  Users,
 } from "lucide-react";
 import {
   PAID_PLAN_ORDER,
@@ -23,60 +21,60 @@ import {
 export default function Home() {
   const valuePillars = [
     {
+      id: "capture",
+      icon: Inbox,
+      title: "Capture files, email, and bookmarks",
+      description:
+        "Upload up to 50 MB attachments with checksum dedupe, forward to input@injest.io, and import bookmarks or Chrome captures without hand-tagging.",
+    },
+    {
       id: "search",
       icon: Search,
-      title: "Search across every format",
+      title: "Search items and contacts together",
       description:
-        "Hybrid semantic + keyword search brings back slides, screenshots, contracts, and contacts in a single query—with context-aware highlights.",
+        "Semantic and keyword search covers notes, documents, and extracted contacts with filters for type, tags, source, attachments, and date.",
     },
     {
-      id: "send",
+      id: "act",
       icon: Send,
-      title: "Send with one click",
+      title: "Act on results immediately",
       description:
-        "Launch AI-assisted follow-ups, share packets, and trigger workflows directly from search results—no more copying links into other tools.",
-    },
-    {
-      id: "structure",
-      icon: Database,
-      title: "Everything stays organized",
-      description:
-        "Automatic enrichment turns every upload or sync into structured entities, contacts, and tags so your workspace never decays.",
+        "Generate send plans, email contacts with tracked attachments, convert items into tasks, and export JSON or CSV inside the same workspace.",
     },
   ];
 
   const connectedSurfaces = [
     {
-      id: "assets",
+      id: "uploads",
       icon: ImageIcon,
-      title: "Images, files & documents",
-      subtitle: "Chrome, email, and drive ingestion",
+      title: "File uploads",
+      subtitle: "50 MB per file with dedupe",
       bullets: [
-        "Clip tabs and screenshots, forward attachments, and drag in large archives without rate limits.",
-        "OCR, transcription, and entity extraction run automatically so content is searchable minutes later.",
-        "Version history and dedupe keep the best copy without losing source attribution.",
+        "Drag and drop PDFs, docs, and images; unsupported audio and video are blocked up front.",
+        "OCR, text extraction, and entity detection run during background processing.",
+        "Checksum matching skips duplicates and links back to the item already on file.",
       ],
     },
     {
-      id: "people",
-      icon: Users,
-      title: "Contacts & conversations",
-      subtitle: "Inbox sync & living profiles",
+      id: "email",
+      icon: Inbox,
+      title: "Forwarded email",
+      subtitle: "input@injest.io webhook",
       bullets: [
-        "Auto-link emails, notes, and files to the right people for instant relationship context.",
-        "Surface recent interactions inside search so you can reference the right thread every time.",
-        "Two-way send tracking shows who received what, without breaking your email tools.",
+        "Verified users can forward through Resend; inbound mail becomes an indexed item automatically.",
+        "Attachments are preserved and searchable alongside the message body.",
+        "Received threads also show inside the dashboard for review next to other items.",
       ],
     },
     {
-      id: "links",
+      id: "bookmarks",
       icon: Link2,
-      title: "Links, docs & internal knowledge",
-      subtitle: "Bookmarks, wikis, and embeds",
+      title: "Bookmarks & extension",
+      subtitle: "Chrome capture plus HTML import",
       bullets: [
-        "Centralize shared drives, Notion docs, Sheets, and product URLs alongside files and contact notes.",
-        "Saved searches keep launch kits, onboarding packets, and campaign assets one search away.",
-        "Embed results anywhere with instant share links powered by access controls.",
+        "Use the open-source Chrome extension to save the current tab with one click.",
+        "Import browser bookmark HTML files; large batches queue in the background.",
+        "Metadata is normalized so saved links surface with notes, tags, and source context.",
       ],
     },
   ];
@@ -84,45 +82,45 @@ export default function Home() {
   const workflowSteps = [
     {
       step: "1",
-      title: "Connect your sources",
+      title: "Capture or forward content",
       description:
-        "Forward inboxes, sync cloud storage, and import archives. Chrome, email, and API connectors take minutes to activate.",
+        "Upload attachments, send email to input@injest.io, or capture tabs and bookmarks from the browser.",
     },
     {
       step: "2",
-      title: "Everything gets structured automatically",
+      title: "Injest enriches in the background",
       description:
-        "Injest extracts text, contacts, entities, and summaries—building embeddings so mixed media stays searchable forever.",
+        "Text extraction, embeddings, tagging, and contact detection run automatically while uploads finish.",
     },
     {
       step: "3",
-      title: "Search & send in one motion",
+      title: "Search, share, and follow up",
       description:
-        "Filter by people, teams, or intent, then launch AI-assisted outreach, exports, or automations with the right context attached.",
+        "Run semantic search, build send plans, share items, or convert any record into a task without leaving the dashboard.",
     },
   ];
 
   const actionOptions = [
     {
-      id: "inbox",
-      icon: Inbox,
-      title: "Inbox-ready follow-ups",
-      description:
-        "Generate drafts, assemble attachments, and send from your existing email stack while tracking activity inside Injest.",
-    },
-    {
-      id: "share",
+      id: "send-plan",
       icon: Sparkles,
-      title: "AI-assisted share packs",
+      title: "Generate send plan drafts",
       description:
-        "Create ready-to-send briefs, project updates, or enablement kits directly from search results—with AI filling in the narrative.",
+        "Use /api/send/plan to summarise contacts and matching items for any outbound prompt.",
     },
     {
-      id: "records",
-      icon: FileText,
-      title: "Structured exports",
+      id: "execute-send",
+      icon: Send,
+      title: "Send tracked emails",
       description:
-        "Hand curated datasets to CRM, support, or analytics tools with a clean JSON or CSV export that preserves context.",
+        "Compose with attachments and send through Resend via /api/send/execute while updating contact history.",
+    },
+    {
+      id: "export",
+      icon: FileText,
+      title: "Share or export items",
+      description:
+        "Create share links, email items to teammates, or download JSON and CSV exports on demand.",
     },
   ];
 
@@ -139,8 +137,9 @@ export default function Home() {
     free: {
       priceNote: "forever",
       features: [
-        "Unified dashboard & search",
-        "Automatic OCR & enrichment",
+        "Up to 500 indexed items",
+        "Semantic search with filters",
+        "File & bookmark ingestion",
       ],
     },
     plus: {
@@ -148,25 +147,23 @@ export default function Home() {
       priceNote: "per month",
       features: [
         "Everything in Free",
-        "API & webhook access",
-        "Send plan templates",
-        "CSV and JSON exports",
+        "Up to 5,000 indexed items",
+        "Generate API keys for /api/external",
+        "Send plan automation endpoints",
       ],
     },
     power: {
       priceNote: "per month",
       features: [
         "Everything in Plus",
-        "Priority processing & support",
-        "Advanced governance policies",
+        "Up to 25,000 indexed items",
       ],
     },
     pro: {
       priceNote: "per month",
       features: [
         "Everything in Power",
-        "Dedicated success architect",
-        "Custom integrations",
+        "Up to 75,000 indexed items",
       ],
     },
   };
@@ -188,33 +185,33 @@ export default function Home() {
 
   const teamPlays = [
     {
-      id: "revenue",
-      title: "Revenue & success",
-      subtitle: "Personalized follow-ups, instantly",
+      id: "contacts",
+      title: "Contacts stay in sync",
+      subtitle: "Auto-extracted and editable",
       bullets: [
-        "Pull the latest decks, notes, and transcripts in one search before every call.",
-        "Send AI-personalized recaps with attachments and next steps that stay tracked.",
-        "Surface expansion signals by combining email sentiment with linked assets.",
+        "Email and file parsing detects contacts automatically and adds them to the workspace.",
+        "Manage contacts with search, streaming updates, and manual edits from the contacts page.",
+        "Send workflows record last interaction metadata the moment an email is delivered.",
       ],
     },
     {
-      id: "ops",
-      title: "Operations & enablement",
-      subtitle: "Launch kits without digging through drives",
+      id: "tasks",
+      title: "Tasks from any item",
+      subtitle: "Track follow-ups in place",
       bullets: [
-        "Bundle policies, forms, and walkthroughs into share packs for any team.",
-        "Keep onboarding and rollout libraries in sync with automated updates.",
-        "Export structured datasets to BI tools with provenance intact.",
+        "Convert items to tasks with /api/tasks/taskify/:itemId and keep them linked to the source content.",
+        "Update status, due dates, or descriptions directly from the dashboard or API.",
+        "Use prompts on a task to rewrite summaries or next steps without leaving the record.",
       ],
     },
     {
-      id: "product",
-      title: "Product & research",
-      subtitle: "Research-ready archives that stay fresh",
+      id: "sharing",
+      title: "Sharing and exports",
+      subtitle: "Keep context intact",
       bullets: [
-        "Search across interviews, support threads, and screenshots in seconds.",
-        "Connect insights to the right personas and feature areas automatically.",
-        "Share highlight reels and briefs with stakeholders straight from search.",
+        "Share items via email or copy a restricted link with access checks.",
+        "Download JSON or CSV exports containing normalized metadata and attachments.",
+        "Live item streams refresh the dashboard as enrichment finishes in the background.",
       ],
     },
   ];
@@ -227,16 +224,16 @@ export default function Home() {
           <div className="text-center md:text-left">
             <p className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700 mb-6">
               <Sparkles className="w-4 h-4" />
-              Search once. Send everywhere.
+              Capture. Search. Act.
             </p>
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-              Search & send, images, contacts, files, documents, and links — all in one place.
+              Keep files, email, and contacts searchable and ready to move.
             </h1>
             <p className="text-xl text-gray-600 mb-6 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Injest pulls every screenshot, deck, email thread, and contact update into a single workspace. Search once, spin up the right packet, and send it without switching tools.
+              Injest stores uploads, forwarded mail, and saved links in one workspace. Each item is enriched with OCR, embeddings, and detected contacts so it shows up the moment you need it.
             </p>
             <p className="text-lg text-blue-600 font-semibold mb-8 max-w-2xl md:max-w-lg mx-auto md:mx-0">
-              One command center for go-to-market, ops, and product teams that need answers—and the ability to act on them—right now.
+              Search from the dashboard or API, share items with access checks, generate send plans, and export records without juggling extra tools.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
               <Link href="/login">
@@ -269,7 +266,7 @@ export default function Home() {
         {/* Value Pillars */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Everything you need to search, package, and send in one workspace
+            What Injest ships today
           </h2>
           <div className="grid gap-8 md:grid-cols-3">
             {valuePillars.map((pillar) => {
@@ -297,7 +294,7 @@ export default function Home() {
         {/* Connected Surfaces */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            All your sources stay linked, synced, and ready to ship
+            Ways to bring data in
           </h2>
           <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
             {connectedSurfaces.map((surface) => {
@@ -335,7 +332,7 @@ export default function Home() {
         {/* Workflow */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            From capture to send in three steps
+            From capture to action in three steps
           </h2>
           <div className="max-w-5xl mx-auto grid gap-10 md:grid-cols-3">
             {workflowSteps.map((step) => (
@@ -359,53 +356,48 @@ export default function Home() {
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             <div>
               <h2 className="text-4xl font-bold text-gray-900 mb-6">
-                Trigger search & send flows from a single API call
+                Use the REST API for ingestion and search
               </h2>
               <p className="text-lg text-gray-600 mb-6">
-                No model training, no DevOps. Injest handles enrichment, storage, and recall so you can trigger follow-ups programmatically. Authenticate with your API key, send content, and receive structured metadata ready to search—or to ship downstream.
+                Plus-tier users can generate API keys and call the `/api/external` endpoints from their own tools. Create items, search with the same filters used in the dashboard, and pull full records when you need to sync downstream.
               </p>
               <ul className="space-y-3 text-gray-600">
-                <li>✓ 99.9% uptime across ingestion, search, and send webhooks</li>
-                <li>✓ Async jobs for large archives and automated outreach campaigns</li>
-                <li>✓ SDKs, Postman collections, and Zapier connectors to launch quickly</li>
+                <li>✓ Upload JSON or multipart payloads and let enrichment run asynchronously.</li>
+                <li>✓ Duplicate file hashes are skipped automatically with references to the original item.</li>
+                <li>✓ Search responses include semantic scores, item metadata, and source details.</li>
               </ul>
             </div>
             <Card className="border-2 border-gray-200 shadow-xl bg-gray-950 text-gray-100">
               <CardHeader>
-                <CardTitle className="text-lg font-mono text-gray-200">POST /v1/items/ingest</CardTitle>
+                <CardTitle className="text-lg font-mono text-gray-200">POST /api/external/items</CardTitle>
                 <CardDescription className="text-sm text-gray-400">
-                  Example request returning structured metadata & send-ready context
+                  Create an item with attachments using an external API key
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <pre className="text-sm leading-6 font-mono overflow-x-auto bg-gray-900 rounded-lg p-6 border border-gray-800">
-{`curl -X POST https://api.injest.io/v1/items/ingest \
-  -H "Authorization: Bearer sk_live_..." \
-  -H "Content-Type: application/json" \
-  -d '{
-    "url": "https://cdn.example.com/assets/handbook.pdf",
-    "send_plan": {
-      "audience": ["contact_42", "contact_61"],
-      "intent": "customer_update"
-    }
-  }'`}
+{`curl -X POST https://api.injest.io/api/external/items \\
+  -H "x-api-key: injest_sk_live_..." \\
+  -F 'title=Launch checklist' \\
+  -F 'tags=product,launch' \\
+  -F 'attachments=@/path/to/brief.pdf;type=application/pdf'`}
                 </pre>
                 <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Response preview</p>
                   <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
 {`{
-  "id": "item_9sd1",
-  "text": "Q3 Launch Update...",
-  "labels": ["product", "customer-update"],
-  "entities": [{"type": "contact", "value": "Jordan Patel"}],
-  "summary": "Executive summary with next release milestones.",
-  "vectors": "... truncated ...",
-  "send_plan": {
-    "status": "ready",
-    "recommended_subject": "Q3 launch updates + action items",
-    "attachments": ["item_9sd1"],
-    "next_step_webhook": "https://hooks.zapier.com/.../search-to-send"
-  }
+  "queued": true,
+  "uploadedCount": 1,
+  "duplicateCount": 0,
+  "message": "Queued 1 file(s) for enrichment. Processing may take a few minutes.",
+  "files": [
+    {
+      "filename": "brief.pdf",
+      "storedFilename": "3c8971f4-launch-checklist.pdf",
+      "mimetype": "application/pdf",
+      "size": 452381
+    }
+  ]
 }`}
                   </pre>
                 </div>
@@ -417,7 +409,7 @@ export default function Home() {
         {/* Action Options */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Search results that send themselves
+            Automation tools built in
           </h2>
           <div className="grid gap-8 md:grid-cols-3">
             {actionOptions.map((option) => {
@@ -442,7 +434,7 @@ export default function Home() {
         {/* Team Plays */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Turn every search into a packaged send for the teams that move your business
+            Operations covered out of the box
           </h2>
           <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
             {teamPlays.map((play) => (
@@ -472,7 +464,7 @@ export default function Home() {
             Pricing that scales with your library
           </h2>
           <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
-            Start free, then unlock higher throughput when you're ready. Every plan includes API access, dashboard tools, and exports.
+            Start free, then raise the item cap as your archive grows. Every plan keeps OCR, enrichment, contacts, exports, and the dashboard included.
           </p>
           <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
             {pricingPlans.map((plan) => (
@@ -515,9 +507,9 @@ export default function Home() {
         {/* CTA Section */}
         <div className="text-center py-16 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl text-white">
           <Sparkles className="w-12 h-12 mx-auto mb-4" />
-          <h2 className="text-4xl font-bold mb-4">Ready to search and send from one command center?</h2>
+          <h2 className="text-4xl font-bold mb-4">Ready to keep every asset searchable and actionable?</h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join teams who keep images, contacts, docs, and links searchable—and send-ready—without juggling apps.
+            Create an account to capture files, mail, and bookmarks in one place, then search, share, and send without switching tools.
           </p>
           <Link href="/login">
             <Button size="lg" variant="secondary" className="text-lg px-8">
