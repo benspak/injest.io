@@ -3,15 +3,15 @@ import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  Code,
   Database,
-  Download,
   FileText,
   Image as ImageIcon,
-  Palette,
+  Inbox,
+  Link2,
   Search,
+  Send,
   Sparkles,
-  Tag,
+  Users,
 } from "lucide-react";
 import {
   PAID_PLAN_ORDER,
@@ -21,48 +21,62 @@ import {
 } from "@/lib/subscriptionPlans";
 
 export default function Home() {
-  const coreValueProps = [
+  const valuePillars = [
     {
-      id: "extract",
-      icon: ImageIcon,
-      title: "Extract every word inside your images",
-      description: "Upload screenshots, scanned docs, slides, or memes and get high-accuracy OCR in seconds.",
+      id: "search",
+      icon: Search,
+      title: "Search across every format",
+      description:
+        "Hybrid semantic + keyword search brings back slides, screenshots, contracts, and contacts in a single query—with context-aware highlights.",
     },
     {
-      id: "label",
-      icon: Tag,
-      title: "Label, structure, and enrich automatically",
-      description: "Injest.io applies AI-generated titles, tags, captions, and metadata so every image becomes searchable.",
+      id: "send",
+      icon: Send,
+      title: "Send with one click",
+      description:
+        "Launch AI-assisted follow-ups, share packets, and trigger workflows directly from search results—no more copying links into other tools.",
     },
     {
-      id: "deliver",
+      id: "structure",
       icon: Database,
-      title: "Deliver the data anywhere",
-      description: "Access your structured results from the dashboard, export CSVs, or hit the REST API for JSON instantly.",
+      title: "Everything stays organized",
+      description:
+        "Automatic enrichment turns every upload or sync into structured entities, contacts, and tags so your workspace never decays.",
     },
   ];
 
-  const personaHighlights = [
+  const connectedSurfaces = [
     {
-      id: "developers",
-      icon: Code,
-      title: "For Developers & Indie Hackers",
-      subtitle: "Drop-in OCR & labeling API",
+      id: "assets",
+      icon: ImageIcon,
+      title: "Images, files & documents",
+      subtitle: "Chrome, email, and drive ingestion",
       bullets: [
-        "Send an image URL or upload a file—receive JSON with extracted text, labels, and embeddings.",
-        "Pipe structured image data into internal tools, AI agents, or analytics workflows without building OCR yourself.",
-        "Trigger downstream jobs with background processing and manage keys, usage, and logs from the dashboard.",
+        "Clip tabs and screenshots, forward attachments, and drag in large archives without rate limits.",
+        "OCR, transcription, and entity extraction run automatically so content is searchable minutes later.",
+        "Version history and dedupe keep the best copy without losing source attribution.",
       ],
     },
     {
-      id: "creators",
-      icon: Palette,
-      title: "For Content Creators & Researchers",
-      subtitle: "Organize visual libraries in minutes",
+      id: "people",
+      icon: Users,
+      title: "Contacts & conversations",
+      subtitle: "Inbox sync & living profiles",
       bullets: [
-        "Bulk upload moodboards, screenshot folders, and inspiration images to auto-tag what's inside.",
-        "Search by quotes, captions, or on-image text to instantly find the right asset for your next project.",
-        "Export collections as CSV or plug directly into planning tools with structured metadata.",
+        "Auto-link emails, notes, and files to the right people for instant relationship context.",
+        "Surface recent interactions inside search so you can reference the right thread every time.",
+        "Two-way send tracking shows who received what, without breaking your email tools.",
+      ],
+    },
+    {
+      id: "links",
+      icon: Link2,
+      title: "Links, docs & internal knowledge",
+      subtitle: "Bookmarks, wikis, and embeds",
+      bullets: [
+        "Centralize shared drives, Notion docs, Sheets, and product URLs alongside files and contact notes.",
+        "Saved searches keep launch kits, onboarding packets, and campaign assets one search away.",
+        "Embed results anywhere with instant share links powered by access controls.",
       ],
     },
   ];
@@ -70,39 +84,45 @@ export default function Home() {
   const workflowSteps = [
     {
       step: "1",
-      title: "Upload any image source",
-      description: "Drag photos, drop folders, or hit the API with URLs and files—no manual setup required.",
+      title: "Connect your sources",
+      description:
+        "Forward inboxes, sync cloud storage, and import archives. Chrome, email, and API connectors take minutes to activate.",
     },
     {
       step: "2",
-      title: "We extract & label automatically",
-      description: "OCR, captioning, entity detection, similar image grouping, and tagging happen in the background.",
+      title: "Everything gets structured automatically",
+      description:
+        "Injest extracts text, contacts, entities, and summaries—building embeddings so mixed media stays searchable forever.",
     },
     {
       step: "3",
-      title: "Search or ship the results",
-      description: "Use the dashboard, API, or CSV exports to power search, automations, or creative workflows.",
+      title: "Search & send in one motion",
+      description:
+        "Filter by people, teams, or intent, then launch AI-assisted outreach, exports, or automations with the right context attached.",
     },
   ];
 
-  const deliveryOptions = [
+  const actionOptions = [
     {
-      id: "api",
-      icon: Database,
-      title: "REST API",
-      description: "Integrate with a straightforward JSON API optimized for asynchronous processing.",
+      id: "inbox",
+      icon: Inbox,
+      title: "Inbox-ready follow-ups",
+      description:
+        "Generate drafts, assemble attachments, and send from your existing email stack while tracking activity inside Injest.",
     },
     {
-      id: "dashboard",
-      icon: Search,
-      title: "Searchable Dashboard",
-      description: "Filter by text, tags, detected entities, or upload source to keep visual libraries organized.",
+      id: "share",
+      icon: Sparkles,
+      title: "AI-assisted share packs",
+      description:
+        "Create ready-to-send briefs, project updates, or enablement kits directly from search results—with AI filling in the narrative.",
     },
     {
-      id: "exports",
-      icon: Download,
-      title: "CSV & Bulk Exports",
-      description: "Pull structured datasets for spreadsheets, CMS imports, or data science notebooks.",
+      id: "records",
+      icon: FileText,
+      title: "Structured exports",
+      description:
+        "Hand curated datasets to CRM, support, or analytics tools with a clean JSON or CSV export that preserves context.",
     },
   ];
 
@@ -119,8 +139,8 @@ export default function Home() {
     free: {
       priceNote: "forever",
       features: [
-        "Dashboard",
-        "OCR with auto-tagging",
+        "Unified dashboard & search",
+        "Automatic OCR & enrichment",
       ],
     },
     plus: {
@@ -128,23 +148,25 @@ export default function Home() {
       priceNote: "per month",
       features: [
         "Everything in Free",
-        "API access",
-        "CSV exports",
-        "JSON exports",
+        "API & webhook access",
+        "Send plan templates",
+        "CSV and JSON exports",
       ],
     },
     power: {
       priceNote: "per month",
       features: [
         "Everything in Plus",
-        "Priority processing queue",
+        "Priority processing & support",
+        "Advanced governance policies",
       ],
     },
     pro: {
       priceNote: "per month",
       features: [
-        "Everything in Power User",
-        "Dedicated onboarding & support",
+        "Everything in Power",
+        "Dedicated success architect",
+        "Custom integrations",
       ],
     },
   };
@@ -164,16 +186,37 @@ export default function Home() {
     };
   });
 
-  const developerUseCases = [
-    "Enrich product screenshots and UI datasets for AI training.",
-    "Pipe scanned documents into tooling that needs structured JSON.",
-    "Spin up automation that recognizes and tags memes, assets, or receipts.",
-  ];
-
-  const creatorUseCases = [
-    "Build searchable archives of inspiration boards, research, and references.",
-    "Extract captions and on-image text for social media planners or CMS publishing.",
-    "Tag and group media so the right asset is always a search away.",
+  const teamPlays = [
+    {
+      id: "revenue",
+      title: "Revenue & success",
+      subtitle: "Personalized follow-ups, instantly",
+      bullets: [
+        "Pull the latest decks, notes, and transcripts in one search before every call.",
+        "Send AI-personalized recaps with attachments and next steps that stay tracked.",
+        "Surface expansion signals by combining email sentiment with linked assets.",
+      ],
+    },
+    {
+      id: "ops",
+      title: "Operations & enablement",
+      subtitle: "Launch kits without digging through drives",
+      bullets: [
+        "Bundle policies, forms, and walkthroughs into share packs for any team.",
+        "Keep onboarding and rollout libraries in sync with automated updates.",
+        "Export structured datasets to BI tools with provenance intact.",
+      ],
+    },
+    {
+      id: "product",
+      title: "Product & research",
+      subtitle: "Research-ready archives that stay fresh",
+      bullets: [
+        "Search across interviews, support threads, and screenshots in seconds.",
+        "Connect insights to the right personas and feature areas automatically.",
+        "Share highlight reels and briefs with stakeholders straight from search.",
+      ],
+    },
   ];
 
   return (
@@ -184,16 +227,16 @@ export default function Home() {
           <div className="text-center md:text-left">
             <p className="inline-flex items-center gap-2 rounded-full bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-700 mb-6">
               <Sparkles className="w-4 h-4" />
-              Extract, label, and organize text from images — instantly.
+              Search once. Send everywhere.
             </p>
             <h1 className="text-5xl sm:text-6xl font-bold text-gray-900 mb-6">
-              The easiest way to turn images into structured data
+              Search & send, images, contacts, files, documents, and links — all in one place.
             </h1>
             <p className="text-xl text-gray-600 mb-6 max-w-2xl md:max-w-xl mx-auto md:mx-0">
-              Injest.io helps developers and creators capture screenshots, scans, and visual research—then returns clean text, labels, and metadata through a dashboard, CSV exports, or a drop-in API.
+              Injest pulls every screenshot, deck, email thread, and contact update into a single workspace. Search once, spin up the right packet, and send it without switching tools.
             </p>
             <p className="text-lg text-blue-600 font-semibold mb-8 max-w-2xl md:max-w-lg mx-auto md:mx-0">
-              Upload any image. We give you the text, labels, and structured data instantly.
+              One command center for go-to-market, ops, and product teams that need answers—and the ability to act on them—right now.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
               <Link href="/login">
@@ -212,7 +255,7 @@ export default function Home() {
             <div className="relative aspect-[4/3] rounded-3xl border-2 border-white/60 shadow-2xl overflow-hidden">
               <Image
                 src="/hero-image.png"
-                alt="Injest.io dashboard preview showing image extraction results"
+                alt="Injest.io workspace showing unified search and send flows"
                 fill
                 priority
                 className="object-cover"
@@ -223,23 +266,26 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Value Proposition */}
+        {/* Value Pillars */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Why builders and creators choose Injest.io
+            Everything you need to search, package, and send in one workspace
           </h2>
           <div className="grid gap-8 md:grid-cols-3">
-            {coreValueProps.map((item) => {
-              const Icon = item.icon;
+            {valuePillars.map((pillar) => {
+              const Icon = pillar.icon;
               return (
-                <Card key={item.id} className="h-full border-2 border-gray-200 shadow-lg transition hover:-translate-y-1 hover:shadow-xl">
+                <Card
+                  key={pillar.id}
+                  className="h-full border-2 border-gray-200 shadow-lg transition hover:-translate-y-1 hover:shadow-xl"
+                >
                   <CardHeader className="space-y-4">
                     <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                       <Icon className="w-6 h-6" />
                     </div>
-                    <CardTitle className="text-2xl text-gray-900">{item.title}</CardTitle>
+                    <CardTitle className="text-2xl text-gray-900">{pillar.title}</CardTitle>
                     <CardDescription className="text-base text-gray-600">
-                      {item.description}
+                      {pillar.description}
                     </CardDescription>
                   </CardHeader>
                 </Card>
@@ -248,32 +294,32 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Persona Highlights */}
+        {/* Connected Surfaces */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Built for two core personas
+            All your sources stay linked, synced, and ready to ship
           </h2>
-          <div className="grid gap-10 md:grid-cols-2">
-            {personaHighlights.map((persona) => {
-              const Icon = persona.icon;
+          <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
+            {connectedSurfaces.map((surface) => {
+              const Icon = surface.icon;
               return (
-                <Card key={persona.id} className="border-2 border-gray-200 shadow-lg">
+                <Card key={surface.id} className="border-2 border-gray-200 shadow-lg h-full">
                   <CardHeader className="space-y-3">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center">
                         <Icon className="w-6 h-6" />
                       </div>
                       <div>
-                        <CardTitle className="text-2xl text-gray-900">{persona.title}</CardTitle>
+                        <CardTitle className="text-2xl text-gray-900">{surface.title}</CardTitle>
                         <CardDescription className="text-base text-indigo-600">
-                          {persona.subtitle}
+                          {surface.subtitle}
                         </CardDescription>
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <ul className="space-y-4 text-gray-600">
-                      {persona.bullets.map((bullet) => (
+                      {surface.bullets.map((bullet) => (
                         <li key={bullet} className="text-base leading-relaxed">
                           {bullet}
                         </li>
@@ -289,7 +335,7 @@ export default function Home() {
         {/* Workflow */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            From upload to structured data in three steps
+            From capture to send in three steps
           </h2>
           <div className="max-w-5xl mx-auto grid gap-10 md:grid-cols-3">
             {workflowSteps.map((step) => (
@@ -313,43 +359,53 @@ export default function Home() {
           <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
             <div>
               <h2 className="text-4xl font-bold text-gray-900 mb-6">
-                Drop in a single API call and get JSON back
+                Trigger search & send flows from a single API call
               </h2>
               <p className="text-lg text-gray-600 mb-6">
-                No model training, no DevOps. Injest.io handles the heavy lifting so you can focus on your product. Authenticate with your API key, send an image, and receive text, labels, entities, and embeddable vectors.
+                No model training, no DevOps. Injest handles enrichment, storage, and recall so you can trigger follow-ups programmatically. Authenticate with your API key, send content, and receive structured metadata ready to search—or to ship downstream.
               </p>
               <ul className="space-y-3 text-gray-600">
-                <li>✓ 99.9% uptime with background processing</li>
-                <li>✓ Async job support for batch pipelines</li>
-                <li>✓ SDKs and Postman collections to get started fast</li>
+                <li>✓ 99.9% uptime across ingestion, search, and send webhooks</li>
+                <li>✓ Async jobs for large archives and automated outreach campaigns</li>
+                <li>✓ SDKs, Postman collections, and Zapier connectors to launch quickly</li>
               </ul>
             </div>
             <Card className="border-2 border-gray-200 shadow-xl bg-gray-950 text-gray-100">
               <CardHeader>
-                <CardTitle className="text-lg font-mono text-gray-200">POST /v1/images/extract</CardTitle>
+                <CardTitle className="text-lg font-mono text-gray-200">POST /v1/items/ingest</CardTitle>
                 <CardDescription className="text-sm text-gray-400">
-                  Example request returning structured metadata
+                  Example request returning structured metadata & send-ready context
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <pre className="text-sm leading-6 font-mono overflow-x-auto bg-gray-900 rounded-lg p-6 border border-gray-800">
-{`curl -X POST https://api.injest.io/v1/images/extract \
+{`curl -X POST https://api.injest.io/v1/items/ingest \
   -H "Authorization: Bearer sk_live_..." \
   -H "Content-Type: application/json" \
   -d '{
-    "url": "https://cdn.example.com/screenshots/v1.png"
+    "url": "https://cdn.example.com/assets/handbook.pdf",
+    "send_plan": {
+      "audience": ["contact_42", "contact_61"],
+      "intent": "customer_update"
+    }
   }'`}
                 </pre>
                 <div className="mt-6 bg-gray-900 border border-gray-800 rounded-lg p-4">
                   <p className="text-xs uppercase tracking-wide text-gray-500 mb-2">Response preview</p>
                   <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
 {`{
-  "id": "img_86h2",
-  "text": "Settings • Upload screenshots, control access...",
-  "labels": ["ui", "product", "settings"],
-  "entities": [{"type": "app_feature", "value": "upload"}],
-  "summary": "Dashboard page explaining upload and access controls.",
-  "vectors": "... truncated ..."
+  "id": "item_9sd1",
+  "text": "Q3 Launch Update...",
+  "labels": ["product", "customer-update"],
+  "entities": [{"type": "contact", "value": "Jordan Patel"}],
+  "summary": "Executive summary with next release milestones.",
+  "vectors": "... truncated ...",
+  "send_plan": {
+    "status": "ready",
+    "recommended_subject": "Q3 launch updates + action items",
+    "attachments": ["item_9sd1"],
+    "next_step_webhook": "https://hooks.zapier.com/.../search-to-send"
+  }
 }`}
                   </pre>
                 </div>
@@ -358,13 +414,13 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Delivery Options */}
+        {/* Action Options */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Turn extracted text into action
+            Search results that send themselves
           </h2>
           <div className="grid gap-8 md:grid-cols-3">
-            {deliveryOptions.map((option) => {
+            {actionOptions.map((option) => {
               const Icon = option.icon;
               return (
                 <Card key={option.id} className="border-2 border-gray-200 shadow-lg h-full">
@@ -383,48 +439,30 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Use Cases */}
+        {/* Team Plays */}
         <div className="mb-24">
           <h2 className="text-4xl font-bold text-center mb-12 text-gray-900">
-            Go from messy image folders to searchable datasets
+            Turn every search into a packaged send for the teams that move your business
           </h2>
-          <div className="grid gap-10 md:grid-cols-2">
-            <Card className="border-2 border-gray-200 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-2xl text-gray-900">Developer playbook</CardTitle>
-                <CardDescription className="text-base text-blue-600">
-                  JSON in, JSON out—ready for any stack
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-4 text-gray-600">
-                  {developerUseCases.map((item) => (
-                    <li key={item} className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-blue-500 mt-1" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-            <Card className="border-2 border-gray-200 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-2xl text-gray-900">Creator workflows</CardTitle>
-                <CardDescription className="text-base text-blue-600">
-                  Organize, search, and publish with confidence
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-4 text-gray-600">
-                  {creatorUseCases.map((item) => (
-                    <li key={item} className="flex items-start gap-3">
-                      <FileText className="w-5 h-5 text-blue-500 mt-1" />
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+          <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-3">
+            {teamPlays.map((play) => (
+              <Card key={play.id} className="border-2 border-gray-200 shadow-lg h-full">
+                <CardHeader>
+                  <CardTitle className="text-2xl text-gray-900">{play.title}</CardTitle>
+                  <CardDescription className="text-base text-blue-600">{play.subtitle}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-4 text-gray-600">
+                    {play.bullets.map((item) => (
+                      <li key={item} className="flex items-start gap-3">
+                        <FileText className="w-5 h-5 text-blue-500 mt-1" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
 
@@ -477,9 +515,9 @@ export default function Home() {
         {/* CTA Section */}
         <div className="text-center py-16 bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl text-white">
           <Sparkles className="w-12 h-12 mx-auto mb-4" />
-          <h2 className="text-4xl font-bold mb-4">Ready to search every image you capture?</h2>
+          <h2 className="text-4xl font-bold mb-4">Ready to search and send from one command center?</h2>
           <p className="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
-            Join developers and creators who organize their visual knowledge base with Injest.io.
+            Join teams who keep images, contacts, docs, and links searchable—and send-ready—without juggling apps.
           </p>
           <Link href="/login">
             <Button size="lg" variant="secondary" className="text-lg px-8">

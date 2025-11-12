@@ -205,18 +205,6 @@ export interface TwoFactorDisableResponse {
   user: User;
 }
 
-export interface SearchResult {
-  item: Item;
-  similarity: number;
-  source?: string;
-  scores?: SearchResultScores;
-}
-
-export interface SearchResponse {
-  query: string;
-  results: SearchResult[];
-}
-
 export interface SearchResultScores {
   overall: number;
   vector: number;
@@ -224,6 +212,26 @@ export interface SearchResultScores {
   tagBoost: number;
   titleBoost: number;
   ownerBoost: number;
+}
+
+export interface SearchResult {
+  entityType: 'item' | 'contact';
+  entityId: string;
+  item?: Item;
+  contact?: Contact;
+  document?: {
+    title: string | null;
+    summary: string | null;
+    tags: string[] | null;
+    metadata: Record<string, unknown> | null;
+  };
+  similarity: number;
+  scores?: SearchResultScores;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
 }
 
 export interface SendPlanAnalysis {
@@ -319,6 +327,7 @@ export interface ExecuteSendResponse {
 }
 
 export interface SearchFilters {
+  entities?: Array<'item' | 'contact'>;
   types?: string[];
   tags?: string[];
   sources?: string[];
@@ -326,6 +335,7 @@ export interface SearchFilters {
   dateFrom?: string;
   dateTo?: string;
   hasAttachments?: boolean;
+  fileType?: string;
 }
 
 export interface ReceivedEmail {
@@ -697,8 +707,34 @@ class ApiClient {
     return this.request<Item[]>(`/api/items?${params.toString()}`);
   }
 
-  async getIndexedItemCount(): Promise<{ count: number; isAtLimit: boolean; isApproachingLimit: boolean; limit: number; subscriptionTier?: SubscriptionTier; planName?: string }> {
-    return this.request<{ count: number; isAtLimit: boolean; isApproachingLimit: boolean; limit: number; subscriptionTier?: SubscriptionTier; planName?: string }>('/api/items/count');
+  async getIndexedItemCount(
+    filters?: { source?: string; hasAttachments?: boolean; fileType?: string }
+  ): Promise<{
+    count: number;
+    filteredCount?: number;
+    isAtLimit: boolean;
+    isApproachingLimit: boolean;
+    limit: number;
+    subscriptionTier?: SubscriptionTier;
+    planName?: string;
+  }> {
+    const params = new URLSearchParams();
+    if (filters?.source) params.append('source', filters.source);
+    if (filters?.hasAttachments) params.append('hasAttachments', 'true');
+    if (filters?.fileType) params.append('fileType', filters.fileType);
+
+    const query = params.toString();
+    const endpoint = query ? `/api/items/count?${query}` : '/api/items/count';
+
+    return this.request<{
+      count: number;
+      filteredCount?: number;
+      isAtLimit: boolean;
+      isApproachingLimit: boolean;
+      limit: number;
+      subscriptionTier?: SubscriptionTier;
+      planName?: string;
+    }>(endpoint);
   }
 
   async getItem(id: string): Promise<Item> {
@@ -884,6 +920,7 @@ class ApiClient {
 
     const filters = options?.filters;
     if (filters) {
+      filters.entities?.forEach((value) => params.append('entity', value));
       filters.types?.forEach((value) => params.append('type', value));
       filters.tags?.forEach((value) => params.append('tag', value));
       filters.sources?.forEach((value) => params.append('source', value));
@@ -901,6 +938,10 @@ class ApiClient {
       }
       if (filters.dateTo) {
         params.set('dateTo', filters.dateTo);
+      }
+
+      if (filters.fileType) {
+        params.set('fileType', filters.fileType);
       }
     }
 

@@ -1,5 +1,23 @@
 class ContactStreamService {
     clients = new Map();
+    broadcastToClients(ownerId, eventName, payload) {
+        const clients = this.clients.get(ownerId);
+        if (!clients || clients.size === 0) {
+            return;
+        }
+        const body = JSON.stringify(payload);
+        for (const client of clients) {
+            try {
+                client.res.write(`event: ${eventName}\ndata: ${body}\n\n`);
+            }
+            catch (error) {
+                console.error('[ContactStream] Failed to send event:', {
+                    event: eventName,
+                    error,
+                });
+            }
+        }
+    }
     addClient(userId, res) {
         if (!this.clients.has(userId)) {
             this.clients.set(userId, new Set());
@@ -26,22 +44,10 @@ class ContactStreamService {
         }
     }
     broadcastContact(contact) {
-        const clients = this.clients.get(contact.owner_id);
-        if (!clients || clients.size === 0) {
-            return;
-        }
-        const payload = JSON.stringify({
+        this.broadcastToClients(contact.owner_id, 'contact-upserted', {
             type: 'upserted',
             contact,
         });
-        for (const client of clients) {
-            try {
-                client.res.write(`event: contact-upserted\ndata: ${payload}\n\n`);
-            }
-            catch (error) {
-                console.error('[ContactStream] Failed to send upserted event:', error);
-            }
-        }
     }
     broadcastContacts(contacts) {
         contacts.forEach((contact) => {
@@ -49,22 +55,16 @@ class ContactStreamService {
         });
     }
     broadcastContactDeleted(ownerId, contactId) {
-        const clients = this.clients.get(ownerId);
-        if (!clients || clients.size === 0) {
-            return;
-        }
-        const payload = JSON.stringify({
+        this.broadcastToClients(ownerId, 'contact-deleted', {
             type: 'deleted',
             contactId,
         });
-        for (const client of clients) {
-            try {
-                client.res.write(`event: contact-deleted\ndata: ${payload}\n\n`);
-            }
-            catch (error) {
-                console.error('[ContactStream] Failed to send deleted event:', error);
-            }
-        }
+    }
+    broadcastImportStatus(ownerId, update) {
+        this.broadcastToClients(ownerId, 'contact-import', {
+            type: 'import-status',
+            ...update,
+        });
     }
 }
 export const contactStreamService = new ContactStreamService();

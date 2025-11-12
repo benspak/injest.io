@@ -4,6 +4,7 @@ import pool from '../config/database.js';
 import { ContactModel, contactNormalizers } from '../models/Contact.js';
 import { contactExtractor } from '../services/contactExtractor.js';
 import { fileParserService } from '../services/fileParser.js';
+import { indexingService } from '../services/indexing.js';
 dotenv.config();
 const DEFAULT_BATCH_SIZE = 25;
 const TEXT_SAMPLE_LENGTH = 240;
@@ -213,6 +214,19 @@ async function processItem(item) {
         },
     }));
     const contacts = await ContactModel.upsertMany(inputs);
+    if (contacts.length > 0) {
+        await Promise.all(contacts.map(async (contact) => {
+            try {
+                await indexingService.indexContact(contact);
+            }
+            catch (error) {
+                console.warn('[ContactsScript] Failed to index contact:', {
+                    contactId: contact.id,
+                    error,
+                });
+            }
+        }));
+    }
     return {
         attachmentsProcessed,
         contactsUpserted: contacts.length,

@@ -12,7 +12,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiClient, type Item, type LinkMetadata, type SearchResult } from '@/lib/api';
+import {
+  apiClient,
+  type Item,
+  type LinkMetadata,
+  type SearchResult,
+  type Contact,
+} from '@/lib/api';
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -41,7 +47,10 @@ export function SearchResults({ results }: SearchResultsProps) {
   type Attachment = NonNullable<Item['attachments']>[number];
 
   // Helper to get display title/description (supports both new unified and old structure)
-  const getItemDisplay = (item: SearchResult['item'] | Item) => {
+  const getItemDisplay = (item?: SearchResult['item'] | Item | null) => {
+    if (!item) {
+      return { title: '', description: '' };
+    }
     // Use unified fields first (new structure)
     if (item.title || item.description) {
       return {
@@ -171,7 +180,71 @@ export function SearchResults({ results }: SearchResultsProps) {
     }
   };
 
-  const handleItemClick = async (item: SearchResult['item']) => {
+  const buildItemFromResult = (result: SearchResult): Item | null => {
+    if (result.entityType !== 'item') {
+      return null;
+    }
+
+    const existingItem = result.item as Item | undefined;
+    if (existingItem) {
+      return existingItem;
+    }
+
+    if (!result.document) {
+      return null;
+    }
+
+    const documentMetadata = (result.document.metadata ?? {}) as Record<string, unknown>;
+    const createdAt =
+      typeof documentMetadata.createdAt === 'string'
+        ? documentMetadata.createdAt
+        : new Date().toISOString();
+    const updatedAt =
+      typeof documentMetadata.updatedAt === 'string'
+        ? documentMetadata.updatedAt
+        : createdAt;
+
+    const derivedSource =
+      typeof documentMetadata.source === 'string' ? documentMetadata.source : undefined;
+    const derivedTypeRaw =
+      typeof documentMetadata.type === 'string' ? documentMetadata.type.toLowerCase().trim() : undefined;
+    const derivedType: Item['type'] =
+      derivedTypeRaw && ['note', 'link', 'file', 'email', 'task'].includes(derivedTypeRaw)
+        ? (derivedTypeRaw as Item['type'])
+        : undefined;
+    const derivedUrl =
+      typeof documentMetadata.url === 'string' && documentMetadata.url.length > 0
+        ? documentMetadata.url
+        : undefined;
+    const derivedTags = Array.isArray(result.document.tags)
+      ? (result.document.tags as string[])
+      : undefined;
+
+    return {
+      id: result.entityId,
+      owner_id: 'unknown-owner',
+      type: derivedType,
+      raw: undefined,
+      title: result.document.title ?? undefined,
+      description: result.document.summary ?? undefined,
+      url: derivedUrl,
+      attachments: [],
+      clean: result.document.summary ?? undefined,
+      tags: derivedTags,
+      source: derivedSource,
+      embedding_id: undefined,
+      link_metadata: undefined,
+      notes: undefined,
+      created_at: createdAt,
+      updated_at: updatedAt,
+    };
+  };
+
+  const handleItemClick = async (item?: SearchResult['item'] | Item | null) => {
+    if (!item) {
+      return;
+    }
+
     setSelectedItem(item as Item);
     setDialogOpen(true);
     isClickInsideRef.current = false; // Reset click tracking
@@ -432,34 +505,127 @@ export function SearchResults({ results }: SearchResultsProps) {
     <>
       <div className="space-y-2 sm:space-y-3">
         {results.map((result) => {
-          const display = getItemDisplay(result.item);
-          const metadata = result.item.link_metadata;
-          const hasUrl = !!result.item.url;
-          const displayTitle = metadata?.title || display.title || result.item.title || 'Untitled';
+          if (result.entityType === 'contact') {
+            const contact = result.contact as Contact | undefined;
+            if (!contact) {
+              return null;
+            }
+
+            const contactTitle =
+              contact.name || contact.email || contact.phone || 'Unnamed Contact';
+            const contactSubtitle = contact.email
+              ? contact.phone
+                ? `${contact.email} • ${contact.phone}`
+                : contact.email
+              : contact.phone ?? '';
+
+            const similarityLabel =
+              typeof result.similarity === 'number'
+                ? `${Math.round(Math.min(Math.max(result.similarity, 0), 1) * 100)}% match`
+                : null;
+            const summary = result.document?.summary ?? null;
+            const tags = result.document?.tags ?? [];
+
+            return (
+              <Card key={`contact-${contact.id}`} className="bg-white">
+                <CardHeader className="p-3 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex flex-col gap-1 pr-2">
+                      <CardTitle className="text-sm sm:text-base leading-tight">
+                        {contactTitle}
+                      </CardTitle>
+                      {contactSubtitle && (
+                        <div className="text-xs text-muted-foreground">{contactSubtitle}</div>
+                      )}
+                    </div>
+                    {similarityLabel && (
+                      <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                        {similarityLabel}
+                      </span>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="p-3 sm:p-6 pt-0">
+                  {summary && (
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-2 whitespace-pre-wrap">
+                      {summary}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm text-muted-foreground">
+                    {contact.email && (
+                      <div>
+                        <span className="font-semibold text-foreground mr-1">Email:</span>
+                        <a
+                          href={`mailto:${contact.email}`}
+                          className="text-blue-600 hover:underline"
+                        >
+                          {contact.email}
+                        </a>
+                      </div>
+                    )}
+                    {contact.phone && (
+                      <div>
+                        <span className="font-semibold text-foreground mr-1">Phone:</span>
+                        {contact.phone}
+                      </div>
+                    )}
+                  </div>
+                  {tags && tags.length > 0 && (
+                    <div className="flex gap-1 mt-3 flex-wrap">
+                      {tags.map((tag, idx) => (
+                        <span
+                          key={idx}
+                          className="text-xs bg-secondary px-2 py-1 rounded capitalize"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          }
+
+          const item = buildItemFromResult(result);
+          if (!item) {
+            return null;
+          }
+
+          const display = getItemDisplay(item);
+          const documentMetadata = (result.document?.metadata ?? {}) as Record<string, unknown>;
+          const metadata = item.link_metadata;
+          const hasUrl = !!item.url;
+          const displayTitle = metadata?.title || display.title || item.title || 'Untitled';
           const displayDescription =
-            metadata?.description || result.item.description || display.description || result.item.clean || '';
+            metadata?.description ||
+            item.description ||
+            display.description ||
+            result.document?.summary ||
+            item.clean ||
+            '';
           const overallScore = result.scores?.overall ?? result.similarity;
           const vectorScore = result.scores?.vector ?? undefined;
           const recencyScore = result.scores?.recency ?? undefined;
-          const relativeTime = result.item.created_at ? formatRelativeTime(result.item.created_at) : '';
+          const relativeTime = item.created_at ? formatRelativeTime(item.created_at) : '';
           const overallScoreLabel = formatScore(overallScore);
 
           return (
             <Card
-              key={result.item.id}
+              key={item.id}
               className="cursor-pointer hover:bg-accent"
-              onClick={() => handleItemClick(result.item)}
+              onClick={() => handleItemClick(item)}
             >
               <CardHeader className="p-3 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
                   <div className="flex flex-col gap-1 pr-2">
                     <CardTitle className="text-sm sm:text-base leading-tight">{displayTitle}</CardTitle>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      {result.item.type && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5 capitalize">{result.item.type}</span>
+                      {item.type && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5 capitalize">{item.type}</span>
                       )}
-                      {result.item.source && (
-                        <span className="rounded-full bg-gray-100 px-2 py-0.5">{result.item.source}</span>
+                      {item.source && (
+                        <span className="rounded-full bg-gray-100 px-2 py-0.5">{item.source}</span>
                       )}
                       {relativeTime && (
                         <span className="rounded-full bg-gray-100 px-2 py-0.5">{relativeTime}</span>
@@ -485,7 +651,7 @@ export function SearchResults({ results }: SearchResultsProps) {
               </CardHeader>
               <CardContent className="p-3 sm:p-6 pt-0">
                 {/* URL preview with metadata */}
-                {hasUrl && metadata && (
+                {hasUrl && metadata && item.url && (
                   <div className="mb-3 border rounded-lg overflow-hidden">
                     {metadata.image && (
                       <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
@@ -506,21 +672,21 @@ export function SearchResults({ results }: SearchResultsProps) {
                         </p>
                       )}
                       <a
-                        href={metadata.url || result.item.url}
+                        href={metadata.url || item.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         onClick={(e) => e.stopPropagation()}
                         className="text-xs sm:text-sm text-blue-600 hover:underline break-all"
                       >
-                        {metadata.url || result.item.url}
+                        {metadata.url || item.url}
                       </a>
                     </div>
                   </div>
                 )}
 
                 {/* Image attachments preview - show if no URL metadata image or no URL at all */}
-                {(!hasUrl || !metadata?.image) && result.item.attachments && Array.isArray(result.item.attachments) && result.item.attachments.length > 0 && (() => {
-                  const imageAttachments = (result.item.attachments as Attachment[]).filter((file) =>
+                {(!hasUrl || !metadata?.image) && item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 && (() => {
+                  const imageAttachments = (item.attachments as Attachment[]).filter((file) =>
                     apiClient.isImageMimetype(file.mimetype)
                   );
                   if (imageAttachments.length > 0) {
@@ -529,7 +695,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                       <div className="mb-3 border rounded-lg overflow-hidden bg-white">
                         <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                           <img
-                            src={apiClient.getAttachmentPreviewUrl(result.item.id, firstImage, true)}
+                            src={apiClient.getAttachmentPreviewUrl(item.id, firstImage, true)}
                             alt={firstImage.originalname}
                             className="w-full h-auto max-h-[120px] object-cover"
                             onError={(e) => {
@@ -542,9 +708,10 @@ export function SearchResults({ results }: SearchResultsProps) {
                             }}
                           />
                         </div>
-                        {result.item.attachments.length > 1 && (
+                        {item.attachments.length > 1 && (
                           <div className="p-2 text-xs text-muted-foreground text-center">
-                            +{result.item.attachments.length - 1} more file{result.item.attachments.length - 1 !== 1 ? 's' : ''}
+                            +{item.attachments.length - 1} more file
+                            {item.attachments.length - 1 !== 1 ? 's' : ''}
                           </div>
                         )}
                       </div>
@@ -561,18 +728,18 @@ export function SearchResults({ results }: SearchResultsProps) {
                 )}
 
                 {/* Show notes if available */}
-                {result.item.notes && (
+                {item.notes && (
                   <div className="mt-2 p-2 bg-gray-50 rounded-md">
                     <p className="text-xs font-semibold text-muted-foreground mb-1">Notes:</p>
                     <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 sm:line-clamp-3 whitespace-pre-wrap">
-                      {result.item.notes}
+                      {item.notes}
                     </p>
                   </div>
                 )}
 
-                {result.item.tags && result.item.tags.length > 0 && (
+                {item.tags && item.tags.length > 0 && (
                   <div className="flex gap-1 mt-2 flex-wrap">
-                    {result.item.tags.map((tag, idx) => (
+                    {item.tags.map((tag, idx) => (
                       <span
                         key={idx}
                         className="text-xs bg-secondary px-2 py-1 rounded"
@@ -582,9 +749,9 @@ export function SearchResults({ results }: SearchResultsProps) {
                     ))}
                   </div>
                 )}
-                {result.item.source && (
+                {item.source && (
                   <p className="text-xs text-muted-foreground mt-2">
-                    Source: {result.item.source}
+                    Source: {item.source}
                   </p>
                 )}
               </CardContent>

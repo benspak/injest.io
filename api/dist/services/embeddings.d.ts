@@ -1,6 +1,6 @@
 import { type SemanticSimilarityResult } from '../models/Embedding.js';
 export declare class EmbeddingService {
-    createEmbedding(itemId: string, text: string): Promise<string>;
+    createEmbedding(documentId: string, text: string): Promise<string>;
     findSimilar(queryText: string, options: {
         userId: string;
         email?: string | null;

@@ -54,6 +54,15 @@ router.get('/', async (req, res) => {
             return date.toISOString();
         };
         const filters = {};
+        const entities = toArray(req.query.entity ?? req.query.entities);
+        if (entities.length > 0) {
+            const validEntities = entities
+                .map((value) => value.toLowerCase())
+                .filter((value) => value === 'item' || value === 'contact');
+            if (validEntities.length > 0) {
+                filters.entities = validEntities;
+            }
+        }
         const types = toArray(req.query.type ?? req.query.types);
         if (types.length > 0) {
             filters.types = types;
@@ -86,13 +95,20 @@ router.get('/', async (req, res) => {
         if (dateTo) {
             filters.dateTo = dateTo;
         }
+        const fileTypeParam = typeof req.query.fileType === 'string' ? req.query.fileType.trim().toLowerCase() : undefined;
+        if (fileTypeParam) {
+            filters.fileType = fileTypeParam;
+        }
         const results = await searchService.search({ id: req.user.id, email: req.user.email }, q, limit, filters);
         res.json({
             query: q,
             results: results.map((result) => ({
+                entityType: result.entityType,
+                entityId: result.entityId,
                 item: result.item,
+                contact: result.contact,
+                document: result.document,
                 similarity: result.similarity,
-                source: result.item.source,
                 scores: result.scores,
             })),
         });

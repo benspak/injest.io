@@ -1,8 +1,8 @@
 'use client';
 
-import { Fragment, useMemo } from 'react';
+import { Fragment, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Code, FolderKanban, Home, Menu, Send, UploadCloud, Users, X } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -51,33 +51,40 @@ const NAV_ITEMS = [
 
 export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout }: AppSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const isAuthenticated = Boolean(currentUser);
 
-  const navigation = useMemo(
-    () =>
-      NAV_ITEMS.map((item) => {
-        const Icon = item.icon;
-        const isActive = pathname.startsWith(item.href);
-
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-              isActive
-                ? 'bg-blue-50 text-blue-600'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-            onClick={() => onMobileToggle(false)}
-          >
-            <Icon className="h-4 w-4" />
-            <span>{item.label}</span>
-          </Link>
-        );
-      }),
-    [onMobileToggle, pathname]
+  const handleNavigate = useCallback(
+    (href: string) => {
+      onMobileToggle(false);
+      router.push(href);
+    },
+    [onMobileToggle, router]
   );
+
+  const navigation = useMemo(() => {
+    return NAV_ITEMS.map((item) => {
+      const Icon = item.icon;
+      const isActive = pathname.startsWith(item.href);
+
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+            isActive
+              ? 'bg-blue-50 text-blue-600'
+              : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+          }`}
+          onClick={() => handleNavigate(item.href)}
+        >
+          <Icon className="h-4 w-4" />
+          <span>{item.label}</span>
+        </Link>
+      );
+    });
+  }, [handleNavigate, pathname]);
 
   return (
     <Fragment>

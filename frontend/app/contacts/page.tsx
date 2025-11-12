@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnnouncementBanner } from '@/components/announcement-banner';
@@ -19,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { apiClient, API_URL, type Contact } from '@/lib/api';
 import { auth } from '@/lib/auth';
+import { toast } from 'sonner';
 
 const CONTACTS_PAGE_SIZE = 25;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -56,6 +56,7 @@ export default function ContactsPage() {
   const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const importToastIdsRef = useRef<Map<string, string | number>>(new Map());
 
   const matchesSearch = useCallback((contact: Contact, query: string) => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -286,8 +287,83 @@ export default function ContactsPage() {
       }
     };
 
+    const handleImportStatus = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as {
+          status?: 'started' | 'completed' | 'failed';
+          importId?: string;
+          fileName?: string;
+          total?: number;
+          imported?: number;
+          skipped?: { duplicates?: number; missingDetails?: number };
+          error?: string;
+        };
+
+        const status = payload?.status;
+        const importId = payload?.importId;
+
+        if (!status || !importId) {
+          return;
+        }
+
+        const fileLabel = payload.fileName ? `"${payload.fileName}"` : 'the uploaded file';
+        const skippedDuplicates = payload.skipped?.duplicates ?? 0;
+        const skippedMissingDetails = payload.skipped?.missingDetails ?? 0;
+        const skippedTotal = skippedDuplicates + skippedMissingDetails;
+
+        if (status === 'started') {
+          const total = payload.total ?? 0;
+          const message =
+            total > 0
+              ? `Importing ${total} contact${total === 1 ? '' : 's'} from ${fileLabel}...`
+              : `Importing contacts from ${fileLabel}...`;
+          const toastId = toast.loading(message);
+          importToastIdsRef.current.set(importId, toastId);
+          return;
+        }
+
+        const existingToastId = importToastIdsRef.current.get(importId);
+        const toastOptions: { id?: string | number; duration: number } =
+          existingToastId !== undefined
+            ? { id: existingToastId, duration: 6000 }
+            : { duration: 6000 };
+
+        if (status === 'completed') {
+          const imported = payload.imported ?? 0;
+          const total = payload.total ?? 0;
+
+          let message = `Imported ${imported} contact${imported === 1 ? '' : 's'}`;
+          if (total > 0) {
+            message += ` from ${total} record${total === 1 ? '' : 's'}`;
+          }
+          message += ` in ${fileLabel}.`;
+
+          if (skippedTotal > 0) {
+            message += ` Skipped ${skippedTotal} entr${skippedTotal === 1 ? 'y' : 'ies'} (duplicates or missing details).`;
+          }
+
+          toast.success(message, toastOptions);
+          if (existingToastId) {
+            importToastIdsRef.current.delete(importId);
+          }
+          return;
+        }
+
+        if (status === 'failed') {
+          const errorMessage = payload.error ?? 'Failed to import contacts.';
+          toast.error(errorMessage, toastOptions);
+          if (existingToastId) {
+            importToastIdsRef.current.delete(importId);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to handle contact import status event:', error);
+      }
+    };
+
     eventSource.addEventListener('contact-upserted', handleUpserted);
     eventSource.addEventListener('contact-deleted', handleDeleted);
+    eventSource.addEventListener('contact-import', handleImportStatus);
 
     eventSource.onerror = (error) => {
       console.error('Contact stream error:', error);
@@ -301,6 +377,7 @@ export default function ContactsPage() {
     return () => {
       eventSource.removeEventListener('contact-upserted', handleUpserted);
       eventSource.removeEventListener('contact-deleted', handleDeleted);
+      eventSource.removeEventListener('contact-import', handleImportStatus);
       eventSource.close();
       if (contactStreamRef.current === eventSource) {
         contactStreamRef.current = null;
@@ -542,14 +619,13 @@ export default function ContactsPage() {
                 : 'No contacts detected yet. Upload files that include names, emails, or phone numbers to see them here.'}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">
-              <table className="min-w-full table-fixed divide-y divide-gray-200 text-sm">
+            <div className="w-full overflow-hidden rounded-md border border-gray-200 bg-white">
+              <table className="w-full table-auto divide-y divide-gray-200 text-sm">
                 <colgroup>
-                  <col className="w-[32%] sm:w-[28%]" />
-                  <col className="w-[36%] sm:w-[32%]" />
-                  <col className="w-[16%] sm:w-[20%]" />
-                  <col className="w-[12%] sm:w-[14%]" />
-                  <col className="w-[4%] sm:w-[6%]" />
+                  <col className="w-auto md:w-[7%]" />
+                  <col className="w-auto md:w-[8%]" />
+                  <col className="w-auto md:w-[5%]" />
+                  <col className="w-auto md:w-[1.5%]" />
                 </colgroup>
                 <thead className="bg-gray-50">
                   <tr>
@@ -562,10 +638,7 @@ export default function ContactsPage() {
                     <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
                       Last Updated
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Source Item
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-right font-semibold text-gray-700">
+                    <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 md:text-right">
                       Actions
                     </th>
                   </tr>
@@ -604,27 +677,15 @@ export default function ContactsPage() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap px-4 py-3 text-gray-700">
+                        <td className="px-4 py-3 text-gray-700 align-middle break-words">
                           {updatedAt ? (
                             <span>{updatedAt}</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          {contact.source_item_id ? (
-                            <Link
-                              href={`/items/${contact.source_item_id}`}
-                              className="text-blue-600 hover:underline"
-                            >
-                              View item
-                            </Link>
-                          ) : (
-                            <span className="text-muted-foreground">Not available</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex justify-end gap-3">
+                        <td className="px-4 py-3 text-left md:text-right align-middle">
+                          <div className="flex flex-col items-start gap-2 md:flex-row md:justify-end md:items-center md:gap-3">
                             <Button
                               variant="link"
                               size="sm"

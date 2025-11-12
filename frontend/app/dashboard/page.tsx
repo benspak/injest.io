@@ -4,12 +4,13 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { SearchBar } from '@/components/search-bar';
+import { SearchResults } from '@/components/search-results';
 import { ItemList } from '@/components/item-list';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { auth } from '@/lib/auth';
-import { apiClient, Item, ReceivedEmail, API_URL, type SearchResult } from '@/lib/api';
+import { apiClient, Item, ReceivedEmail, API_URL, type SearchResult, type SearchFilters } from '@/lib/api';
 import { BOOKMARK_IMPORT_EVENT, ITEM_CREATED_EVENT } from '@/lib/events';
 
 export default function DashboardPage() {
@@ -21,21 +22,24 @@ export default function DashboardPage() {
   const [offset, setOffset] = useState(0);
   const [authLoading, setAuthLoading] = useState(true);
   const [indexedCount, setIndexedCount] = useState<number | null>(null);
+  const [filteredIndexedCount, setFilteredIndexedCount] = useState<number | null>(null);
   const bookmarkPollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const bookmarkPollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const bookmarkInitialTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const [sourceFilter, setSourceFilter] = useState<string>('');
-  const [hasAttachmentsFilter, setHasAttachmentsFilter] = useState<boolean>(false);
   const [fileTypeFilter, setFileTypeFilter] = useState<string>('');
+  const hasAttachmentsFilter = fileTypeFilter !== '';
   const itemStreamRef = useRef<EventSource | null>(null);
   const [itemStreamRetry, setItemStreamRetry] = useState(0);
-  const [searchResults, setSearchResults] = useState<Item[]>([]);
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const BATCH_SIZE = 50;
+  const searchFilters: SearchFilters = { entities: ['item', 'contact'] };
+
   const handleSearchResultsChange = useCallback((results: SearchResult[]) => {
-    setSearchResults(results.map((result) => result.item));
+    setSearchResults(results);
   }, []);
 
   const handleSearchLoadingChange = useCallback((isLoading: boolean) => {
@@ -109,10 +113,33 @@ export default function DashboardPage() {
   }, [fileTypeFilter, hasAttachmentsFilter, sourceFilter]);
 
 
-  const loadIndexedCount = useCallback(async () => {
+  const buildFilters = useCallback(() => {
+    const filters: { source?: string; hasAttachments?: boolean; fileType?: string } = {};
+    if (sourceFilter) {
+      filters.source = sourceFilter;
+    }
+    if (hasAttachmentsFilter) {
+      filters.hasAttachments = true;
+    }
+    if (fileTypeFilter) {
+      filters.fileType = fileTypeFilter;
+    }
+    return filters;
+  }, [fileTypeFilter, hasAttachmentsFilter, sourceFilter]);
+
+
+  const loadIndexedCount = useCallback(async (filters?: { source?: string; hasAttachments?: boolean; fileType?: string }) => {
     try {
-      const response = await apiClient.getIndexedItemCount();
+      const response = await apiClient.getIndexedItemCount(filters);
       setIndexedCount(response.count);
+      const hasFiltersApplied = filters != null && Object.keys(filters).length > 0;
+      if (hasFiltersApplied) {
+        const nextFilteredCount =
+          typeof response.filteredCount === 'number' ? response.filteredCount : response.count;
+        setFilteredIndexedCount(nextFilteredCount);
+      } else {
+        setFilteredIndexedCount(null);
+      }
     } catch (error: unknown) {
       console.error('Error loading indexed count:', error);
     }
@@ -290,7 +317,7 @@ export default function DashboardPage() {
       setItems([]);
       setHasMore(true);
       loadItems(0, true);
-      loadIndexedCount();
+      loadIndexedCount(buildFilters());
     };
 
     checkAuth();
@@ -309,7 +336,7 @@ export default function DashboardPage() {
         bookmarkInitialTimeoutRef.current = null;
       }
     };
-  }, [loadIndexedCount, loadItems, router]);
+  }, [buildFilters, loadIndexedCount, loadItems, router]);
 
   const loadMoreItems = useCallback(async () => {
     if (loadingMore || !hasMore || loading) return;
@@ -372,9 +399,11 @@ export default function DashboardPage() {
       setOffset(0);
       setItems([]);
       setHasMore(true);
+      const filters = buildFilters();
       loadItems(0, true);
+      loadIndexedCount(filters);
     }
-  }, [authLoading, fileTypeFilter, hasAttachmentsFilter, loadItems, sourceFilter]);
+  }, [authLoading, buildFilters, fileTypeFilter, hasAttachmentsFilter, loadIndexedCount, loadItems, sourceFilter]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
@@ -437,7 +466,7 @@ export default function DashboardPage() {
         }
 
         if (!itemMatchesFilters(newItem)) {
-          void loadIndexedCount();
+          void loadIndexedCount(buildFilters());
           return;
         }
 
@@ -459,7 +488,7 @@ export default function DashboardPage() {
           });
         });
 
-        void loadIndexedCount();
+        void loadIndexedCount(buildFilters());
       } catch (error) {
         console.error('Failed to handle indexed item event:', error);
       }
@@ -480,7 +509,7 @@ export default function DashboardPage() {
       eventSource.close();
       itemStreamRef.current = null;
     };
-  }, [authLoading, hasAttachmentsFilter, itemMatchesFilters, itemStreamRetry, loadIndexedCount, sourceFilter, fileTypeFilter]);
+  }, [authLoading, buildFilters, hasAttachmentsFilter, itemMatchesFilters, itemStreamRetry, loadIndexedCount, sourceFilter, fileTypeFilter]);
 
   const handleDelete = async (itemId: string) => {
     try {
@@ -490,7 +519,7 @@ export default function DashboardPage() {
       setItems([]);
       setHasMore(true);
       loadItems(0, true);
-      loadIndexedCount();
+      loadIndexedCount(buildFilters());
     } catch (error: unknown) {
       console.error('Error deleting item:', error);
     }
@@ -500,9 +529,10 @@ export default function DashboardPage() {
     setOffset(0);
     setItems([]);
     setHasMore(true);
+    const filters = buildFilters();
     loadItems(0, true);
-    loadIndexedCount();
-  }, [loadIndexedCount, loadItems]);
+    loadIndexedCount(filters);
+  }, [buildFilters, loadIndexedCount, loadItems]);
 
   const startBookmarkPolling = useCallback(() => {
     refreshItems();
@@ -570,6 +600,8 @@ export default function DashboardPage() {
   }
 
   const currentUser = auth.getUser();
+  const filtersApplied = Boolean(sourceFilter || fileTypeFilter);
+  const filteredCountDisplay = filteredIndexedCount ?? '—';
 
   return (
     <div className="min-h-screen bg-gray-50 overflow-x-hidden">
@@ -594,6 +626,7 @@ export default function DashboardPage() {
             onResultsChange={handleSearchResultsChange}
             onLoadingChange={handleSearchLoadingChange}
             onQueryChange={handleSearchQueryChange}
+            filters={searchFilters}
           />
         </div>
       </div>
@@ -606,7 +639,9 @@ export default function DashboardPage() {
                 Your Items
                 {indexedCount !== null && (
                   <span className="ml-2 text-xs font-normal text-gray-500 sm:text-sm">
-                    ({indexedCount} indexed)
+                    {filtersApplied
+                      ? `(${filteredCountDisplay} of ${indexedCount} indexed)`
+                      : `(${indexedCount} indexed)`}
                   </span>
                 )}
               </h2>
@@ -626,17 +661,6 @@ export default function DashboardPage() {
                     <option value="bookmark">Bookmark</option>
                     <option value="email">Email</option>
                   </select>
-                </div>
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 sm:gap-2 sm:text-sm">
-                    <input
-                      type="checkbox"
-                      checked={hasAttachmentsFilter}
-                      onChange={(e) => setHasAttachmentsFilter(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 sm:h-4 sm:w-4"
-                    />
-                    <span>With Files</span>
-                  </label>
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <label htmlFor="file-type-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
@@ -664,10 +688,10 @@ export default function DashboardPage() {
                 <div className="py-8 text-center text-muted-foreground">Searching…</div>
               ) : searchResults.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">
-                  No items match your search.
+                  No results match your search.
                 </div>
               ) : (
-                <ItemList items={searchResults} onDelete={handleDelete} />
+                <SearchResults results={searchResults} />
               )
             ) : (
               <>

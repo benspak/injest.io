@@ -2,12 +2,12 @@ import { EmbeddingModel, type SemanticSimilarityResult } from '../models/Embeddi
 import { openAIService } from './openai.js';
 
 export class EmbeddingService {
-  async createEmbedding(itemId: string, text: string): Promise<string> {
+  async createEmbedding(documentId: string, text: string): Promise<string> {
     // Generate embedding using OpenAI
     const embedding = await openAIService.createEmbedding(text);
 
     // Store in database
-    const embeddingRecord = await EmbeddingModel.create(itemId, embedding);
+    const embeddingRecord = await EmbeddingModel.create(documentId, embedding);
 
     return embeddingRecord.id;
   }

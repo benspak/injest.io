@@ -25,6 +25,8 @@ test('cache stores, reads, and invalidates per user', () => {
     const filters = { tags: ['focus'] };
     const cacheKey = service.buildCacheKey('user-1', 'hello world', 5, filters);
     const sampleResult = {
+        entityType: 'item',
+        entityId: 'item-1',
         item: {
             id: 'item-1',
             owner_id: 'user-1',

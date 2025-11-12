@@ -268,6 +268,20 @@ export class ContactModel {
     return result.rows[0] ?? null;
   }
 
+  static async findById(contactId: string): Promise<Contact | null> {
+    const result = await pool.query<Contact>(
+      `
+        SELECT *
+        FROM contacts
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [contactId]
+    );
+
+    return result.rows[0] ?? null;
+  }
+
   static async update(
     ownerId: string,
     contactId: string,

@@ -81,8 +81,10 @@ function buildContactContext(contacts) {
     }));
 }
 function buildItemContext(results) {
-    return results.map((result) => {
-        const { item } = result;
+    return results
+        .filter((result) => result.item && result.item.id)
+        .map((result) => {
+        const item = result.item;
         return {
             id: item.id,
             type: item.type,
@@ -173,7 +175,8 @@ router.post('/plan', async (req, res) => {
             ? analysis.searchQuery
             : prompt;
         const searchResults = await searchService.search({ id: req.user.id, email: req.user.email }, searchQuery, 10);
-        const items = searchResults.slice(0, 8);
+        const itemResults = searchResults.filter((result) => result.entityType === 'item' && result.item && result.item.id);
+        const items = itemResults.slice(0, 8);
         const contactContext = buildContactContext(contacts);
         const itemContext = buildItemContext(items);
         const plan = await openAIService.generateSendPlan({

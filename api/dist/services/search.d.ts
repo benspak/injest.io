@@ -7,8 +7,18 @@ export interface SearchResultScores {
     titleBoost: number;
     ownerBoost: number;
 }
+export interface SearchResultDocument {
+    title: string | null;
+    summary: string | null;
+    tags: string[] | null;
+    metadata: Record<string, unknown> | null;
+}
 export interface SearchResult {
-    item: any;
+    entityType: 'item' | 'contact';
+    entityId: string;
+    item?: any;
+    contact?: any;
+    document?: SearchResultDocument;
     similarity: number;
     scores?: SearchResultScores;
 }

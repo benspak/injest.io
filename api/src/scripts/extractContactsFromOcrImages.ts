@@ -6,6 +6,7 @@ import { ContactModel, contactNormalizers } from '../models/Contact.js';
 import type { AttachmentMetadata } from '../models/Item.js';
 import { contactExtractor } from '../services/contactExtractor.js';
 import { fileParserService } from '../services/fileParser.js';
+import { indexingService } from '../services/indexing.js';
 
 dotenv.config();
 
@@ -317,6 +318,20 @@ async function processItem(item: ItemRow): Promise<ProcessResult> {
   }));
 
   const contacts = await ContactModel.upsertMany(inputs);
+  if (contacts.length > 0) {
+    await Promise.all(
+      contacts.map(async (contact) => {
+        try {
+          await indexingService.indexContact(contact);
+        } catch (error) {
+          console.warn('[ContactsScript] Failed to index contact:', {
+            contactId: contact.id,
+            error,
+          });
+        }
+      })
+    );
+  }
 
   return {
     attachmentsProcessed,

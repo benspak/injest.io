@@ -169,6 +169,15 @@ export class ContactModel {
       `, [ownerId, contactId]);
         return result.rows[0] ?? null;
     }
+    static async findById(contactId) {
+        const result = await pool.query(`
+        SELECT *
+        FROM contacts
+        WHERE id = $1
+        LIMIT 1
+      `, [contactId]);
+        return result.rows[0] ?? null;
+    }
     static async update(ownerId, contactId, updates, client = pool) {
         const existing = await this.findByOwnerAndId(ownerId, contactId, client);
         if (!existing) {

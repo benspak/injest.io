@@ -498,6 +498,17 @@ async function processSingleFile(file, userId, options = {}) {
         log(`Stage 3/4 complete (item ${item.id})`);
         if (contactsToBroadcast.length > 0) {
             contactStreamService.broadcastContacts(contactsToBroadcast);
+            await Promise.all(contactsToBroadcast.map(async (contact) => {
+                try {
+                    await indexingService.indexContact(contact);
+                }
+                catch (error) {
+                    console.warn('[Contacts] Failed to index contact extracted from item:', {
+                        contactId: contact.id,
+                        error,
+                    });
+                }
+            }));
         }
         log('Stage 4/4: Generating embeddings and indexing');
         try {
@@ -952,6 +963,17 @@ export async function handleCreateItem(req, res) {
         }
         if (contactsToBroadcast.length > 0) {
             contactStreamService.broadcastContacts(contactsToBroadcast);
+            await Promise.all(contactsToBroadcast.map(async (contact) => {
+                try {
+                    await indexingService.indexContact(contact);
+                }
+                catch (error) {
+                    console.warn('[Contacts] Failed to index contact extracted from item:', {
+                        contactId: contact.id,
+                        error,
+                    });
+                }
+            }));
         }
         // Trigger indexing in background (don't await - let it run async)
         indexingService.indexItem(item).catch((indexError) => {
@@ -1254,9 +1276,27 @@ router.get('/count', async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
+        const source = req.query.source;
+        const hasAttachments = req.query.hasAttachments === 'true' || req.query.hasAttachments === true;
+        const fileType = req.query.fileType;
+        const filters = {};
+        if (source) {
+            filters.source = source;
+        }
+        if (hasAttachments) {
+            filters.hasAttachments = true;
+        }
+        if (fileType) {
+            filters.fileType = fileType;
+        }
+        const hasActiveFilters = Object.keys(filters).length > 0;
         const limitStatus = await getItemLimitStatus(req.user.id);
+        const filteredCount = hasActiveFilters
+            ? await ItemModel.countIndexedByOwner(req.user.id, filters)
+            : limitStatus.itemCount;
         res.json({
             count: limitStatus.itemCount,
+            filteredCount,
             isAtLimit: limitStatus.isAtLimit,
             isApproachingLimit: limitStatus.isApproachingLimit,
             limit: limitStatus.limit,
@@ -1612,6 +1652,7 @@ router.delete('/:id', async (req, res) => {
         }
         await ItemModel.delete(req.params.id);
         await searchService.invalidateForItem(item.id);
+        await indexingService.removeSearchDocument('item', item.id);
         res.json({ message: 'Item deleted' });
     }
     catch (error) {

@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 
 import pool from '../config/database.js';
 import { indexingService } from '../services/indexing.js';
+import { ContactModel } from '../models/Contact.js';
 
 dotenv.config();
 
@@ -22,6 +23,11 @@ interface BatchResult {
   success: number;
   skipped: number;
   failures: FailureRecord[];
+}
+
+interface ContactCursor {
+  updatedAt: string;
+  id: string;
 }
 
 function resolveBatchSize(): number {
@@ -95,7 +101,7 @@ async function fetchNextBatch(cursor: Cursor | null, batchSize: number): Promise
   return { ids, nextCursor };
 }
 
-async function processBatch(ids: string[], concurrency: number): Promise<BatchResult> {
+async function processItemBatch(ids: string[], concurrency: number): Promise<BatchResult> {
   let success = 0;
   let skipped = 0;
   const failures: FailureRecord[] = [];
@@ -142,6 +148,102 @@ async function processBatch(ids: string[], concurrency: number): Promise<BatchRe
   return { success, skipped, failures };
 }
 
+async function fetchNextContactBatch(
+  cursor: ContactCursor | null,
+  batchSize: number
+): Promise<{ ids: string[]; nextCursor: ContactCursor | null }> {
+  const baseQuery = `
+    SELECT id, updated_at
+    FROM contacts
+    ORDER BY updated_at, id
+    LIMIT $1
+  `;
+
+  const pagedQuery = `
+    SELECT id, updated_at
+    FROM contacts
+    WHERE
+      updated_at > $1::timestamptz
+      OR (updated_at = $1::timestamptz AND id > $2::uuid)
+    ORDER BY updated_at, id
+    LIMIT $3
+  `;
+
+  const queryConfig = cursor
+    ? { text: pagedQuery, values: [cursor.updatedAt, cursor.id, batchSize] }
+    : { text: baseQuery, values: [batchSize] };
+
+  const result = await pool.query(queryConfig);
+  if (!result.rowCount) {
+    return { ids: [], nextCursor: null };
+  }
+
+  const rows = result.rows as { id: string; updated_at: string | Date }[];
+  const ids = rows.map((row) => row.id);
+
+  const lastRow = rows[rows.length - 1];
+  const nextCursor: ContactCursor = {
+    id: lastRow.id,
+    updatedAt: toIsoTimestamp(lastRow.updated_at),
+  };
+
+  return { ids, nextCursor };
+}
+
+async function processContactBatch(ids: string[], concurrency: number): Promise<BatchResult> {
+  let success = 0;
+  let skipped = 0;
+  const failures: FailureRecord[] = [];
+
+  let index = 0;
+
+  const worker = async () => {
+    while (true) {
+      const currentIndex = index;
+      index += 1;
+
+      if (currentIndex >= ids.length) {
+        break;
+      }
+
+      const contactId = ids[currentIndex];
+      try {
+        const contact = await ContactModel.findById(contactId);
+        if (!contact) {
+          console.warn(`[Reindex] Contact ${contactId} not found; skipping.`);
+          skipped += 1;
+          continue;
+        }
+
+        const indexed = await indexingService.indexContact(contact);
+        if (indexed) {
+          success += 1;
+        } else {
+          skipped += 1;
+        }
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+              ? error
+              : JSON.stringify(error);
+
+        console.error(`[Reindex] Failed to index contact ${contactId}: ${message}`);
+        failures.push({
+          itemId: contactId,
+          error: message,
+        });
+      }
+    }
+  };
+
+  const workerCount = Math.min(concurrency, ids.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+
+  return { success, skipped, failures };
+}
+
 async function main(): Promise<void> {
   const batchSize = resolveBatchSize();
   const concurrency = resolveConcurrency();
@@ -168,9 +270,9 @@ async function main(): Promise<void> {
       }
 
       batchNumber += 1;
-      console.log(`[Reindex] Processing batch ${batchNumber} (${ids.length} items)...`);
+      console.log(`[Reindex] Processing item batch ${batchNumber} (${ids.length} items)...`);
 
-      const batchResult = await processBatch(ids, concurrency);
+      const batchResult = await processItemBatch(ids, concurrency);
 
       processed += ids.length;
       totalSuccess += batchResult.success;
@@ -184,18 +286,69 @@ async function main(): Promise<void> {
       cursor = nextCursor;
     }
 
-    const durationMs = Date.now() - startedAt;
-    console.log('[Reindex] Job complete', {
+    const itemDurationMs = Date.now() - startedAt;
+    console.log('[Reindex] Item reindex complete', {
       processed,
       indexed: totalSuccess,
       skipped: totalSkipped,
       failures: allFailures.length,
-      durationMs,
-      durationSeconds: Math.round(durationMs / 1000),
+      durationMs: itemDurationMs,
+      durationSeconds: Math.round(itemDurationMs / 1000),
     });
 
     if (allFailures.length > 0) {
       console.warn('[Reindex] Some items failed to reindex. Summary:', allFailures.slice(0, 10));
+    }
+
+    // Reindex contacts
+    console.log('[Reindex] Starting contact reindex job');
+    let contactCursor: ContactCursor | null = null;
+    let contactBatchNumber = 0;
+    let contactsProcessed = 0;
+    let contactSuccess = 0;
+    let contactSkipped = 0;
+    const contactFailures: FailureRecord[] = [];
+
+    while (true) {
+      const { ids, nextCursor } = await fetchNextContactBatch(contactCursor, batchSize);
+      if (ids.length === 0) {
+        break;
+      }
+
+      contactBatchNumber += 1;
+      console.log(
+        `[Reindex] Processing contact batch ${contactBatchNumber} (${ids.length} contacts)...`
+      );
+
+      const batchResult = await processContactBatch(ids, concurrency);
+
+      contactsProcessed += ids.length;
+      contactSuccess += batchResult.success;
+      contactSkipped += batchResult.skipped;
+      contactFailures.push(...batchResult.failures);
+
+      console.log(
+        `[Reindex] Contact batch ${contactBatchNumber} complete: ${batchResult.success} indexed, ${batchResult.skipped} skipped, ${batchResult.failures.length} failures.`
+      );
+
+      contactCursor = nextCursor;
+    }
+
+    const contactDurationMs = Date.now() - startedAt;
+    console.log('[Reindex] Contact reindex complete', {
+      processed: contactsProcessed,
+      indexed: contactSuccess,
+      skipped: contactSkipped,
+      failures: contactFailures.length,
+      durationMs: contactDurationMs,
+      durationSeconds: Math.round(contactDurationMs / 1000),
+    });
+
+    if (contactFailures.length > 0) {
+      console.warn(
+        '[Reindex] Some contacts failed to reindex. Summary:',
+        contactFailures.slice(0, 10)
+      );
     }
   } catch (error) {
     console.error('[Reindex] Job failed:', error);

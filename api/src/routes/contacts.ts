@@ -1,12 +1,14 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import multer from 'multer';
+import { randomUUID } from 'crypto';
 import { authMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { ContactModel } from '../models/Contact.js';
 import { UserModel } from '../models/User.js';
 import { JWT_SECRET } from '../config/auth.js';
 import { contactStreamService } from '../services/contactStream.js';
 import { parseVCard } from '../utils/vcard.js';
+import { indexingService } from '../services/indexing.js';
 
 const router = express.Router();
 
@@ -86,6 +88,13 @@ router.post(
   '/import',
   contactsUpload.single('contactsFile'),
   async (req: AuthRequest, res: express.Response) => {
+    const importId = randomUUID();
+    let broadcastStarted = false;
+    let parsedEntryCount = 0;
+    let skippedMissingDetails = 0;
+    let skippedDuplicates = 0;
+    let originalName = 'contacts.vcf';
+
     try {
       if (!req.user) {
         return res.status(401).json({ error: 'Unauthorized' });
@@ -96,7 +105,7 @@ router.post(
         return res.status(400).json({ error: 'No contacts file provided.' });
       }
 
-      const originalName = file.originalname || 'contacts.vcf';
+      originalName = file.originalname || 'contacts.vcf';
       const lowerName = originalName.toLowerCase();
       const allowedExtensions = ['.vcf', '.vcard'];
       const allowedMimeTypes = ['text/vcard', 'text/x-vcard', 'application/vcard', 'application/x-vcard'];
@@ -110,9 +119,19 @@ router.post(
       const content = file.buffer.toString('utf8');
       const parsedEntries = parseVCard(content);
 
+      parsedEntryCount = parsedEntries.length;
+
       if (parsedEntries.length === 0) {
         return res.status(400).json({ error: 'No contacts found in the uploaded file.' });
       }
+
+      contactStreamService.broadcastImportStatus(req.user.id, {
+        status: 'started',
+        importId,
+        fileName: originalName,
+        total: parsedEntryCount,
+      });
+      broadcastStarted = true;
 
       const dedupeKeys = new Set<string>();
       const inputs: {
@@ -123,8 +142,8 @@ router.post(
         metadata?: Record<string, unknown> | null;
       }[] = [];
 
-      let skippedMissingDetails = 0;
-      let skippedDuplicates = 0;
+      skippedMissingDetails = 0;
+      skippedDuplicates = 0;
 
       for (const entry of parsedEntries) {
         const name = sanitizeString(entry.name);
@@ -165,6 +184,19 @@ router.post(
       }
 
       if (inputs.length === 0) {
+        contactStreamService.broadcastImportStatus(req.user.id, {
+          status: 'failed',
+          importId,
+          fileName: originalName,
+          total: parsedEntryCount,
+          imported: 0,
+          skipped: {
+            duplicates: skippedDuplicates,
+            missingDetails: skippedMissingDetails,
+          },
+          error: 'No contacts with email or phone were found to import.',
+        });
+
         return res.status(400).json({
           error: 'No contacts with email or phone were found to import.',
           skipped: {
@@ -178,7 +210,31 @@ router.post(
 
       if (contacts.length > 0) {
         contactStreamService.broadcastContacts(contacts);
+        await Promise.all(
+          contacts.map(async (contact) => {
+            try {
+              await indexingService.indexContact(contact);
+            } catch (error) {
+              console.warn('[Contacts] Failed to index contact during import:', {
+                contactId: contact.id,
+                error,
+              });
+            }
+          })
+        );
       }
+
+      contactStreamService.broadcastImportStatus(req.user.id, {
+        status: 'completed',
+        importId,
+        fileName: originalName,
+        total: parsedEntryCount,
+        imported: contacts.length,
+        skipped: {
+          duplicates: skippedDuplicates,
+          missingDetails: skippedMissingDetails,
+        },
+      });
 
       return res.status(201).json({
         message: `Processed ${parsedEntries.length} contact${parsedEntries.length === 1 ? '' : 's'}.`,
@@ -191,6 +247,20 @@ router.post(
       });
     } catch (error) {
       console.error('[Contacts] Failed to import contacts:', error);
+      if (req.user && broadcastStarted) {
+        contactStreamService.broadcastImportStatus(req.user.id, {
+          status: 'failed',
+          importId,
+          fileName: originalName,
+          total: parsedEntryCount,
+          imported: 0,
+          skipped: {
+            duplicates: skippedDuplicates,
+            missingDetails: skippedMissingDetails,
+          },
+          error: error instanceof Error ? error.message : 'Failed to import contacts.',
+        });
+      }
       return res.status(500).json({ error: 'Failed to import contacts' });
     }
   }
@@ -294,6 +364,14 @@ router.post('/', async (req: AuthRequest, res: express.Response) => {
     }
 
     contactStreamService.broadcastContact(contact);
+    try {
+      await indexingService.indexContact(contact);
+    } catch (error) {
+      console.warn('[Contacts] Failed to index contact on creation:', {
+        contactId: contact.id,
+        error,
+      });
+    }
 
     return res.status(201).json({ contact });
   } catch (error) {
@@ -329,6 +407,14 @@ router.patch('/:id', async (req: AuthRequest, res: express.Response) => {
         return res.status(404).json({ error: 'Contact not found' });
       }
       contactStreamService.broadcastContact(contact);
+      try {
+        await indexingService.indexContact(contact);
+      } catch (error) {
+        console.warn('[Contacts] Failed to index contact on update:', {
+          contactId: contact.id,
+          error,
+        });
+      }
       return res.json({ contact });
     } catch (updateError) {
       if (updateError instanceof Error) {
@@ -361,6 +447,7 @@ router.delete('/:id', async (req: AuthRequest, res: express.Response) => {
     }
 
     contactStreamService.broadcastContactDeleted(req.user.id, contactId);
+    await indexingService.removeSearchDocument('contact', contactId);
 
     return res.status(204).send();
   } catch (error) {

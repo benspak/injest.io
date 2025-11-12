@@ -95,32 +95,36 @@ function buildContactContext(contacts: Contact[]): SendPlanContactContext[] {
 }
 
 function buildItemContext(
-  results: Awaited<ReturnType<typeof searchService.search>>
+  results: Array<
+    Awaited<ReturnType<typeof searchService.search>>[number]
+  >
 ): SendPlanItemContext[] {
-  return results.map((result) => {
-    const { item } = result;
-    return {
-      id: item.id,
-      type: item.type,
-      title: item.title,
-      description: typeof item.description === 'string'
-        ? item.description.slice(0, 500)
-        : typeof item.clean === 'string'
-        ? item.clean.slice(0, 500)
-        : null,
-      tags: item.tags ?? null,
-      url: item.url ?? null,
-      attachments: Array.isArray(item.attachments)
-        ? item.attachments
-            .slice(0, 3)
-            .map((attachment: { filename: string; mimetype?: string; size?: number }) => ({
-              filename: attachment.filename,
-              mimetype: attachment.mimetype,
-              size: attachment.size,
-            }))
-        : null,
-    };
-  });
+  return results
+    .filter((result) => result.item && result.item.id)
+    .map((result) => {
+      const item = result.item!;
+      return {
+        id: item.id,
+        type: item.type,
+        title: item.title,
+        description: typeof item.description === 'string'
+          ? item.description.slice(0, 500)
+          : typeof item.clean === 'string'
+          ? item.clean.slice(0, 500)
+          : null,
+        tags: item.tags ?? null,
+        url: item.url ?? null,
+        attachments: Array.isArray(item.attachments)
+          ? item.attachments
+              .slice(0, 3)
+              .map((attachment: { filename: string; mimetype?: string; size?: number }) => ({
+                filename: attachment.filename,
+                mimetype: attachment.mimetype,
+                size: attachment.size,
+              }))
+          : null,
+      };
+    });
 }
 
 function uniqueContacts(contacts: Contact[]): Contact[] {
@@ -220,7 +224,10 @@ router.post('/plan', async (req: AuthRequest, res: express.Response) => {
       10
     );
 
-    const items = searchResults.slice(0, 8);
+    const itemResults = searchResults.filter(
+      (result) => result.entityType === 'item' && result.item && result.item.id
+    );
+    const items = itemResults.slice(0, 8);
 
     const contactContext = buildContactContext(contacts);
     const itemContext = buildItemContext(items);

@@ -40,6 +40,7 @@ export declare class ContactModel {
         search?: string | null;
     }): Promise<number>;
     static findByOwnerAndId(ownerId: string, contactId: string, client?: Pool | PoolClient): Promise<Contact | null>;
+    static findById(contactId: string): Promise<Contact | null>;
     static update(ownerId: string, contactId: string, updates: UpdateContactInput, client?: Pool | PoolClient): Promise<Contact | null>;
     static delete(ownerId: string, contactId: string, client?: Pool | PoolClient): Promise<boolean>;
     private static normalizeDomain;

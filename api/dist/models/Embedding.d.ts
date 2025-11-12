@@ -1,7 +1,19 @@
 import type { Item } from './Item.js';
+import type { Contact } from './Contact.js';
 import type { SearchFilters } from '../types/search.js';
+import type { SearchEntityType } from './SearchDocument.js';
 export interface SemanticSimilarityResult {
-    item: Item;
+    documentId: string;
+    entityType: SearchEntityType;
+    document: {
+        title: string | null;
+        summary: string | null;
+        content: string | null;
+        tags: string[] | null;
+        metadata: Record<string, unknown> | null;
+    };
+    item?: Item;
+    contact?: Contact;
     vectorScore: number;
     recencyScore: number;
     tagBoost: number;
@@ -11,14 +23,13 @@ export interface SemanticSimilarityResult {
 }
 export interface Embedding {
     id: string;
-    item_id: string;
+    document_id: string;
     embedding: number[];
     created_at: Date;
-    similarity?: number | string;
 }
 export declare class EmbeddingModel {
-    static create(itemId: string, embedding: number[]): Promise<Embedding>;
-    static findByItemId(itemId: string): Promise<Embedding | null>;
+    static create(documentId: string, embedding: number[]): Promise<Embedding>;
+    static deleteByDocumentId(documentId: string): Promise<boolean>;
     static findSimilar(queryEmbedding: number[], options: {
         userId: string;
         email?: string | null;
@@ -27,6 +38,5 @@ export declare class EmbeddingModel {
         titlePatterns?: string[];
         filters?: SearchFilters;
     }): Promise<SemanticSimilarityResult[]>;
-    static deleteByItemId(itemId: string): Promise<boolean>;
 }
 //# sourceMappingURL=Embedding.d.ts.map

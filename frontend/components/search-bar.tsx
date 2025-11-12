@@ -1,14 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
-import { apiClient, type SearchResult } from '@/lib/api';
+import { apiClient, type SearchResult, type SearchFilters } from '@/lib/api';
 
 interface SearchBarProps {
   onResultsChange?: (results: SearchResult[]) => void;
   onLoadingChange?: (isLoading: boolean) => void;
   onQueryChange?: (query: string) => void;
   minQueryLength?: number;
+  filters?: SearchFilters;
 }
 
 export function SearchBar({
@@ -16,9 +17,26 @@ export function SearchBar({
   onLoadingChange,
   onQueryChange,
   minQueryLength = 2,
+  filters,
 }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const clearedResultsRef = useRef(true);
+  const lastReportedLoadingRef = useRef(false);
+
+  const updateLoadingState = (next: boolean) => {
+    setLoading((prev) => {
+      if (prev === next) {
+        return prev;
+      }
+      return next;
+    });
+
+    if (lastReportedLoadingRef.current !== next) {
+      lastReportedLoadingRef.current = next;
+      onLoadingChange?.(next);
+    }
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -35,30 +53,36 @@ export function SearchBar({
 
   useEffect(() => {
     if (!query || query.length < minQueryLength) {
-      setLoading(false);
-      onLoadingChange?.(false);
-      onResultsChange?.([]);
+      updateLoadingState(false);
+
+      if (!clearedResultsRef.current) {
+        onResultsChange?.([]);
+        clearedResultsRef.current = true;
+      }
+
       return;
     }
 
+    clearedResultsRef.current = false;
+
     const timeoutId = setTimeout(async () => {
-      setLoading(true);
-      onLoadingChange?.(true);
+      updateLoadingState(true);
       try {
-        const response = await apiClient.search(query);
+        const response = await apiClient.search(query, {
+          filters,
+        });
         const newResults = response.results ?? [];
         onResultsChange?.(newResults);
       } catch (error) {
         console.error('Search error:', error);
         onResultsChange?.([]);
       } finally {
-        setLoading(false);
-        onLoadingChange?.(false);
+        updateLoadingState(false);
       }
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [minQueryLength, onLoadingChange, onResultsChange, query]);
+  }, [filters, minQueryLength, onLoadingChange, onResultsChange, query]);
 
   return (
     <div className="relative w-full">

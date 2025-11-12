@@ -243,6 +243,72 @@ export class ItemModel {
     return result.rows;
   }
 
+  static async countIndexedByOwner(
+    ownerId: string,
+    filters?: { source?: string; hasAttachments?: boolean; fileType?: string }
+  ): Promise<number> {
+    let query =
+      'SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND deleted_at IS NULL AND embedding_id IS NOT NULL';
+    const params: any[] = [ownerId];
+    let paramCount = 2;
+
+    if (filters?.source) {
+      if (filters.source === 'email') {
+        query += ` AND (source LIKE $${paramCount} OR type = $${paramCount + 1})`;
+        params.push('email:%');
+        params.push('email');
+        paramCount += 2;
+      } else {
+        query += ` AND source = $${paramCount++}`;
+        params.push(filters.source);
+      }
+    }
+
+    if (filters?.hasAttachments === true) {
+      query += ' AND attachments IS NOT NULL AND jsonb_array_length(attachments) > 0';
+    }
+
+    if (filters?.fileType) {
+      const fileType = filters.fileType.toLowerCase();
+      if (fileType === 'image') {
+        query += ` AND attachments IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(attachments) AS attachment
+          WHERE (attachment->>'mimetype')::text LIKE 'image/%'
+        )`;
+      } else if (fileType === 'spreadsheet') {
+        query += ` AND attachments IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(attachments) AS attachment
+          WHERE (attachment->>'mimetype')::text IN (
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.oasis.opendocument.spreadsheet',
+            'text/csv',
+            'application/csv'
+          ) OR (attachment->>'mimetype')::text LIKE 'application/vnd.ms-excel%'
+          OR (attachment->>'mimetype')::text LIKE 'application/vnd.openxmlformats-officedocument.spreadsheetml%'
+        )`;
+      } else if (fileType === 'document') {
+        query += ` AND attachments IS NOT NULL AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(attachments) AS attachment
+          WHERE (attachment->>'mimetype')::text IN (
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.oasis.opendocument.text',
+            'text/plain',
+            'text/rtf'
+          ) OR (attachment->>'mimetype')::text LIKE 'application/pdf%'
+          OR (attachment->>'mimetype')::text LIKE 'application/msword%'
+          OR (attachment->>'mimetype')::text LIKE 'application/vnd.openxmlformats-officedocument.wordprocessingml%'
+          OR (attachment->>'mimetype')::text LIKE 'text/plain%'
+        )`;
+      }
+    }
+
+    const result = await pool.query(query, params);
+    return parseInt(result.rows[0]?.total ?? '0', 10);
+  }
+
   static async findAllByOwner(ownerId: string): Promise<Item[]> {
     const result = await pool.query(
       `
