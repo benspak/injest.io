@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
@@ -16,7 +16,7 @@ import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dia
 import type { SubscriptionTier } from '@/lib/subscriptionPlans';
 import QRCode from 'qrcode';
 
-export default function SettingsPage() {
+function SettingsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [authLoading, setAuthLoading] = useState(true);
@@ -674,5 +674,19 @@ export default function SettingsPage() {
       />
 
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="container mx-auto px-4 py-12">
+          Loading settings...
+        </div>
+      }
+    >
+      <SettingsPageContent />
+    </Suspense>
   );
 }
