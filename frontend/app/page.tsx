@@ -17,6 +17,7 @@ import {
   formatPlanPrice,
   type SubscriptionTier,
 } from "@/lib/subscriptionPlans";
+import { HomepagePricingPlans } from "@/components/homepage-pricing-plans";
 
 export default function Home() {
   const valuePillars = [
@@ -172,7 +173,7 @@ export default function Home() {
     const plan = SUBSCRIPTION_PLANS[tier];
     const copy = planCopy[tier];
     return {
-      id: plan.id,
+      tier: plan.id,
       name: plan.name,
       badge: copy.badge,
       priceDisplay: plan.monthlyPriceCents === 0 ? "$0" : formatPlanPrice(plan.monthlyPriceCents),
@@ -466,42 +467,7 @@ export default function Home() {
           <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
             Start free, then raise the item cap as your archive grows. Every plan keeps OCR, enrichment, contacts, exports, and the dashboard included.
           </p>
-          <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
-            {pricingPlans.map((plan) => (
-              <Card
-                key={plan.id}
-                className={`relative h-full shadow-lg border-2 transition hover:-translate-y-1 hover:shadow-xl ${
-                  plan.badge ? "border-blue-500" : "border-gray-200"
-                }`}
-              >
-                <CardHeader className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-2xl text-gray-900">{plan.name}</CardTitle>
-                    {plan.badge && (
-                      <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-600">
-                        {plan.badge}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-4xl font-bold text-gray-900">{plan.priceDisplay}</span>
-                    <span className="text-sm text-gray-500">{plan.priceNote}</span>
-                  </div>
-                  <CardDescription className="text-base text-blue-600 font-medium">
-                    {plan.limit}
-                  </CardDescription>
-                  <p className="text-sm text-gray-600">{plan.description}</p>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm text-gray-600 list-disc list-inside">
-                    {plan.features.map((feature) => (
-                      <li key={feature}>{feature}</li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <HomepagePricingPlans plans={pricingPlans} />
         </div>
 
         {/* CTA Section */}

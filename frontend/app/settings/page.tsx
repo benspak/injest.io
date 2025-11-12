@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { AvatarMenu } from '@/components/avatar-menu';
@@ -18,6 +18,7 @@ import QRCode from 'qrcode';
 
 export default function SettingsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [authLoading, setAuthLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
   const [twoFactorStatus, setTwoFactorStatus] = useState<TwoFactorStatus | null>(null);
@@ -38,6 +39,7 @@ export default function SettingsPage() {
   const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>('free');
   const [itemLimit, setItemLimit] = useState<number | null>(null);
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
+  const [requestedTier, setRequestedTier] = useState<SubscriptionTier | null>(null);
 
   const loadTwoFactorStatus = useCallback(async () => {
     try {
@@ -123,6 +125,7 @@ export default function SettingsPage() {
         toast.error(message);
       } finally {
         setSubscriptionDialogOpen(false);
+        setRequestedTier(null);
       }
     },
     [loadIndexedCount, refreshCurrentUser]
@@ -133,7 +136,15 @@ export default function SettingsPage() {
   }, []);
 
   const openSubscriptionDialog = useCallback(() => {
+    setRequestedTier(null);
     setSubscriptionDialogOpen(true);
+  }, []);
+
+  const handleSubscriptionDialogChange = useCallback((open: boolean) => {
+    setSubscriptionDialogOpen(open);
+    if (!open) {
+      setRequestedTier(null);
+    }
   }, []);
 
   useEffect(() => {
@@ -160,6 +171,29 @@ export default function SettingsPage() {
     void loadTwoFactorStatus();
     void loadIndexedCount();
   }, [authReady, loadIndexedCount, loadTwoFactorStatus]);
+
+  useEffect(() => {
+    if (!authReady) {
+      return;
+    }
+
+    const upgradeParam = searchParams?.get('upgrade');
+    if (!upgradeParam) {
+      return;
+    }
+
+    if (['plus', 'power', 'pro'].includes(upgradeParam)) {
+      const tier = upgradeParam as SubscriptionTier;
+      setRequestedTier(tier);
+      setSubscriptionDialogOpen(true);
+    }
+
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('upgrade');
+      window.history.replaceState(null, '', url.toString());
+    }
+  }, [authReady, searchParams]);
 
   const resetSetupState = () => {
     setTwoFactorSetup(null);
@@ -630,12 +664,13 @@ export default function SettingsPage() {
 
       <SubscriptionPaymentDialog
         open={subscriptionDialogOpen}
-        onOpenChange={setSubscriptionDialogOpen}
+        onOpenChange={handleSubscriptionDialogChange}
         onPaymentComplete={handleSubscriptionComplete}
         onCancel={handleSubscriptionCancel}
         currentTier={effectiveSubscriptionTier}
         currentLimit={itemLimit}
         currentCount={indexedCount}
+        initialTier={requestedTier ?? undefined}
       />
 
     </div>

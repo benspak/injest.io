@@ -28,6 +28,7 @@ interface SubscriptionPaymentDialogProps {
   currentTier?: SubscriptionTier;
   currentLimit?: number | null;
   currentCount?: number | null;
+  initialTier?: SubscriptionTier | null;
 }
 
 function PaymentForm({
@@ -135,12 +136,13 @@ export function SubscriptionPaymentDialog({
   currentTier,
   currentLimit,
   currentCount,
+  initialTier = null,
 }: SubscriptionPaymentDialogProps) {
   const [stripePromise, setStripePromise] = useState<Stripe | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(DEFAULT_PAID_TIER);
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(initialTier ?? DEFAULT_PAID_TIER);
   const [activePlan, setActivePlan] = useState<{
     tier: SubscriptionTier;
     name: string;
@@ -188,22 +190,29 @@ export function SubscriptionPaymentDialog({
 
   // Create payment intent when dialog opens
   useEffect(() => {
-    if (open && stripePromise) {
-      const nextTier = (() => {
-        if (currentTier) {
-          const currentIndex = PAID_PLAN_ORDER.indexOf(currentTier);
-          if (currentTier === 'pro') {
-            return 'pro' as SubscriptionTier;
-          }
-          if (currentIndex >= 0 && currentIndex < PAID_PLAN_ORDER.length - 1) {
-            return PAID_PLAN_ORDER[currentIndex + 1];
-          }
-        }
-        return DEFAULT_PAID_TIER;
-      })();
-      setSelectedTier(nextTier);
+    if (!open) {
+      return;
     }
-  }, [currentTier, open, stripePromise]);
+
+    if (initialTier) {
+      setSelectedTier(initialTier);
+      return;
+    }
+
+    const nextTier = (() => {
+      if (currentTier) {
+        const currentIndex = PAID_PLAN_ORDER.indexOf(currentTier);
+        if (currentTier === 'pro') {
+          return 'pro' as SubscriptionTier;
+        }
+        if (currentIndex >= 0 && currentIndex < PAID_PLAN_ORDER.length - 1) {
+          return PAID_PLAN_ORDER[currentIndex + 1];
+        }
+      }
+      return DEFAULT_PAID_TIER;
+    })();
+    setSelectedTier(nextTier);
+  }, [currentTier, initialTier, open]);
 
   useEffect(() => {
     if (open && stripePromise) {

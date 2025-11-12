@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import type { SubscriptionTier } from '@/lib/subscriptionPlans';
 
 type VerifyStatus = 'verifying' | 'twoFactor' | 'success' | 'error';
 
@@ -22,6 +23,30 @@ function VerifyForm() {
   const [submitting, setSubmitting] = useState(false);
 
   const pendingUser = auth.getPendingTwoFactorUser();
+
+  const popCheckoutPlan = () => {
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    const stored = sessionStorage.getItem('checkoutPlan');
+    if (stored && ['plus', 'power', 'pro'].includes(stored)) {
+      sessionStorage.removeItem('checkoutPlan');
+      return stored as SubscriptionTier;
+    }
+    if (stored === 'free') {
+      sessionStorage.removeItem('checkoutPlan');
+    }
+    return null;
+  };
+
+  const redirectAfterVerification = () => {
+    const plan = popCheckoutPlan();
+    if (plan) {
+      router.push(`/settings?upgrade=${encodeURIComponent(plan)}`);
+    } else {
+      router.push('/dashboard');
+    }
+  };
 
   useEffect(() => {
     if (!token) {
@@ -42,7 +67,7 @@ function VerifyForm() {
           setStatus('success');
           setMessage('Email verified! Redirecting to dashboard...');
           setTimeout(() => {
-            router.push('/dashboard');
+            redirectAfterVerification();
           }, 2000);
         }
       })
@@ -82,7 +107,7 @@ function VerifyForm() {
       setStatus('success');
       setMessage('Two-factor verification successful! Redirecting to dashboard...');
       setTimeout(() => {
-        router.push('/dashboard');
+        redirectAfterVerification();
       }, 1500);
     } catch (error) {
       const apiError = error as { message?: string };

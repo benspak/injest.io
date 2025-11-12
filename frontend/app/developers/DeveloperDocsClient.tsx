@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 
 import 'swagger-ui-react/swagger-ui.css';
 
@@ -82,7 +81,6 @@ const externalApiEndpoints: ExternalEndpoint[] = [
 const externalApiBaseUrl = `${API_URL.replace(/\/+$/, '')}/api/external`;
 
 export default function DeveloperDocsClient() {
-  const router = useRouter();
   const docsRef = useRef<HTMLDivElement | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<User | null>(auth.getUser());
@@ -97,21 +95,48 @@ export default function DeveloperDocsClient() {
   const [generatedApiKey, setGeneratedApiKey] = useState<string | null>(null);
 
   useEffect(() => {
-    const restoreAuth = async () => {
-      await auth.restore();
-      const restoredUser = auth.getUser();
-      setCurrentUser(restoredUser ?? null);
-      setAuthLoading(false);
+    let isMounted = true;
 
-      if (!restoredUser) {
-        router.push('/login');
+    const restoreAuth = async () => {
+      try {
+        await auth.restore();
+        if (!isMounted) {
+          return;
+        }
+        const restoredUser = auth.getUser();
+        setCurrentUser(restoredUser ?? null);
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Failed to restore authentication state:', error);
+        }
+        if (isMounted) {
+          setCurrentUser(null);
+        }
+      } finally {
+        if (isMounted) {
+          setAuthLoading(false);
+        }
       }
     };
 
-    restoreAuth();
-  }, [router]);
+    void restoreAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const allowed = useMemo(() => hasPlusAccess(currentUser), [currentUser]);
+
+  useEffect(() => {
+    if (!allowed) {
+      setApiKeyInfo(null);
+      setGeneratedApiKey(null);
+      if (!authLoading) {
+        setApiKeyInfoLoading(false);
+      }
+    }
+  }, [allowed, authLoading]);
 
   const loadSpec = useCallback(async () => {
     try {
@@ -158,6 +183,16 @@ export default function DeveloperDocsClient() {
   }, []);
 
   const handleGenerateApiKey = useCallback(async () => {
+    if (!auth.isAuthenticated()) {
+      toast.error('Sign in to manage API keys.');
+      return;
+    }
+
+    if (!allowed) {
+      toast.error('Upgrade to Plus to manage API keys.');
+      return;
+    }
+
     try {
       setApiKeyActionLoading(true);
       setApiKeyActionType('generate');
@@ -177,9 +212,19 @@ export default function DeveloperDocsClient() {
       setApiKeyActionLoading(false);
       setApiKeyActionType(null);
     }
-  }, []);
+  }, [allowed]);
 
   const handleRevokeApiKey = useCallback(async () => {
+    if (!auth.isAuthenticated()) {
+      toast.error('Sign in to manage API keys.');
+      return;
+    }
+
+    if (!allowed) {
+      toast.error('Upgrade to Plus to manage API keys.');
+      return;
+    }
+
     if (!apiKeyInfo?.hasKey) {
       toast.error('No API key to revoke');
       return;
@@ -203,13 +248,13 @@ export default function DeveloperDocsClient() {
       setApiKeyActionLoading(false);
       setApiKeyActionType(null);
     }
-  }, [apiKeyInfo?.hasKey, loadApiKeyInfo]);
+  }, [allowed, apiKeyInfo?.hasKey, loadApiKeyInfo]);
 
   useEffect(() => {
-    if (!authLoading && allowed && !spec && !specLoading && !specError) {
+    if (!spec && !specLoading && !specError) {
       void loadSpec();
     }
-  }, [allowed, authLoading, loadSpec, spec, specError, specLoading]);
+  }, [loadSpec, spec, specError, specLoading]);
 
   useEffect(() => {
     if (!authLoading && allowed) {
@@ -242,39 +287,7 @@ export default function DeveloperDocsClient() {
     docsRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  if (authLoading) {
-    return <div className="container mx-auto px-4 py-16">Loading developer documentation…</div>;
-  }
-
-  if (!currentUser) {
-    return null;
-  }
-
-  if (!allowed) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-        <div className="container mx-auto max-w-3xl px-4 py-16">
-          <Card className="border border-blue-200 shadow-lg">
-            <CardContent className="space-y-4 pt-6">
-              <h1 className="text-3xl font-bold text-gray-900">Plus membership required</h1>
-              <p className="text-gray-700">
-                API access and developer tooling are available for Plus plans and above. Upgrade to unlock authenticated
-                API keys, semantic search integrations, and automation workflows.
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Link href="/settings">
-                  <Button>Manage subscription</Button>
-                </Link>
-                <Link href="/dashboard">
-                  <Button variant="outline">Back to dashboard</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  const isAuthenticated = Boolean(currentUser);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
@@ -286,9 +299,24 @@ export default function DeveloperDocsClient() {
               Build on top of Injest with secure authentication, flexible ingestion, and semantic search APIs.
             </p>
           </div>
-          <Link href="/dashboard">
-            <Button variant="ghost">← Back to Dashboard</Button>
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            {isAuthenticated ? (
+              <Link href="/dashboard">
+                <Button variant="ghost">← Back to Dashboard</Button>
+              </Link>
+            ) : (
+              !authLoading && (
+                <>
+                  <Link href="/login">
+                    <Button>Sign in</Button>
+                  </Link>
+                  <Link href="/">
+                    <Button variant="outline">Explore Injest</Button>
+                  </Link>
+                </>
+              )
+            )}
+          </div>
         </div>
 
         <Card className="border border-emerald-200 shadow-lg">
@@ -300,49 +328,85 @@ export default function DeveloperDocsClient() {
               Generate an API key to query your enriched data via REST without sharing your session token.
             </p>
 
-            {apiKeyInfoLoading ? (
-              <p className="text-sm text-gray-500">Loading API key details…</p>
-            ) : (
-              <div className="space-y-3">
-                <div className="rounded-md border border-dashed bg-emerald-50/60 p-3 text-sm text-emerald-900">
-                  <p>
-                    Key status{' '}
-                    <span className="font-semibold">
-                      {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
-                    </span>
-                  </p>
-                  <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
-                  <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
-                </div>
-
-                {generatedApiKey && (
-                  <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
-                      Your new API key
-                    </p>
-                    <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
-                    <p className="mt-2 text-xs text-amber-700">
-                      Copy this key now—you won&apos;t be able to see it again.
-                    </p>
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button onClick={handleGenerateApiKey} disabled={apiKeyActionLoading}>
-                    {apiKeyActionLoading && apiKeyActionType === 'generate'
-                      ? 'Generating…'
-                      : apiKeyInfo?.hasKey
-                        ? 'Regenerate API Key'
-                        : 'Generate API Key'}
-                  </Button>
-                  {apiKeyInfo?.hasKey ? (
-                    <Button variant="destructive" onClick={handleRevokeApiKey} disabled={apiKeyActionLoading}>
-                      {apiKeyActionLoading && apiKeyActionType === 'revoke' ? 'Revoking…' : 'Revoke Key'}
+            {!authLoading && !isAuthenticated ? (
+              <div className="rounded-md border border-dashed border-gray-300 bg-white/70 p-4 text-sm text-gray-700">
+                <p className="font-semibold text-gray-900">Create a free account to get started</p>
+                <p className="mt-2 text-gray-600">
+                  Sign in to generate API keys and track usage for your workspace.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link href="/login">
+                    <Button size="sm">Sign in</Button>
+                  </Link>
+                  <Link href="/">
+                    <Button variant="outline" size="sm">
+                      View plans
                     </Button>
-                  ) : null}
+                  </Link>
                 </div>
               </div>
-            )}
+            ) : null}
+
+            {isAuthenticated && !allowed ? (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                <p className="font-semibold">Upgrade required for API keys</p>
+                <p className="mt-2 text-blue-800">
+                  API access and developer tooling are available for Plus plans and above. Upgrade to unlock authenticated
+                  API keys, semantic search integrations, and automation workflows.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link href="/settings">
+                    <Button size="sm">Manage subscription</Button>
+                  </Link>
+                </div>
+              </div>
+            ) : null}
+
+            {isAuthenticated && allowed ? (
+              apiKeyInfoLoading ? (
+                <p className="text-sm text-gray-500">Loading API key details…</p>
+              ) : (
+                <div className="space-y-3">
+                  <div className="rounded-md border border-dashed bg-emerald-50/60 p-3 text-sm text-emerald-900">
+                    <p>
+                      Key status{' '}
+                      <span className="font-semibold">
+                        {apiKeyInfo?.hasKey ? 'Active' : 'Not generated'}
+                      </span>
+                    </p>
+                    <p>Created: {formatTimestamp(apiKeyInfo?.createdAt ?? null)}</p>
+                    <p>Last used: {formatTimestamp(apiKeyInfo?.lastUsedAt ?? null)}</p>
+                  </div>
+
+                  {generatedApiKey && (
+                    <div className="rounded-md border border-amber-300/70 bg-amber-50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
+                        Your new API key
+                      </p>
+                      <p className="mt-2 font-mono text-sm break-all">{generatedApiKey}</p>
+                      <p className="mt-2 text-xs text-amber-700">
+                        Copy this key now—you won&apos;t be able to see it again.
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Button onClick={handleGenerateApiKey} disabled={apiKeyActionLoading}>
+                      {apiKeyActionLoading && apiKeyActionType === 'generate'
+                        ? 'Generating…'
+                        : apiKeyInfo?.hasKey
+                          ? 'Regenerate API Key'
+                          : 'Generate API Key'}
+                    </Button>
+                    {apiKeyInfo?.hasKey ? (
+                      <Button variant="destructive" onClick={handleRevokeApiKey} disabled={apiKeyActionLoading}>
+                        {apiKeyActionLoading && apiKeyActionType === 'revoke' ? 'Revoking…' : 'Revoke Key'}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            ) : null}
 
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Available endpoints</p>

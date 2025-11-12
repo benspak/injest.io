@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { auth } from '@/lib/auth';
+import { SUBSCRIPTION_PLANS, type SubscriptionTier } from '@/lib/subscriptionPlans';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -15,6 +16,11 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const token = searchParams.get('token');
   const error = searchParams.get('error');
+  const planParam = searchParams.get('plan');
+  const plan: SubscriptionTier | null =
+    planParam && ['free', 'plus', 'power', 'pro'].includes(planParam)
+      ? (planParam as SubscriptionTier)
+      : null;
 
   // Handle token verification
   useEffect(() => {
@@ -31,6 +37,12 @@ function LoginForm() {
       setMessage(`Login failed: ${decodeURIComponent(error)}`);
     }
   }, [error]);
+
+  useEffect(() => {
+    if (plan) {
+      sessionStorage.setItem('checkoutPlan', plan);
+    }
+  }, [plan]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +85,13 @@ function LoginForm() {
               <p className={`text-sm ${message.includes('sent') || message.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
                 {message}
               </p>
+            )}
+
+            {plan && (
+              <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                You selected the <span className="font-semibold">{SUBSCRIPTION_PLANS[plan].name}</span>{' '}
+                plan. After verifying your email, we&apos;ll reopen checkout to finish upgrading.
+              </div>
             )}
           </form>
         </CardContent>
