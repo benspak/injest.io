@@ -9,7 +9,19 @@ dotenv.config();
 const X_CLIENT_ID = process.env.X_CLIENT_ID;
 const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET;
 // Use X_REDIRECT_URI if explicitly set, otherwise construct from API_URL
-const X_REDIRECT_URI = process.env.X_REDIRECT_URI || `${API_URL}/api/auth/xcom/callback`;
+// Handle cases where API_URL may or may not include /api
+const getRedirectUri = () => {
+    if (process.env.X_REDIRECT_URI) {
+        return process.env.X_REDIRECT_URI;
+    }
+    const baseUrl = API_URL.replace(/\/$/, ''); // Remove trailing slash
+    // If API_URL already ends with /api, don't add it again
+    if (baseUrl.endsWith('/api')) {
+        return `${baseUrl}/auth/xcom/callback`;
+    }
+    return `${baseUrl}/api/auth/xcom/callback`;
+};
+const X_REDIRECT_URI = getRedirectUri();
 const X_API_BASE_URL = 'https://api.x.com';
 const X_AUTH_BASE_URL = 'https://x.com';
 export class XcomService {
