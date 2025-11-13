@@ -33,17 +33,41 @@ export class XcomService {
             codeVerifier,
             mode,
         };
-        return jwt.sign(state, JWT_SECRET, { expiresIn: '10m' });
+        // Increased expiration to 15 minutes to account for user delays
+        return jwt.sign(state, JWT_SECRET, { expiresIn: '15m' });
     }
     /**
      * Verify and decode state token
      */
     verifyStateToken(stateToken) {
         try {
+            if (!stateToken || typeof stateToken !== 'string') {
+                throw new Error('State token is missing or invalid format');
+            }
             const decoded = jwt.verify(stateToken, JWT_SECRET);
             return decoded;
         }
         catch (error) {
+            // Check for specific JWT error types
+            if (error && typeof error === 'object') {
+                // TokenExpiredError check
+                if (error instanceof jwt.TokenExpiredError || error.name === 'TokenExpiredError') {
+                    const expiredAt = error.expiredAt;
+                    console.error('[X.com] State token expired:', expiredAt);
+                    throw new Error('State token has expired. Please try again.');
+                }
+                // JsonWebTokenError check (catches other JWT errors)
+                if (error instanceof jwt.JsonWebTokenError || error.name === 'JsonWebTokenError') {
+                    const message = error instanceof Error ? error.message : 'Invalid token';
+                    console.error('[X.com] Invalid state token:', message);
+                    throw new Error(`Invalid state token: ${message}`);
+                }
+            }
+            // Generic error handling
+            if (error instanceof Error) {
+                console.error('[X.com] State token verification error:', error.message);
+                throw error;
+            }
             throw new Error('Invalid or expired state token');
         }
     }
@@ -102,6 +126,10 @@ export class XcomService {
         if (!X_CLIENT_ID || !X_CLIENT_SECRET) {
             throw new Error('X.com OAuth credentials are not configured');
         }
+        if (!code || !state) {
+            throw new Error('Missing authorization code or state parameter');
+        }
+        console.log('[X.com] Handling OAuth callback with state length:', state?.length || 0);
         const stateData = this.verifyStateToken(state);
         const { userId, codeVerifier, mode } = stateData;
         // Exchange authorization code for access token

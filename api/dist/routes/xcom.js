@@ -69,21 +69,37 @@ router.get('/initiate', async (req, res) => {
 router.get('/callback', async (req, res) => {
     try {
         const { code, state, error } = req.query;
+        console.log('[X.com] OAuth callback received:', {
+            hasCode: !!code,
+            hasState: !!state,
+            error: error || null,
+            stateType: typeof state,
+            stateLength: typeof state === 'string' ? state.length : 0,
+        });
         if (error) {
             console.error('[X.com] OAuth error:', error);
             // Try to determine if this is a login or link flow from state
-            try {
-                const decoded = jwt.verify(state, JWT_SECRET);
-                if (decoded.mode === 'login') {
-                    return res.redirect(`${FRONTEND_URL}/login?error=xcom_oauth_denied`);
+            if (state && typeof state === 'string') {
+                try {
+                    const decoded = jwt.verify(state, JWT_SECRET);
+                    if (decoded.mode === 'login') {
+                        return res.redirect(`${FRONTEND_URL}/login?error=xcom_oauth_denied`);
+                    }
                 }
-            }
-            catch {
-                // State invalid, default to login
+                catch (err) {
+                    console.warn('[X.com] Could not decode state for error redirect:', err);
+                    // State invalid, default to login
+                }
             }
             return res.redirect(`${FRONTEND_URL}/login?error=xcom_oauth_denied`);
         }
         if (!code || !state || typeof code !== 'string' || typeof state !== 'string') {
+            console.error('[X.com] Missing or invalid code/state:', {
+                hasCode: !!code,
+                codeType: typeof code,
+                hasState: !!state,
+                stateType: typeof state,
+            });
             // Try to determine if this is a login or link flow
             if (state && typeof state === 'string') {
                 try {
@@ -92,7 +108,8 @@ router.get('/callback', async (req, res) => {
                         return res.redirect(`${FRONTEND_URL}/login?error=xcom_oauth_invalid`);
                     }
                 }
-                catch {
+                catch (err) {
+                    console.warn('[X.com] Could not decode state for invalid redirect:', err);
                     // State invalid, default to login
                 }
             }
@@ -120,6 +137,12 @@ router.get('/callback', async (req, res) => {
     }
     catch (error) {
         console.error('[X.com] Failed to handle OAuth callback:', error);
+        if (error instanceof Error) {
+            console.error('[X.com] Error details:', {
+                message: error.message,
+                stack: error.stack,
+            });
+        }
         // Try to determine if this is a login or link flow
         const stateParam = req.query.state;
         if (stateParam && typeof stateParam === 'string') {
@@ -129,7 +152,8 @@ router.get('/callback', async (req, res) => {
                     return res.redirect(`${FRONTEND_URL}/login?error=xcom_oauth_failed`);
                 }
             }
-            catch {
+            catch (err) {
+                console.warn('[X.com] Could not decode state for error redirect:', err);
                 // State invalid, default to login
             }
         }

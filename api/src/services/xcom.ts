@@ -73,7 +73,8 @@ export class XcomService {
       codeVerifier,
       mode,
     };
-    return jwt.sign(state, JWT_SECRET, { expiresIn: '10m' });
+    // Increased expiration to 15 minutes to account for user delays
+    return jwt.sign(state, JWT_SECRET, { expiresIn: '15m' });
   }
 
   /**
@@ -81,9 +82,32 @@ export class XcomService {
    */
   private verifyStateToken(stateToken: string): OAuthState {
     try {
+      if (!stateToken || typeof stateToken !== 'string') {
+        throw new Error('State token is missing or invalid format');
+      }
       const decoded = jwt.verify(stateToken, JWT_SECRET) as OAuthState;
       return decoded;
     } catch (error) {
+      // Check for specific JWT error types
+      if (error && typeof error === 'object') {
+        // TokenExpiredError check
+        if (error instanceof jwt.TokenExpiredError || (error as any).name === 'TokenExpiredError') {
+          const expiredAt = (error as any).expiredAt;
+          console.error('[X.com] State token expired:', expiredAt);
+          throw new Error('State token has expired. Please try again.');
+        }
+        // JsonWebTokenError check (catches other JWT errors)
+        if (error instanceof jwt.JsonWebTokenError || (error as any).name === 'JsonWebTokenError') {
+          const message = error instanceof Error ? error.message : 'Invalid token';
+          console.error('[X.com] Invalid state token:', message);
+          throw new Error(`Invalid state token: ${message}`);
+        }
+      }
+      // Generic error handling
+      if (error instanceof Error) {
+        console.error('[X.com] State token verification error:', error.message);
+        throw error;
+      }
       throw new Error('Invalid or expired state token');
     }
   }
@@ -157,6 +181,11 @@ export class XcomService {
       throw new Error('X.com OAuth credentials are not configured');
     }
 
+    if (!code || !state) {
+      throw new Error('Missing authorization code or state parameter');
+    }
+
+    console.log('[X.com] Handling OAuth callback with state length:', state?.length || 0);
     const stateData = this.verifyStateToken(state);
     const { userId, codeVerifier, mode } = stateData;
 
