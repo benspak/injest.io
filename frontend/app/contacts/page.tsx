@@ -41,10 +41,20 @@ export default function ContactsPage() {
   const [error, setError] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ mode: 'create' | 'edit'; contact?: Contact } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formValues, setFormValues] = useState<{ name: string; email: string; phone: string }>({
+  const [formValues, setFormValues] = useState<{
+    name: string;
+    email: string;
+    phone: string;
+    linkedinUrl: string;
+    xUrl: string;
+    githubUrl: string;
+  }>({
     name: '',
     email: '',
     phone: '',
+    linkedinUrl: '',
+    xUrl: '',
+    githubUrl: '',
   });
   const [formError, setFormError] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
@@ -389,7 +399,7 @@ export default function ContactsPage() {
 
   const resetDialog = useCallback(() => {
     setDialogState(null);
-    setFormValues({ name: '', email: '', phone: '' });
+    setFormValues({ name: '', email: '', phone: '', linkedinUrl: '', xUrl: '', githubUrl: '' });
     setFormError(null);
     setSavingContact(false);
   }, []);
@@ -408,7 +418,7 @@ export default function ContactsPage() {
 
   const openCreateDialog = useCallback(() => {
     setDialogState({ mode: 'create' });
-    setFormValues({ name: '', email: '', phone: '' });
+    setFormValues({ name: '', email: '', phone: '', linkedinUrl: '', xUrl: '', githubUrl: '' });
     setFormError(null);
     setIsDialogOpen(true);
   }, []);
@@ -419,17 +429,23 @@ export default function ContactsPage() {
       name: contact.name ?? '',
       email: contact.email ?? '',
       phone: contact.phone ?? '',
+      linkedinUrl: contact.linkedin_url ?? '',
+      xUrl: contact.x_url ?? '',
+      githubUrl: contact.github_url ?? '',
     });
     setFormError(null);
     setIsDialogOpen(true);
   }, []);
 
-  const handleFormChange = useCallback((field: 'name' | 'email' | 'phone', value: string) => {
-    setFormValues((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  }, []);
+  const handleFormChange = useCallback(
+    (field: 'name' | 'email' | 'phone' | 'linkedinUrl' | 'xUrl' | 'githubUrl', value: string) => {
+      setFormValues((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    },
+    []
+  );
 
   const handleSubmitContact = useCallback(async () => {
     if (!dialogState) {
@@ -439,6 +455,9 @@ export default function ContactsPage() {
     const trimmedName = formValues.name.trim();
     const trimmedEmail = formValues.email.trim();
     const trimmedPhone = formValues.phone.trim();
+    const trimmedLinkedinUrl = formValues.linkedinUrl.trim();
+    const trimmedXUrl = formValues.xUrl.trim();
+    const trimmedGithubUrl = formValues.githubUrl.trim();
 
     if (!trimmedName && !trimmedEmail && !trimmedPhone) {
       setFormError('Provide at least one of name, email, or phone.');
@@ -452,6 +471,9 @@ export default function ContactsPage() {
       name: trimmedName || null,
       email: trimmedEmail || null,
       phone: trimmedPhone || null,
+      linkedinUrl: trimmedLinkedinUrl || null,
+      xUrl: trimmedXUrl || null,
+      githubUrl: trimmedGithubUrl || null,
     };
 
     try {
@@ -624,6 +646,7 @@ export default function ContactsPage() {
                 <colgroup>
                   <col className="w-auto md:w-[7%]" />
                   <col className="w-auto md:w-[8%]" />
+                  <col className="w-auto md:w-[6%]" />
                   <col className="w-auto md:w-[5%]" />
                   <col className="w-auto md:w-[1.5%]" />
                 </colgroup>
@@ -634,6 +657,9 @@ export default function ContactsPage() {
                     </th>
                     <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
                       Email
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
+                      Social Profiles
                     </th>
                     <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
                       Last Updated
@@ -676,6 +702,46 @@ export default function ContactsPage() {
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 align-middle">
+                          <div className="flex flex-wrap gap-2">
+                            {contact.linkedin_url ? (
+                              <a
+                                href={contact.linkedin_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline text-xs"
+                                title="LinkedIn"
+                              >
+                                LinkedIn
+                              </a>
+                            ) : null}
+                            {contact.x_url ? (
+                              <a
+                                href={contact.x_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-900 hover:underline text-xs"
+                                title="X.com"
+                              >
+                                X.com
+                              </a>
+                            ) : null}
+                            {contact.github_url ? (
+                              <a
+                                href={contact.github_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-gray-700 hover:underline text-xs"
+                                title="GitHub"
+                              >
+                                GitHub
+                              </a>
+                            ) : null}
+                            {!contact.linkedin_url && !contact.x_url && !contact.github_url ? (
+                              <span className="text-muted-foreground text-xs">—</span>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700 align-middle break-words">
                           {updatedAt ? (
@@ -767,6 +833,39 @@ export default function ContactsPage() {
                 placeholder="+1 (555) 123-4567"
                 value={formValues.phone}
                 onChange={(event) => handleFormChange('phone', event.target.value)}
+                disabled={savingContact}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-linkedin">LinkedIn URL</Label>
+              <Input
+                id="contact-linkedin"
+                type="url"
+                placeholder="https://linkedin.com/in/username"
+                value={formValues.linkedinUrl}
+                onChange={(event) => handleFormChange('linkedinUrl', event.target.value)}
+                disabled={savingContact}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-x">X.com URL</Label>
+              <Input
+                id="contact-x"
+                type="url"
+                placeholder="https://x.com/username"
+                value={formValues.xUrl}
+                onChange={(event) => handleFormChange('xUrl', event.target.value)}
+                disabled={savingContact}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="contact-github">GitHub URL</Label>
+              <Input
+                id="contact-github"
+                type="url"
+                placeholder="https://github.com/username"
+                value={formValues.githubUrl}
+                onChange={(event) => handleFormChange('githubUrl', event.target.value)}
                 disabled={savingContact}
               />
             </div>

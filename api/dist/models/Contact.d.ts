@@ -8,6 +8,9 @@ export interface Contact {
     normalized_email: string;
     phone: string | null;
     normalized_phone: string;
+    linkedin_url: string | null;
+    x_url: string | null;
+    github_url: string | null;
     source_item_id: string | null;
     metadata: Record<string, unknown> | null;
     created_at: Date;
@@ -18,6 +21,9 @@ export interface UpsertContactInput {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
+    linkedinUrl?: string | null;
+    xUrl?: string | null;
+    githubUrl?: string | null;
     sourceItemId?: string | null;
     metadata?: Record<string, unknown> | null;
 }
@@ -30,6 +36,9 @@ export interface UpdateContactInput {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
+    linkedinUrl?: string | null;
+    xUrl?: string | null;
+    githubUrl?: string | null;
     metadata?: Record<string, unknown> | null;
 }
 export declare class ContactModel {

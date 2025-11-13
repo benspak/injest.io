@@ -10,6 +10,9 @@ export interface Contact {
   normalized_email: string;
   phone: string | null;
   normalized_phone: string;
+  linkedin_url: string | null;
+  x_url: string | null;
+  github_url: string | null;
   source_item_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
@@ -21,6 +24,9 @@ export interface UpsertContactInput {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  linkedinUrl?: string | null;
+  xUrl?: string | null;
+  githubUrl?: string | null;
   sourceItemId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
@@ -35,6 +41,9 @@ export interface UpdateContactInput {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  linkedinUrl?: string | null;
+  xUrl?: string | null;
+  githubUrl?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -66,6 +75,32 @@ const sanitizeNullable = (value?: string | null): string | null => {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+};
+
+const sanitizeUrl = (value?: string | null): string | null => {
+  if (value == null) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  // Remove trailing slashes and whitespace
+  const cleaned = trimmed.replace(/\/+$/, '').trim();
+  if (cleaned.length === 0 || cleaned === 'http://' || cleaned === 'https://') {
+    return null;
+  }
+  // If it already starts with http:// or https:// and has content after, use it as-is
+  if (cleaned.match(/^https?:\/\/.+/i)) {
+    return cleaned;
+  }
+  // If it doesn't start with a protocol, prepend https://
+  // Allow common patterns like domain.com/path or www.domain.com/path
+  if (cleaned.match(/^[a-zA-Z0-9]/)) {
+    return `https://${cleaned}`;
+  }
+  // If it doesn't look like a valid URL, return null
+  return null;
 };
 
 const mergeMetadata = (
@@ -115,6 +150,9 @@ export class ContactModel {
     const name = sanitizeNullable(input.name);
     const email = sanitizeNullable(input.email);
     const phone = sanitizeNullable(input.phone);
+    const linkedinUrl = sanitizeUrl(input.linkedinUrl);
+    const xUrl = sanitizeUrl(input.xUrl);
+    const githubUrl = sanitizeUrl(input.githubUrl);
 
     const normalizedName = normalizeName(name);
     const normalizedEmail = normalizeEmail(email);
@@ -136,10 +174,13 @@ export class ContactModel {
           normalized_email,
           phone,
           normalized_phone,
+          linkedin_url,
+          x_url,
+          github_url,
           source_item_id,
           metadata
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         ON CONFLICT (owner_id, normalized_email, normalized_phone)
         DO UPDATE SET
           name = CASE
@@ -166,6 +207,9 @@ export class ContactModel {
             WHEN EXCLUDED.normalized_phone <> '' THEN EXCLUDED.normalized_phone
             ELSE contacts.normalized_phone
           END,
+          linkedin_url = COALESCE(EXCLUDED.linkedin_url, contacts.linkedin_url),
+          x_url = COALESCE(EXCLUDED.x_url, contacts.x_url),
+          github_url = COALESCE(EXCLUDED.github_url, contacts.github_url),
           source_item_id = COALESCE(contacts.source_item_id, EXCLUDED.source_item_id),
           metadata = jsonb_strip_nulls(COALESCE(contacts.metadata, '{}'::jsonb) || COALESCE(EXCLUDED.metadata, '{}'::jsonb)),
           updated_at = CURRENT_TIMESTAMP
@@ -179,6 +223,9 @@ export class ContactModel {
         normalizedEmail,
         phone,
         normalizedPhone,
+        linkedinUrl,
+        xUrl,
+        githubUrl,
         input.sourceItemId ?? null,
         metadata,
       ]
@@ -299,6 +346,12 @@ export class ContactModel {
       updates.email !== undefined ? sanitizeNullable(updates.email) : existing.email;
     const phone =
       updates.phone !== undefined ? sanitizeNullable(updates.phone) : existing.phone;
+    const linkedinUrl =
+      updates.linkedinUrl !== undefined ? sanitizeUrl(updates.linkedinUrl) : existing.linkedin_url;
+    const xUrl =
+      updates.xUrl !== undefined ? sanitizeUrl(updates.xUrl) : existing.x_url;
+    const githubUrl =
+      updates.githubUrl !== undefined ? sanitizeUrl(updates.githubUrl) : existing.github_url;
 
     if (!name && !email && !phone) {
       throw new Error('At least one of name, email, or phone must be provided.');
@@ -323,10 +376,13 @@ export class ContactModel {
           normalized_email = $4,
           phone = $5,
           normalized_phone = $6,
-          metadata = COALESCE($7::jsonb, '{}'::jsonb),
+          linkedin_url = $7,
+          x_url = $8,
+          github_url = $9,
+          metadata = COALESCE($10::jsonb, '{}'::jsonb),
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $8
-          AND owner_id = $9
+        WHERE id = $11
+          AND owner_id = $12
         RETURNING *
       `,
       [
@@ -336,6 +392,9 @@ export class ContactModel {
         normalizedEmail,
         phone,
         normalizedPhone,
+        linkedinUrl,
+        xUrl,
+        githubUrl,
         metadata,
         contactId,
         ownerId,

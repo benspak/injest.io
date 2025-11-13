@@ -775,6 +775,103 @@ Return valid JSON only. Always end the email body with the signature: ${signatur
       };
     }
   }
+
+  /**
+   * Generate X.com post from email content and prompt
+   */
+  async generateXcomPost(input: {
+    prompt: string;
+    analysis: SendPromptAnalysis;
+    emailBody?: string;
+    emailSubject?: string;
+    items: SendPlanItemContext[];
+    user?: { first_name?: string | null; last_name?: string | null };
+  }): Promise<string> {
+    const { prompt, analysis, emailBody, emailSubject, items, user } = input;
+
+    // Build user name for potential mentions
+    const userName = user?.first_name || user?.last_name
+      ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+      : null;
+
+    const trimmedItems = items.slice(0, 5).map((item) => ({
+      id: item.id,
+      type: item.type ?? null,
+      title: item.title ?? null,
+      description: item.description ? item.description.slice(0, 200) : null,
+      url: item.url ?? null,
+    }));
+
+    const payload = {
+      prompt,
+      analysis,
+      emailSubject,
+      emailBody: emailBody ? emailBody.slice(0, 500) : null,
+      items: trimmedItems,
+      userName,
+    };
+
+    const instruction = `You assist the user in preparing an X.com (Twitter) post. Transform the outreach content into an engaging X.com post.
+
+Requirements:
+- Maximum 280 characters (strict limit)
+- Engaging and concise
+- Use 1-3 relevant hashtags if appropriate
+- Include links if relevant (count as ~23 characters)
+- Optimize for X.com audience (more casual than email)
+- Keep it authentic and conversational
+- Avoid email signatures or formal closings
+
+${emailBody ? 'The user has an email draft that they want to adapt for X.com.' : 'Generate a new X.com post based on the prompt.'}
+
+Respond with JSON only:
+{
+  "post": "the X.com post text (max 280 chars)"
+}
+
+Return valid JSON only.`;
+
+    await this.waitForRateLimit();
+    const response = await this.executeWithRetry(async () => {
+      return await this.client.chat.completions.create({
+        model: this.ADVANCED_TASK_MODEL,
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert social media assistant specializing in X.com (Twitter) posts. Always return valid JSON with a post field containing the X.com post text (max 280 characters).',
+          },
+          {
+            role: 'user',
+            content: `${instruction}\n\nContext:\n${JSON.stringify(payload, null, 2)}`,
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 150,
+        response_format: { type: 'json_object' },
+      });
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      // Fallback: create a simple post from the analysis
+      const fallbackPost = analysis.summary.slice(0, 250);
+      return fallbackPost;
+    }
+
+    try {
+      const parsed = JSON.parse(content);
+      const post = typeof parsed.post === 'string' && parsed.post.trim()
+        ? parsed.post.trim().substring(0, 280)
+        : analysis.summary.slice(0, 250);
+
+      // Ensure we don't exceed 280 characters
+      return post.length > 280 ? post.substring(0, 277) + '...' : post;
+    } catch (error) {
+      console.warn('[OpenAI] Failed to parse X.com post JSON', error);
+      // Fallback: create a simple post from the analysis
+      return analysis.summary.slice(0, 250);
+    }
+  }
 }
 
 export const openAIService = new OpenAIService();

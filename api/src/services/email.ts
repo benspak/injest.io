@@ -352,7 +352,10 @@ export class EmailService {
 
     const fromAddress = fromEmail || process.env.OUTBOUND_SEND_EMAIL || 'Injest <noreply@injest.io>';
 
-    const htmlContent =
+    const emailSignature = '-- Email generated via Injest.io --';
+    const emailSignatureHtml = '<p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">-- Email generated via Injest.io --</p>';
+
+    let htmlContent =
       bodyHtml ??
       (bodyText
         ? bodyText
@@ -365,7 +368,10 @@ export class EmailService {
             .join('\n')
         : '<p></p>');
 
-    const textContent =
+    // Append signature to HTML content
+    htmlContent = `${htmlContent}${emailSignatureHtml}`;
+
+    let textContent =
       bodyText ??
       (bodyHtml
         ? bodyHtml
@@ -374,6 +380,9 @@ export class EmailService {
             .replace(/<[^>]*>/g, '')
             .trim()
         : '');
+
+    // Append signature to text content
+    textContent = textContent ? `${textContent}\n\n${emailSignature}` : emailSignature;
 
     let preparedAttachments:
       | Array<{ filename: string; content: string; contentType: string }>

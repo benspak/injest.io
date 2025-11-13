@@ -106,6 +106,20 @@ export declare class OpenAIService {
             last_name?: string | null;
         };
     }): Promise<SendPlanRecommendation>;
+    /**
+     * Generate X.com post from email content and prompt
+     */
+    generateXcomPost(input: {
+        prompt: string;
+        analysis: SendPromptAnalysis;
+        emailBody?: string;
+        emailSubject?: string;
+        items: SendPlanItemContext[];
+        user?: {
+            first_name?: string | null;
+            last_name?: string | null;
+        };
+    }): Promise<string>;
 }
 export declare const openAIService: OpenAIService;
 //# sourceMappingURL=openai.d.ts.map

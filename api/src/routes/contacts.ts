@@ -334,6 +334,9 @@ router.post('/', async (req: AuthRequest, res: express.Response) => {
     const name = sanitizeString(req.body?.name);
     const email = sanitizeString(req.body?.email);
     const phone = sanitizeString(req.body?.phone);
+    const linkedinUrl = sanitizeString(req.body?.linkedin_url ?? req.body?.linkedinUrl);
+    const xUrl = sanitizeString(req.body?.x_url ?? req.body?.xUrl);
+    const githubUrl = sanitizeString(req.body?.github_url ?? req.body?.githubUrl);
     const sourceItemId = sanitizeString(req.body?.source_item_id ?? req.body?.sourceItemId);
 
     if (!name && !email && !phone) {
@@ -352,6 +355,9 @@ router.post('/', async (req: AuthRequest, res: express.Response) => {
       name,
       email,
       phone,
+      linkedinUrl,
+      xUrl,
+      githubUrl,
       sourceItemId: sourceItemId ?? undefined,
       metadata: {
         source: 'manual',
@@ -395,6 +401,18 @@ router.patch('/:id', async (req: AuthRequest, res: express.Response) => {
       name: req.body?.name !== undefined ? sanitizeString(req.body.name) : undefined,
       email: req.body?.email !== undefined ? sanitizeString(req.body.email) : undefined,
       phone: req.body?.phone !== undefined ? sanitizeString(req.body.phone) : undefined,
+      linkedinUrl:
+        req.body?.linkedin_url !== undefined || req.body?.linkedinUrl !== undefined
+          ? sanitizeString(req.body.linkedin_url ?? req.body.linkedinUrl)
+          : undefined,
+      xUrl:
+        req.body?.x_url !== undefined || req.body?.xUrl !== undefined
+          ? sanitizeString(req.body.x_url ?? req.body.xUrl)
+          : undefined,
+      githubUrl:
+        req.body?.github_url !== undefined || req.body?.githubUrl !== undefined
+          ? sanitizeString(req.body.github_url ?? req.body.githubUrl)
+          : undefined,
       metadata:
         req.body?.metadata !== undefined && typeof req.body.metadata === 'object'
           ? (req.body.metadata as Record<string, unknown> | null)

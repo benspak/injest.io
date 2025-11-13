@@ -199,6 +199,9 @@ const swaggerDefinition = {
                     name: { type: 'string', nullable: true },
                     email: { type: 'string', format: 'email', nullable: true },
                     phone: { type: 'string', nullable: true },
+                    linkedin_url: { type: 'string', format: 'uri', nullable: true },
+                    x_url: { type: 'string', format: 'uri', nullable: true },
+                    github_url: { type: 'string', format: 'uri', nullable: true },
                     source_item_id: { type: 'string', format: 'uuid', nullable: true },
                     metadata: {
                         type: 'object',
@@ -233,6 +236,9 @@ const swaggerDefinition = {
                     name: { type: 'string', nullable: true, example: 'Avery Example' },
                     email: { type: 'string', format: 'email', nullable: true, example: 'avery@example.com' },
                     phone: { type: 'string', nullable: true, example: '+15551234567' },
+                    linkedin_url: { type: 'string', format: 'uri', nullable: true, example: 'https://linkedin.com/in/avery' },
+                    x_url: { type: 'string', format: 'uri', nullable: true, example: 'https://x.com/avery' },
+                    github_url: { type: 'string', format: 'uri', nullable: true, example: 'https://github.com/avery' },
                     metadata: {
                         type: 'object',
                         nullable: true,

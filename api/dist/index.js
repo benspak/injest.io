@@ -17,6 +17,7 @@ import sendRoutes from './routes/send.js';
 import profilesRoutes from './routes/profiles.js';
 import { swaggerSpec } from './swagger.js';
 import externalRoutes from './routes/external.js';
+import xcomRoutes from './routes/xcom.js';
 import './config/database.js';
 import { requirePlusTier } from './middleware/requirePlusTier.js';
 dotenv.config();
@@ -72,6 +73,7 @@ app.get('/api/openapi.json', requirePlusTier, (req, res) => {
     res.json(swaggerSpec);
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/xcom', xcomRoutes);
 app.use('/api/items', itemsRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/generate', generateRoutes);

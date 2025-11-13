@@ -102,6 +102,9 @@ export interface Contact {
   name: string | null;
   email: string | null;
   phone: string | null;
+  linkedin_url: string | null;
+  x_url: string | null;
+  github_url: string | null;
   source_item_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
@@ -344,8 +347,10 @@ export interface SendExecuteAttachment {
 }
 
 export interface ExecuteSendRequest {
-  subject: string;
-  body: string;
+  platforms: Array<'email' | 'xcom'>;
+  subject?: string;
+  body?: string;
+  xcomPost?: string;
   contactId?: string | null;
   toEmail?: string | null;
   cc?: string[];
@@ -354,12 +359,17 @@ export interface ExecuteSendRequest {
   attachments?: SendExecuteAttachment[];
   prompt?: string;
   recommendation?: SendPlanRecommendation;
+  analysis?: SendPlanAnalysis;
 }
 
 export interface ExecuteSendResponse {
   success: boolean;
   sentAt: string;
-  itemId: string;
+  results?: {
+    email?: { success: boolean; error?: string; itemId?: string };
+    xcom?: { success: boolean; error?: string; tweetId?: string };
+  };
+  itemId?: string; // Deprecated: use results.email.itemId
   contact: SendPlanContact | null;
 }
 
@@ -697,11 +707,14 @@ class ApiClient {
     return this.request<{ count: number }>(`/api/contacts/count${query ? `?${query}` : ''}`);
   }
 
-  async createContact(payload: { name?: string | null; email?: string | null; phone?: string | null; metadata?: Record<string, unknown> | null; sourceItemId?: string | null }): Promise<Contact> {
+  async createContact(payload: { name?: string | null; email?: string | null; phone?: string | null; linkedinUrl?: string | null; xUrl?: string | null; githubUrl?: string | null; metadata?: Record<string, unknown> | null; sourceItemId?: string | null }): Promise<Contact> {
     const body: Record<string, unknown> = {};
     if (payload.name !== undefined) body.name = payload.name;
     if (payload.email !== undefined) body.email = payload.email;
     if (payload.phone !== undefined) body.phone = payload.phone;
+    if (payload.linkedinUrl !== undefined) body.linkedin_url = payload.linkedinUrl;
+    if (payload.xUrl !== undefined) body.x_url = payload.xUrl;
+    if (payload.githubUrl !== undefined) body.github_url = payload.githubUrl;
     if (payload.metadata !== undefined) body.metadata = payload.metadata;
     if (payload.sourceItemId !== undefined) body.source_item_id = payload.sourceItemId;
 
@@ -713,11 +726,14 @@ class ApiClient {
     return response.contact;
   }
 
-  async updateContact(contactId: string, payload: { name?: string | null; email?: string | null; phone?: string | null; metadata?: Record<string, unknown> | null }): Promise<Contact> {
+  async updateContact(contactId: string, payload: { name?: string | null; email?: string | null; phone?: string | null; linkedinUrl?: string | null; xUrl?: string | null; githubUrl?: string | null; metadata?: Record<string, unknown> | null }): Promise<Contact> {
     const body: Record<string, unknown> = {};
     if (payload.name !== undefined) body.name = payload.name;
     if (payload.email !== undefined) body.email = payload.email;
     if (payload.phone !== undefined) body.phone = payload.phone;
+    if (payload.linkedinUrl !== undefined) body.linkedin_url = payload.linkedinUrl;
+    if (payload.xUrl !== undefined) body.x_url = payload.xUrl;
+    if (payload.githubUrl !== undefined) body.github_url = payload.githubUrl;
     if (payload.metadata !== undefined) body.metadata = payload.metadata;
 
     const response = await this.request<{ contact: Contact }>(`/api/contacts/${contactId}`, {
@@ -1071,6 +1087,36 @@ class ApiClient {
     return this.request<ExecuteSendResponse>('/api/send/execute', {
       method: 'POST',
       body: JSON.stringify(payload),
+    });
+  }
+
+  // X.com OAuth
+  async initiateXcomLoginOAuth(): Promise<void> {
+    // Redirect to OAuth login endpoint (public, no auth required)
+    window.location.href = `${API_URL}/api/auth/xcom/login`;
+  }
+
+  async initiateXcomOAuth(): Promise<void> {
+    // Get token from storage
+    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    if (!token) {
+      throw new Error('No authentication token available');
+    }
+    // Redirect to OAuth initiation endpoint with token as query parameter
+    // This is necessary because redirects can't include Authorization headers
+    window.location.href = `${API_URL}/api/auth/xcom/initiate?token=${encodeURIComponent(token)}`;
+  }
+
+  async getXcomStatus(): Promise<{ connected: boolean; username: string | null; xUserId: string | null }> {
+    return this.request<{ connected: boolean; username: string | null; xUserId: string | null }>(
+      '/api/auth/xcom/status',
+      { method: 'GET' }
+    );
+  }
+
+  async disconnectXcom(): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/api/auth/xcom/disconnect', {
+      method: 'POST',
     });
   }
 
