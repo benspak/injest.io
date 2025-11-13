@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
-import { JWT_SECRET } from '../config/auth.js';
+import { JWT_SECRET, API_URL } from '../config/auth.js';
 import { XcomOAuthTokenModel, type XcomOAuthToken } from '../models/XcomOAuthToken.js';
 import { UserModel } from '../models/User.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
@@ -10,7 +10,8 @@ dotenv.config();
 
 const X_CLIENT_ID = process.env.X_CLIENT_ID;
 const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET;
-const X_REDIRECT_URI = process.env.X_REDIRECT_URI || 'http://localhost:5555/api/auth/xcom/callback';
+// Use X_REDIRECT_URI if explicitly set, otherwise construct from API_URL
+const X_REDIRECT_URI = process.env.X_REDIRECT_URI || `${API_URL}/api/auth/xcom/callback`;
 const X_API_BASE_URL = 'https://api.x.com';
 const X_AUTH_BASE_URL = 'https://x.com';
 
