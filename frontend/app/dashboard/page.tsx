@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info } from 'lucide-react';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -109,6 +109,55 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <div className="space-y-6">
+          {/* Get Started Section */}
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Info className="h-5 w-5 text-blue-600" />
+                </div>
+                <CardTitle className="text-lg">Get Started</CardTitle>
+              </div>
+              <CardDescription className="text-gray-700">
+                Start adding content to your inbox in three easy ways
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Upload className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Upload Files</p>
+                    <p className="text-sm text-gray-600">Upload documents, PDFs, and more</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Bookmark className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Add Bookmarks</p>
+                    <p className="text-sm text-gray-600">Save web pages and links</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Mail className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Forward Email</p>
+                    <p className="text-sm text-gray-600">
+                      Forward emails to{' '}
+                      <span className="font-mono font-semibold text-blue-700">input@injest.io</span>
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Quick Links Section */}
           <div>
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Links</h2>
