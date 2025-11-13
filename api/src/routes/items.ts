@@ -766,10 +766,6 @@ async function processQueuedUpload(job: QueuedUploadJob, loggerPrefix = '[UPLOAD
 // Create item (unified structure)
 export async function handleCreateItem(req: AuthRequest, res: express.Response) {
   try {
-    // Log incoming request for debugging
-    console.log('[DEBUG] Creating item - body:', req.body);
-    console.log('[DEBUG] Files:', req.files);
-
     const { title, description, url, notes, tags } = req.body;
 
     if (!req.user) {

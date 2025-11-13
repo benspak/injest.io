@@ -81,14 +81,6 @@ router.get('/callback', async (req: express.Request, res: express.Response) => {
   try {
     const { code, state, error } = req.query;
 
-    console.log('[X.com] OAuth callback received:', {
-      hasCode: !!code,
-      hasState: !!state,
-      error: error || null,
-      stateType: typeof state,
-      stateLength: typeof state === 'string' ? state.length : 0,
-    });
-
     if (error) {
       console.error('[X.com] OAuth error:', error);
       // Try to determine if this is a login or link flow from state

@@ -11,7 +11,6 @@ import generateRoutes from './routes/generate.js';
 import emailRoutes from './routes/email.js';
 import feedbackRoutes from './routes/feedback.js';
 import paymentRoutes from './routes/payment.js';
-import tasksRoutes from './routes/tasks.js';
 import contactsRoutes from './routes/contacts.js';
 import sendRoutes from './routes/send.js';
 import profilesRoutes from './routes/profiles.js';
@@ -34,15 +33,8 @@ const urlencodedParser = express.urlencoded({ extended: true });
 // Conditional body parsing - skip multipart/form-data (handled by multer)
 app.use((req, res, next) => {
     const contentType = req.headers['content-type'] || '';
-    // Debug logging (remove after testing)
-    if (req.method === 'POST' && (req.path.includes('/items') || req.path.includes('/profiles'))) {
-        console.log(`[DEBUG] ${req.method} ${req.path} - Content-Type: ${contentType}`);
-    }
     // Skip parsing for multipart/form-data - let multer handle it
     if (contentType.includes('multipart/form-data')) {
-        if (req.method === 'POST' && (req.path.includes('/items') || req.path.includes('/profiles'))) {
-            console.log('[DEBUG] Skipping body parsing for multipart/form-data');
-        }
         return next();
     }
     // Skip parsing for GET/HEAD/OPTIONS requests (no body)
@@ -80,7 +72,6 @@ app.use('/api/generate', generateRoutes);
 app.use('/api/email', emailRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/payment', paymentRoutes);
-app.use('/api/tasks', tasksRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/send', sendRoutes);
 app.use('/api/profiles', profilesRoutes);

@@ -63,7 +63,7 @@ export default function Home() {
               <Link href="/login">Start Free</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6">
-              <Link href="/dashboard">Explore the Dashboard</Link>
+              <Link href="/inbox">Explore the Inbox</Link>
             </Button>
           </div>
         </div>
@@ -159,11 +159,6 @@ export default function Home() {
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Convert items into tasks</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
                 <CardTitle>Export your data</CardTitle>
               </CardHeader>
               <CardContent>
@@ -220,7 +215,7 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    Collect inspiration, save reference materials, and convert items into actionable tasks for your projects.
+                    Collect inspiration and save reference materials for your projects.
                   </p>
                 </CardContent>
               </Card>
@@ -360,16 +355,6 @@ export default function Home() {
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Turn items into tasks</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Convert any saved item into an actionable task
-                  </p>
-                </CardContent>
-              </Card>
             </div>
           </div>
         </div>
@@ -502,7 +487,7 @@ export default function Home() {
                 <Link href="/login">Start Free</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6 bg-transparent border-white text-white hover:bg-white hover:text-blue-600">
-                <Link href="/dashboard">Explore the Dashboard</Link>
+                <Link href="/inbox">Explore the Inbox</Link>
               </Button>
             </div>
           </div>

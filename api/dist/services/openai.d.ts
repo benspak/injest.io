@@ -42,7 +42,6 @@ export interface SendPlanRecommendation {
     }>;
     notes?: string | null;
     confidence?: number | null;
-    followUpTasks?: string[] | null;
     suggestedSearchQuery?: string | null;
 }
 export declare class OpenAIService {
@@ -91,10 +90,6 @@ export declare class OpenAIService {
      * Generate email summary as 3 bullet points
      */
     generateEmailSummary(emailBody: string): Promise<string[]>;
-    processTaskPrompt(prompt: string, item: any, task: any, fileContent?: string): Promise<{
-        itemUpdates: Record<string, unknown>;
-        taskUpdates: Record<string, unknown>;
-    }>;
     analyzeSendPrompt(prompt: string): Promise<SendPromptAnalysis>;
     generateSendPlan(input: {
         prompt: string;

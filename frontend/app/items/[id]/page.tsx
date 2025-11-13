@@ -166,8 +166,8 @@ export default function ItemDetailPage() {
       <header className="bg-white border-b">
         <div className="mx-auto flex w-full max-w-4xl items-center justify-between px-4 py-4">
           <div className="flex flex-col gap-1">
-            <Link href="/tasks" className="text-sm text-blue-600 hover:underline">
-              ← Back to Tasks
+            <Link href="/inbox" className="text-sm text-blue-600 hover:underline">
+              ← Back to Inbox
             </Link>
             <h1 className="text-xl font-semibold">Item Details</h1>
           </div>
@@ -186,9 +186,9 @@ export default function ItemDetailPage() {
               variant="outline"
               size="sm"
               className="text-xs sm:text-sm"
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/inbox')}
             >
-              Dashboard
+              Inbox
             </Button>
             <FeedbackDialog
               userEmail={currentUser?.email}

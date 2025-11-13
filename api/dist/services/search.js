@@ -187,14 +187,6 @@ export class SearchService {
         if (cacheKey) {
             const cached = this.getFromCache(cacheKey);
             if (cached) {
-                console.debug('[Search] cache hit', {
-                    userId,
-                    query: queryPreview,
-                    filters: filterSignature,
-                    durationMs: Date.now() - startedAt,
-                    results: cached.length,
-                    limit,
-                });
                 return cached;
             }
         }
@@ -206,17 +198,6 @@ export class SearchService {
         if (cacheKey && user?.id) {
             this.storeInCache(user.id, cacheKey, combinedResults);
         }
-        console.debug('[Search] executed', {
-            userId,
-            query: queryPreview,
-            filters: filterSignature,
-            limit,
-            durationMs: Date.now() - startedAt,
-            semanticCount: semanticResults.length,
-            textCount: textResults.length,
-            resultCount: combinedResults.length,
-            cacheable: Boolean(cacheKey),
-        });
         return combinedResults;
     }
     async semanticSearch(user, query, searchTerms, limit, filters) {

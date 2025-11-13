@@ -593,9 +593,6 @@ async function processQueuedUpload(job, loggerPrefix = '[UPLOAD]') {
 // Create item (unified structure)
 export async function handleCreateItem(req, res) {
     try {
-        // Log incoming request for debugging
-        console.log('[DEBUG] Creating item - body:', req.body);
-        console.log('[DEBUG] Files:', req.files);
         const { title, description, url, notes, tags } = req.body;
         if (!req.user) {
             return res.status(401).json({ error: 'Unauthorized' });

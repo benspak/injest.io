@@ -51,7 +51,6 @@ export interface SendPlanRecommendation {
   }>;
   notes?: string | null;
   confidence?: number | null;
-  followUpTasks?: string[] | null;
   suggestedSearchQuery?: string | null;
 }
 
@@ -182,7 +181,7 @@ export class OpenAIService {
 
     const prompt = `Classify this content. Respond with JSON only:
 {
-  "type": "note|link|file|email|task",
+  "type": "note|link|file|email",
   "category": "brief category",
   "tags": ["tag1", "tag2", "tag3"],
   "summary": "max 200 chars"
@@ -504,25 +503,6 @@ Email: ${contentPreview}`;
     }
   }
 
-  async processTaskPrompt(
-    prompt: string,
-    item: any,
-    task: any,
-    fileContent?: string
-  ): Promise<{ itemUpdates: Record<string, unknown>; taskUpdates: Record<string, unknown> }> {
-    // Placeholder implementation – extend with OpenAI powered updates as needed
-    console.log('[OpenAI] processTaskPrompt invoked', {
-      prompt,
-      itemId: item?.id,
-      taskId: task?.id,
-      hasFileContent: Boolean(fileContent),
-    });
-
-    return {
-      itemUpdates: {},
-      taskUpdates: {},
-    };
-  }
 
   async analyzeSendPrompt(prompt: string): Promise<SendPromptAnalysis> {
     const instruction = `You help a user draft outreach emails. Analyze the request and respond with JSON only:
@@ -657,7 +637,6 @@ User request: ${prompt}`;
   ],
   "notes": "additional suggestions or follow-up reminders",
   "confidence": 0.0-1.0 number,
-  "followUpTasks": ["optional checklist"],
   "suggestedSearchQuery": "refined search query for more context"
 }
 
@@ -694,7 +673,6 @@ Return valid JSON only. Always end the email body with the signature: ${signatur
         recommendedContactId: null,
         recommendedContactEmail: null,
         contactReason: null,
-        followUpTasks: null,
         suggestedSearchQuery: null,
       };
     }
@@ -749,11 +727,6 @@ Return valid JSON only. Always end the email body with the signature: ${signatur
           typeof parsed.confidence === 'number' && Number.isFinite(parsed.confidence)
             ? Math.min(Math.max(parsed.confidence, 0), 1)
             : null,
-        followUpTasks: Array.isArray(parsed.followUpTasks)
-          ? parsed.followUpTasks
-              .filter((item: unknown): item is string => typeof item === 'string' && item.trim().length > 0)
-              .slice(0, 5)
-          : null,
         suggestedSearchQuery:
           typeof parsed.suggestedSearchQuery === 'string' && parsed.suggestedSearchQuery.trim()
             ? parsed.suggestedSearchQuery.trim()
@@ -770,7 +743,6 @@ Return valid JSON only. Always end the email body with the signature: ${signatur
         recommendedContactId: null,
         recommendedContactEmail: null,
         contactReason: null,
-        followUpTasks: null,
         suggestedSearchQuery: null,
       };
     }

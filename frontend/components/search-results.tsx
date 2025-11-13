@@ -209,7 +209,7 @@ export function SearchResults({ results }: SearchResultsProps) {
     const derivedTypeRaw =
       typeof documentMetadata.type === 'string' ? documentMetadata.type.toLowerCase().trim() : undefined;
     const derivedType: Item['type'] =
-      derivedTypeRaw && ['note', 'link', 'file', 'email', 'task'].includes(derivedTypeRaw)
+      derivedTypeRaw && ['note', 'link', 'file', 'email'].includes(derivedTypeRaw)
         ? (derivedTypeRaw as Item['type'])
         : undefined;
     const derivedUrl =

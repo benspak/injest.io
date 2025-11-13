@@ -2,7 +2,6 @@
 
 import { MouseEvent, useState } from 'react';
 import { toast } from 'sonner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -13,19 +12,18 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
-import { apiClient, Item, LinkMetadata, TaskifyResponse } from '@/lib/api';
+import { apiClient, Item, LinkMetadata } from '@/lib/api';
 import { Share2 } from 'lucide-react';
 import { ShareItemDialog } from '@/components/share-item-dialog';
 
 interface ItemListProps {
   items: Item[];
   onDelete?: (itemId: string) => void;
-  onTaskCreated?: (response: TaskifyResponse) => void;
 }
 
 type Attachment = NonNullable<Item['attachments']>[number];
 
-export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
+export function ItemList({ items, onDelete }: ItemListProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [itemDetails, setItemDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -43,8 +41,6 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-  const [taskifyLoading, setTaskifyLoading] = useState<Set<string>>(new Set());
-  const [taskifiedItems, setTaskifiedItems] = useState<Set<string>>(new Set());
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{
     itemId: string;
@@ -93,6 +89,43 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const formatRelativeTime = (date: Date) => {
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) {
+      return 'just now';
+    }
+
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes}m ago`;
+    }
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return `${diffInHours}h ago`;
+    }
+
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) {
+      return `${diffInDays}d ago`;
+    }
+
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) {
+      return `${diffInWeeks}w ago`;
+    }
+
+    const diffInMonths = Math.floor(diffInDays / 30);
+    if (diffInMonths < 12) {
+      return `${diffInMonths}mo ago`;
+    }
+
+    const diffInYears = Math.floor(diffInDays / 365);
+    return `${diffInYears}y ago`;
   };
 
   const fetchLinkMetadata = async (itemId: string, url: string) => {
@@ -398,53 +431,6 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
     setShareDialogOpen(true);
   };
 
-  const handleTaskifyItem = async (item: Item) => {
-    if (item.isResendEmail) {
-      toast.error('Import the email as an item before turning it into a task.');
-      return;
-    }
-
-    if (taskifyLoading.has(item.id)) {
-      return;
-    }
-
-    setTaskifyLoading((prev) => {
-      const next = new Set(prev);
-      next.add(item.id);
-      return next;
-    });
-
-    try {
-      const defaultDue = new Date();
-      defaultDue.setDate(defaultDue.getDate() + 1);
-      const dueISOString = defaultDue.toISOString();
-
-      const response = await apiClient.taskifyItem(item.id, dueISOString);
-
-      setTaskifiedItems((prev) => {
-        const next = new Set(prev);
-        next.add(item.id);
-        return next;
-      });
-
-      if (selectedItem?.id === item.id && response.item) {
-        setItemDetails(response.item);
-        setSelectedItem(response.item);
-      }
-
-      onTaskCreated?.(response);
-      toast.success('Task created. Manage it on the Tasks page.');
-    } catch (error: any) {
-      console.error('Error creating task:', error);
-      toast.error(error?.message || 'Failed to create task');
-    } finally {
-      setTaskifyLoading((prev) => {
-        const next = new Set(prev);
-        next.delete(item.id);
-        return next;
-      });
-    }
-  };
 
 
 
@@ -589,9 +575,9 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
 
   return (
     <>
-      <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
+      <div className="space-y-0">
         {items.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8 md:col-span-2">No items yet</p>
+          <p className="text-center text-muted-foreground py-8">No items yet</p>
         ) : (
           items.map((item) => {
             const display = getItemDisplay(item);
@@ -604,25 +590,65 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
               fetchLinkMetadata(item.id, item.url);
             }
 
+            // Get title for display
+            const itemTitle = itemMetadata?.title || display.title || item.title || 'Untitled';
+
+            // Get description preview
+            const descriptionPreview = itemMetadata?.description || display.description || '';
+            const truncatedDescription = descriptionPreview.length > 150
+              ? descriptionPreview.substring(0, 150) + '...'
+              : descriptionPreview;
+
+            // Format date for compact display
+            const date = new Date(item.created_at);
+            const timeAgo = formatRelativeTime(date);
+
+            // Get image for preview - prioritize metadata image, then first image attachment
+            let previewImage: string | null = null;
+            let previewImageAlt = '';
+
+            if (itemMetadata?.image) {
+              previewImage = itemMetadata.image;
+              previewImageAlt = itemMetadata.title || 'Preview';
+            } else if (item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0) {
+              const imageAttachments = item.attachments.filter((file: any) =>
+                apiClient.isImageMimetype(file.mimetype)
+              );
+              if (imageAttachments.length > 0) {
+                const firstImage = imageAttachments[0];
+                previewImage = apiClient.getAttachmentPreviewUrl(item.id, firstImage, true);
+                previewImageAlt = firstImage.originalname || 'Attachment';
+              }
+            }
+
             return (
-              <Card
+              <div
                 key={item.id}
-                className="cursor-pointer hover:shadow-md transition-shadow"
+                className="cursor-pointer border-b border-gray-200 hover:bg-gray-50 transition-colors px-4 py-3 group"
                 onClick={() => handleItemClick(item)}
               >
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">
-                        {itemMetadata ? itemMetadata.title : (display.title || item.title || 'Untitled')}
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {formatDate(item.created_at)}
-                        {item.type && ` • ${item.type}`}
-                        {item.isResendEmail && ' • Resend'}
-                      </p>
+                <div className="flex items-start gap-3">
+                  {/* Left side - image preview */}
+                  {previewImage && (
+                    <div className="flex-shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
+                      <img
+                        src={previewImage}
+                        alt={previewImageAlt}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                      />
                     </div>
-                    <div className="flex items-center gap-2">
+                  )}
+
+                  {/* Right side - main content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <h3 className="text-sm font-semibold text-gray-900 truncate flex-1">
+                        {itemTitle}
+                      </h3>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -630,126 +656,62 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                           event.stopPropagation();
                           openShareDialog(item, itemMetadata?.title);
                         }}
-                        className="h-8 w-8"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                         title="Share item"
                         aria-label="Share item"
                       >
-                        <Share2 className="h-4 w-4" />
+                        <Share2 className="h-3.5 w-3.5" />
                       </Button>
-                      {!item.isResendEmail && (taskifiedItems.has(item.id) || item.type === 'task') && (
-                        <span className="text-xs text-green-600 font-medium ml-2">Task ready</span>
+                    </div>
+
+                    {/* Description preview */}
+                    {truncatedDescription && (
+                      <p className="text-xs text-gray-600 line-clamp-1 mb-1.5">
+                        {truncatedDescription}
+                      </p>
+                    )}
+
+                    {/* Metadata row */}
+                    <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                      <span className="whitespace-nowrap">{timeAgo}</span>
+                      {item.type && (
+                        <>
+                          <span>•</span>
+                          <span className="whitespace-nowrap capitalize">{item.type}</span>
+                        </>
+                      )}
+                      {item.isResendEmail && (
+                        <>
+                          <span>•</span>
+                          <span className="whitespace-nowrap">Resend</span>
+                        </>
+                      )}
+                      {item.source && (
+                        <>
+                          <span>•</span>
+                          <span className="whitespace-nowrap truncate max-w-[200px]">{item.source}</span>
+                        </>
+                      )}
+                      {item.attachments && item.attachments.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="whitespace-nowrap">
+                            {item.attachments.length} attachment{item.attachments.length !== 1 ? 's' : ''}
+                          </span>
+                        </>
+                      )}
+                      {hasUrl && item.url && (
+                        <>
+                          <span>•</span>
+                          <span className="truncate max-w-[200px] text-blue-600">
+                            {item.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {/* URL preview with metadata */}
-                  {hasUrl && itemMetadata && (
-                    <div className="mb-3 border rounded-lg overflow-hidden bg-white">
-                      {itemMetadata.image && (
-                        <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
-                          <img
-                            src={itemMetadata.image}
-                            alt={itemMetadata.title || 'Link preview'}
-                            className="w-full h-auto max-h-[120px] object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              // Hide parent container if image fails
-                              const parent = target.parentElement;
-                              if (parent) {
-                                parent.style.display = 'none';
-                              }
-                            }}
-                            onLoad={(e) => {
-                              // Ensure image is visible when loaded successfully
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'block';
-                            }}
-                          />
-                        </div>
-                      )}
-                      <div className="p-3">
-                        {itemMetadata.title && !display.title && (
-                          <h5 className="text-sm font-semibold mb-1 line-clamp-1">
-                            {itemMetadata.title}
-                          </h5>
-                        )}
-                        {itemMetadata.description && (
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                            {itemMetadata.description}
-                          </p>
-                        )}
-                        <a
-                          href={itemMetadata.url || item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-blue-600 hover:underline break-words overflow-wrap-anywhere flex items-center gap-1"
-                        >
-                          <svg
-                            className="w-3 h-3 flex-shrink-0"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
-                            />
-                          </svg>
-                          {itemMetadata.url || item.url}
-                        </a>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Image attachments preview */}
-                  {!hasUrl && item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0 && (() => {
-                    const imageAttachments = item.attachments.filter((file: any) => apiClient.isImageMimetype(file.mimetype));
-                    if (imageAttachments.length > 0) {
-                      const firstImage = imageAttachments[0];
-                      return (
-                        <div className="mb-3 border rounded-lg overflow-hidden bg-white">
-                          <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
-                            <img
-                              src={apiClient.getAttachmentPreviewUrl(item.id, firstImage, true)}
-                              alt={firstImage.originalname}
-                              className="w-full h-auto max-h-[120px] object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.style.display = 'none';
-                                }
-                              }}
-                            />
-                          </div>
-                          {item.attachments.length > 1 && (
-                            <div className="p-2 text-xs text-muted-foreground text-center">
-                              +{item.attachments.length - 1} more file{item.attachments.length - 1 !== 1 ? 's' : ''}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  {/* Regular content */}
-                  {(!hasUrl || !itemMetadata) && renderItemContent(item, false)}
-
-
-                  {item.source && (
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Source: {item.source}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             );
           })
         )}
@@ -907,6 +869,90 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                 ) : (
                   /* Regular content - only show if not URL with metadata or if additional content exists */
                   <>
+                    {/* Attachments */}
+                    {itemDetails.attachments && Array.isArray(itemDetails.attachments) && itemDetails.attachments.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-semibold mb-2">Attachments</h4>
+                        <div className="space-y-2">
+                          {itemDetails.attachments.map((file: Attachment, idx: number) => {
+                            const isImage = apiClient.isImageMimetype(file.mimetype);
+                            return (
+                              <div
+                                key={idx}
+                                className={`${isImage ? 'space-y-2' : 'flex items-center justify-between'} p-2 bg-gray-50 border rounded-md`}
+                              >
+                                {isImage ? (
+                                  <>
+                                    <img
+                                      src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)}
+                                      alt={file.originalname}
+                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96 cursor-zoom-in"
+                                      onError={(e) => {
+                                        // Fallback to download button if image fails to load
+                                        const target = e.target as HTMLImageElement;
+                                        target.style.display = 'none';
+                                        const parent = target.parentElement;
+                                        if (parent) {
+                                          const fallback = parent.querySelector('.image-fallback');
+                                          if (fallback) {
+                                            (fallback as HTMLElement).style.display = 'flex';
+                                          }
+                                        }
+                                      }}
+                                      onClick={(e) =>
+                                        handleImageAttachmentClick(e, file, itemDetails.id, itemDetails.resendEmailId)
+                                      }
+                                    />
+                                    <div className="image-fallback hidden flex items-center justify-between w-full">
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium">{file.originalname}</p>
+                                        {typeof file.size === 'number' && (
+                                          <p className="text-xs text-muted-foreground">
+                                            {Math.round(file.size / 1024)} KB
+                                          </p>
+                                        )}
+                                      </div>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDownloadFile(itemDetails.id, file, itemDetails.resendEmailId);
+                                        }}
+                                      >
+                                        Download
+                                      </Button>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium">{file.originalname}</p>
+                                      {typeof file.size === 'number' && (
+                                        <p className="text-xs text-muted-foreground">
+                                          {Math.round(file.size / 1024)} KB
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownloadFile(itemDetails.id, file, itemDetails.resendEmailId);
+                                      }}
+                                    >
+                                      Download
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Only show description if not already shown in metadata or if it's different */}
                     {(() => {
                       const display = getItemDisplay(itemDetails);
@@ -1062,91 +1108,6 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                         ) : null}
                       </div>
                     )}
-
-
-                    {/* Attachments */}
-                    {itemDetails.attachments && Array.isArray(itemDetails.attachments) && itemDetails.attachments.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-semibold mb-2">Attachments</h4>
-                        <div className="space-y-2">
-                          {itemDetails.attachments.map((file: Attachment, idx: number) => {
-                            const isImage = apiClient.isImageMimetype(file.mimetype);
-                            return (
-                              <div
-                                key={idx}
-                                className={`${isImage ? 'space-y-2' : 'flex items-center justify-between'} p-2 bg-gray-50 border rounded-md`}
-                              >
-                                {isImage ? (
-                                  <>
-                                    <img
-                                      src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)}
-                                      alt={file.originalname}
-                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96 cursor-zoom-in"
-                                      onError={(e) => {
-                                        // Fallback to download button if image fails to load
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'none';
-                                        const parent = target.parentElement;
-                                        if (parent) {
-                                          const fallback = parent.querySelector('.image-fallback');
-                                          if (fallback) {
-                                            (fallback as HTMLElement).style.display = 'flex';
-                                          }
-                                        }
-                                      }}
-                                      onClick={(e) =>
-                                        handleImageAttachmentClick(e, file, itemDetails.id, itemDetails.resendEmailId)
-                                      }
-                                    />
-                                    <div className="image-fallback hidden flex items-center justify-between w-full">
-                                      <div className="flex-1">
-                                        <p className="text-sm font-medium">{file.originalname}</p>
-                                        {typeof file.size === 'number' && (
-                                          <p className="text-xs text-muted-foreground">
-                                            {Math.round(file.size / 1024)} KB
-                                          </p>
-                                        )}
-                                      </div>
-                                      <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleDownloadFile(itemDetails.id, file, itemDetails.resendEmailId);
-                                        }}
-                                      >
-                                        Download
-                                      </Button>
-                                    </div>
-                                  </>
-                                ) : (
-                                  <>
-                                    <div className="flex-1">
-                                      <p className="text-sm font-medium">{file.originalname}</p>
-                                      {typeof file.size === 'number' && (
-                                        <p className="text-xs text-muted-foreground">
-                                          {Math.round(file.size / 1024)} KB
-                                        </p>
-                                      )}
-                                    </div>
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDownloadFile(itemDetails.id, file, itemDetails.resendEmailId);
-                                      }}
-                                    >
-                                      Download
-                                    </Button>
-                                  </>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
 
@@ -1213,20 +1174,6 @@ export function ItemList({ items, onDelete, onTaskCreated }: ItemListProps) {
                   >
                     Share
                   </Button>
-                  {!itemDetails.isResendEmail && !(taskifiedItems.has(itemDetails.id) || itemDetails.type === 'task') && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleTaskifyItem(itemDetails)}
-                      disabled={taskifyLoading.has(itemDetails.id)}
-                    >
-                      {taskifyLoading.has(itemDetails.id) ? 'Taskifying…' : 'Taskify'}
-                    </Button>
-                  )}
-                  {!itemDetails.isResendEmail && (taskifiedItems.has(itemDetails.id) || itemDetails.type === 'task') && (
-                    <span className="inline-flex items-center rounded-md bg-green-100 px-2 py-1 text-xs font-medium text-green-700">
-                      Task ready
-                    </span>
-                  )}
                   {!editingItem && !itemDetails.isResendEmail && (
                     <Button
                       variant="outline"

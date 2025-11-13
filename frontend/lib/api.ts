@@ -77,7 +77,7 @@ export interface ItemAttachment {
 export interface Item {
   id: string;
   owner_id: string;
-  type?: 'note' | 'link' | 'file' | 'email' | 'task';
+  type?: 'note' | 'link' | 'file' | 'email';
   raw?: string;
   title?: string;
   description?: string;
@@ -196,24 +196,6 @@ export interface ProfileUpdateData {
   avatar?: File;
 }
 
-export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
-
-export interface Task {
-  id: string;
-  item_id: string;
-  title?: string | null;
-  description?: string | null;
-  status: TaskStatus;
-  due_date?: string | null;
-  created_at: string;
-  updated_at: string;
-  item?: Item;
-}
-
-export interface TaskifyResponse {
-  task: Task;
-  item?: Item;
-}
 
 export interface TwoFactorStatus {
   enabled: boolean;
@@ -327,7 +309,6 @@ export interface SendPlanRecommendation {
   attachments: SendPlanAttachmentSuggestion[];
   notes?: string | null;
   confidence?: number | null;
-  followUpTasks?: string[] | null;
   suggestedSearchQuery?: string | null;
 }
 
@@ -1135,33 +1116,6 @@ class ApiClient {
     });
   }
 
-  // Tasks
-  async taskifyItem(itemId: string, dueDate?: string): Promise<TaskifyResponse> {
-    const payload: Record<string, unknown> = {};
-    if (dueDate) {
-      payload.due_date = dueDate;
-    }
-
-    return this.request<TaskifyResponse>(`/api/tasks/taskify/${itemId}`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
-
-  async getTasks(status?: TaskStatus): Promise<Task[]> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
-    return this.request<Task[]>(`/api/tasks${query}`);
-  }
-
-  async updateTask(
-    id: string,
-    updates: { title?: string; description?: string; status?: TaskStatus; due_date?: string | null }
-  ): Promise<Task> {
-    return this.request<Task>(`/api/tasks/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  }
 
   // Profiles
   async getPublicProfile(username: string): Promise<{ profile: PublicProfile }> {

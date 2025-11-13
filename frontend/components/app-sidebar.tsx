@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Code, FolderKanban, Home, Menu, Send, UploadCloud, Users, X } from 'lucide-react';
+import { Code, FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
@@ -20,12 +20,12 @@ const NAV_ITEMS = [
   {
     href: '/dashboard',
     label: 'Dashboard',
-    icon: Home,
+    icon: LayoutDashboard,
   },
   {
-    href: '/tasks',
-    label: 'Tasks',
-    icon: FolderKanban,
+    href: '/inbox',
+    label: 'Inbox',
+    icon: Inbox,
   },
   {
     href: '/send',

@@ -327,7 +327,7 @@ export default function DeveloperDocsClient() {
       icon: Send,
       title: 'Act on results immediately',
       description:
-        'Generate send plans, email contacts with tracked attachments, convert items into tasks, and export JSON or CSV inside the same workspace.',
+        'Generate send plans, email contacts with tracked attachments, and export JSON or CSV inside the same workspace.',
     },
   ];
 
@@ -351,7 +351,7 @@ export default function DeveloperDocsClient() {
       bullets: [
         'Verified users can forward through Resend; inbound mail becomes an indexed item automatically.',
         'Attachments are preserved and searchable alongside the message body.',
-        'Received threads also show inside the dashboard for review next to other items.',
+        'Received threads also show inside the inbox for review next to other items.',
       ],
     },
     {
@@ -384,7 +384,7 @@ export default function DeveloperDocsClient() {
       step: '3',
       title: 'Search, share, and follow up',
       description:
-        'Run semantic search, build send plans, share items, or convert any record into a task without leaving the dashboard.',
+        'Run semantic search, build send plans, and share items without leaving the inbox.',
     },
   ];
 
@@ -467,23 +467,13 @@ export default function DeveloperDocsClient() {
       ],
     },
     {
-      id: 'tasks',
-      title: 'Tasks from any item',
-      subtitle: 'Track follow-ups in place',
-      bullets: [
-        'Convert items to tasks with /api/tasks/taskify/:itemId and keep them linked to the source content.',
-        'Update status, due dates, or descriptions directly from the dashboard or API.',
-        'Use prompts on a task to rewrite summaries or next steps without leaving the record.',
-      ],
-    },
-    {
       id: 'sharing',
       title: 'Sharing and exports',
       subtitle: 'Keep context intact',
       bullets: [
         'Share items via email or copy a restricted link with access checks.',
         'Download JSON or CSV exports containing normalized metadata and attachments.',
-        'Live item streams refresh the dashboard as enrichment finishes in the background.',
+        'Live item streams refresh the inbox as enrichment finishes in the background.',
       ],
     },
   ];
@@ -506,7 +496,7 @@ export default function DeveloperDocsClient() {
               embeddings, and detected contacts so it shows up the moment you need it.
             </p>
             <p className="text-lg text-blue-600 font-semibold mb-8 max-w-2xl md:max-w-lg mx-auto md:mx-0">
-              Search from the dashboard or API, share items with access checks, generate send plans, and export records
+              Search from the inbox or API, share items with access checks, generate send plans, and export records
               without juggling extra tools.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center md:justify-start">
@@ -515,9 +505,9 @@ export default function DeveloperDocsClient() {
                   Start for free
                 </Button>
               </Link>
-              <Link href="/dashboard">
+              <Link href="/inbox">
                 <Button size="lg" variant="outline" className="text-lg px-8">
-                  Explore the dashboard
+                  Explore the inbox
                 </Button>
               </Link>
             </div>
@@ -622,7 +612,7 @@ export default function DeveloperDocsClient() {
               <h2 className="text-4xl font-bold text-gray-900 mb-6">Use the REST API for ingestion and search</h2>
               <p className="text-lg text-gray-600 mb-6">
                 Plus-tier users can generate API keys and call the `/api/external` endpoints from their own tools. Create
-                items, search with the same filters used in the dashboard, and pull full records when you need to sync
+                items, search with the same filters used in the inbox, and pull full records when you need to sync
                 downstream.
               </p>
               <ul className="space-y-3 text-gray-600">
@@ -723,7 +713,7 @@ export default function DeveloperDocsClient() {
           <h2 className="text-4xl font-bold text-center mb-6 text-gray-900">Pricing that scales with your library</h2>
           <p className="text-center text-gray-600 mb-12 max-w-3xl mx-auto">
             Start free, then raise the item cap as your archive grows. Every plan keeps OCR, enrichment, contacts,
-            exports, and the dashboard included.
+            exports, and the inbox included.
           </p>
           <HomepagePricingPlans plans={pricingPlans} />
         </div>
@@ -754,8 +744,8 @@ export default function DeveloperDocsClient() {
             </div>
             <div className="flex flex-wrap gap-3">
               {isAuthenticated ? (
-                <Link href="/dashboard">
-                  <Button variant="ghost">← Back to Dashboard</Button>
+                <Link href="/inbox">
+                  <Button variant="ghost">← Back to Inbox</Button>
                 </Link>
               ) : (
                 !authLoading && (
@@ -948,7 +938,7 @@ export default function DeveloperDocsClient() {
               <h2 className="text-2xl font-semibold text-gray-900">Quick Start</h2>
               <ol className="mt-4 list-decimal space-y-3 pl-6 text-gray-700">
               <li>
-                Create an account and request a magic link from the dashboard, or use the{' '}
+                Create an account and request a magic link from the inbox, or use the{' '}
                 <code className="rounded bg-gray-100 px-1 py-0.5 text-sm">POST /api/auth/magic-link</code> endpoint.
               </li>
               <li>
@@ -989,7 +979,7 @@ export default function DeveloperDocsClient() {
               <p className="mt-2 text-gray-700">
                 Use <code className="rounded bg-gray-100 px-1 py-0.5 text-sm">GET /api/search</code> for semantic retrieval
                 with filters for tags, types, and time ranges. Every request returns a similarity score and the normalized
-                item payload you use in the dashboard.
+                item payload you use in the inbox.
               </p>
             </div>
 

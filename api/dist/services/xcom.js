@@ -12,14 +12,24 @@ const X_CLIENT_SECRET = process.env.X_CLIENT_SECRET;
 // Handle cases where API_URL may or may not include /api
 const getRedirectUri = () => {
     if (process.env.X_REDIRECT_URI) {
+        console.log('[X.com] Using X_REDIRECT_URI from environment:', process.env.X_REDIRECT_URI);
         return process.env.X_REDIRECT_URI;
     }
     const baseUrl = API_URL.replace(/\/$/, ''); // Remove trailing slash
     // If API_URL already ends with /api, don't add it again
+    let redirectUri;
     if (baseUrl.endsWith('/api')) {
-        return `${baseUrl}/auth/xcom/callback`;
+        redirectUri = `${baseUrl}/auth/xcom/callback`;
     }
-    return `${baseUrl}/api/auth/xcom/callback`;
+    else {
+        redirectUri = `${baseUrl}/api/auth/xcom/callback`;
+    }
+    console.log('[X.com] Constructed redirect URI from API_URL:', {
+        API_URL,
+        baseUrl,
+        redirectUri,
+    });
+    return redirectUri;
 };
 const X_REDIRECT_URI = getRedirectUri();
 const X_API_BASE_URL = 'https://api.x.com';
@@ -142,7 +152,6 @@ export class XcomService {
         if (!code || !state) {
             throw new Error('Missing authorization code or state parameter');
         }
-        console.log('[X.com] Handling OAuth callback with state length:', state?.length || 0);
         const stateData = this.verifyStateToken(state);
         const { userId, codeVerifier, mode } = stateData;
         // Exchange authorization code for access token

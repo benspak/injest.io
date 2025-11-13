@@ -41,6 +41,8 @@ export default function ContactsPage() {
   const [error, setError] = useState<string | null>(null);
   const [dialogState, setDialogState] = useState<{ mode: 'create' | 'edit'; contact?: Contact } | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [viewingContact, setViewingContact] = useState<Contact | null>(null);
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [formValues, setFormValues] = useState<{
     name: string;
     email: string;
@@ -513,6 +515,8 @@ export default function ContactsPage() {
 
       try {
         await apiClient.deleteContact(contact.id);
+        setIsViewDialogOpen(false);
+        setViewingContact(null);
         await loadContacts({ offset: 0, reset: true });
         void refreshContactCount(appliedSearch);
       } catch (deleteError) {
@@ -524,6 +528,26 @@ export default function ContactsPage() {
     },
     [appliedSearch, loadContacts, refreshContactCount]
   );
+
+  const handleViewContact = useCallback((contact: Contact) => {
+    setViewingContact(contact);
+    setIsViewDialogOpen(true);
+  }, []);
+
+  const handleEditFromView = useCallback(() => {
+    if (!viewingContact) {
+      return;
+    }
+    setIsViewDialogOpen(false);
+    openEditDialog(viewingContact);
+  }, [viewingContact, openEditDialog]);
+
+  const handleDeleteFromView = useCallback(() => {
+    if (!viewingContact) {
+      return;
+    }
+    void handleDeleteContact(viewingContact);
+  }, [viewingContact, handleDeleteContact]);
 
   const handleLoadMore = useCallback(() => {
     if (!hasMore || loadingMore || loading) {
@@ -646,9 +670,7 @@ export default function ContactsPage() {
                 <colgroup>
                   <col className="w-auto md:w-[7%]" />
                   <col className="w-auto md:w-[8%]" />
-                  <col className="w-auto md:w-[6%]" />
                   <col className="w-auto md:w-[5%]" />
-                  <col className="w-auto md:w-[1.5%]" />
                 </colgroup>
                 <thead className="bg-gray-50">
                   <tr>
@@ -659,13 +681,7 @@ export default function ContactsPage() {
                       Email
                     </th>
                     <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
-                      Social Profiles
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700">
                       Last Updated
-                    </th>
-                    <th scope="col" className="px-4 py-3 text-left font-semibold text-gray-700 md:text-right">
-                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -684,7 +700,11 @@ export default function ContactsPage() {
                     const nameLabel = displayName;
 
                     return (
-                      <tr key={contact.id} className="hover:bg-gray-50">
+                      <tr
+                        key={contact.id}
+                        className="hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleViewContact(contact)}
+                      >
                         <td className="px-4 py-3 font-medium text-gray-900 align-middle">
                           <span className="block truncate" title={nameLabel}>
                             {displayName}
@@ -696,6 +716,7 @@ export default function ContactsPage() {
                               href={`mailto:${contact.email}`}
                               className="text-blue-600 break-words hover:underline"
                               title={contact.email}
+                              onClick={(e) => e.stopPropagation()}
                             >
                               {contact.email}
                             </a>
@@ -703,73 +724,12 @@ export default function ContactsPage() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-700 align-middle">
-                          <div className="flex flex-wrap gap-2">
-                            {contact.linkedin_url ? (
-                              <a
-                                href={contact.linkedin_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline text-xs"
-                                title="LinkedIn"
-                              >
-                                LinkedIn
-                              </a>
-                            ) : null}
-                            {contact.x_url ? (
-                              <a
-                                href={contact.x_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-gray-900 hover:underline text-xs"
-                                title="X.com"
-                              >
-                                X.com
-                              </a>
-                            ) : null}
-                            {contact.github_url ? (
-                              <a
-                                href={contact.github_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-gray-700 hover:underline text-xs"
-                                title="GitHub"
-                              >
-                                GitHub
-                              </a>
-                            ) : null}
-                            {!contact.linkedin_url && !contact.x_url && !contact.github_url ? (
-                              <span className="text-muted-foreground text-xs">—</span>
-                            ) : null}
-                          </div>
-                        </td>
                         <td className="px-4 py-3 text-gray-700 align-middle break-words">
                           {updatedAt ? (
                             <span>{updatedAt}</span>
                           ) : (
                             <span className="text-muted-foreground">—</span>
                           )}
-                        </td>
-                        <td className="px-4 py-3 text-left md:text-right align-middle">
-                          <div className="flex flex-col items-start gap-2 md:flex-row md:justify-end md:items-center md:gap-3">
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="px-0"
-                              onClick={() => openEditDialog(contact)}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="link"
-                              size="sm"
-                              className="px-0 text-red-600 hover:text-red-700"
-                              onClick={() => handleDeleteContact(contact)}
-                              disabled={deletingContactId === contact.id}
-                            >
-                              {deletingContactId === contact.id ? 'Deleting…' : 'Delete'}
-                            </Button>
-                          </div>
                         </td>
                       </tr>
                     );
@@ -792,6 +752,167 @@ export default function ContactsPage() {
           )}
         </div>
       </main>
+
+      <Dialog
+        open={isViewDialogOpen}
+        onOpenChange={(open) => {
+          setIsViewDialogOpen(open);
+          if (!open) {
+            setViewingContact(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Contact Details</DialogTitle>
+            <DialogDescription>
+              View full contact information
+            </DialogDescription>
+          </DialogHeader>
+
+          {viewingContact && (
+            <div className="space-y-6 py-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">Name</Label>
+                <div className="text-base text-gray-900">
+                  {viewingContact.name || <span className="text-muted-foreground">—</span>}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">Email</Label>
+                <div className="text-base text-gray-900">
+                  {viewingContact.email ? (
+                    <a
+                      href={`mailto:${viewingContact.email}`}
+                      className="text-blue-600 hover:underline break-words"
+                    >
+                      {viewingContact.email}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">Phone</Label>
+                <div className="text-base text-gray-900">
+                  {viewingContact.phone ? (
+                    <a
+                      href={`tel:${viewingContact.phone}`}
+                      className="text-blue-600 hover:underline"
+                    >
+                      {viewingContact.phone}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">Social Profiles</Label>
+                <div className="space-y-2">
+                  {viewingContact.linkedin_url ? (
+                    <div>
+                      <a
+                        href={viewingContact.linkedin_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-words"
+                      >
+                        LinkedIn: {viewingContact.linkedin_url}
+                      </a>
+                    </div>
+                  ) : null}
+                  {viewingContact.x_url ? (
+                    <div>
+                      <a
+                        href={viewingContact.x_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-words"
+                      >
+                        X.com: {viewingContact.x_url}
+                      </a>
+                    </div>
+                  ) : null}
+                  {viewingContact.github_url ? (
+                    <div>
+                      <a
+                        href={viewingContact.github_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline break-words"
+                      >
+                        GitHub: {viewingContact.github_url}
+                      </a>
+                    </div>
+                  ) : null}
+                  {!viewingContact.linkedin_url && !viewingContact.x_url && !viewingContact.github_url && (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">Created</Label>
+                <div className="text-base text-gray-900">
+                  {viewingContact.created_at
+                    ? new Date(viewingContact.created_at).toLocaleString()
+                    : <span className="text-muted-foreground">—</span>}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold text-gray-700">Last Updated</Label>
+                <div className="text-base text-gray-900">
+                  {viewingContact.updated_at
+                    ? new Date(viewingContact.updated_at).toLocaleString()
+                    : <span className="text-muted-foreground">—</span>}
+                </div>
+              </div>
+
+              {viewingContact.metadata && Object.keys(viewingContact.metadata).length > 0 && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold text-gray-700">Metadata</Label>
+                  <div className="text-base text-gray-900">
+                    <pre className="whitespace-pre-wrap break-words bg-gray-50 p-3 rounded border text-sm">
+                      {JSON.stringify(viewingContact.metadata, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsViewDialogOpen(false)}
+            >
+              Close
+            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="default"
+                onClick={handleEditFromView}
+                disabled={!viewingContact}
+              >
+                Edit
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDeleteFromView}
+                disabled={!viewingContact || deletingContactId === viewingContact?.id}
+              >
+                {deletingContactId === viewingContact?.id ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent>
