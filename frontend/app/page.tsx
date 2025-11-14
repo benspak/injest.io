@@ -17,7 +17,6 @@ export default function Home() {
         "Smart search",
         "Advanced search filters",
         "Email forwarding & automation",
-        "Priority tagging & API keys",
       ],
     },
     {
@@ -30,7 +29,7 @@ export default function Home() {
       features: [
         "Everything in Free",
         "Unlimited storage & automation",
-        "Shared workspace access controls",
+        "Priority tagging & API keys",
         "Priority support",
       ],
     },

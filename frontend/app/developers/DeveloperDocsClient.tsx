@@ -428,8 +428,6 @@ export default function DeveloperDocsClient() {
         'Semantic search with filters',
         'File, bookmark, and HTML ingestion',
         'Email forwarding with tagging',
-        'Generate API keys for /api/external',
-        'Send plan automation endpoints',
       ],
     },
     pro: {
@@ -437,8 +435,8 @@ export default function DeveloperDocsClient() {
       priceNote: 'per month',
       features: [
         'Unlimited indexed items',
-        'Priority ingestion & automation',
-        'Advanced sharing & access controls',
+        'Generate API keys for /api/external',
+        'Send plan automation endpoints',
         'Dedicated support responses',
       ],
     },
