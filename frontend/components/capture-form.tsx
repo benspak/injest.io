@@ -354,18 +354,6 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
     <Card>
       <CardHeader>
         <CardTitle>Capture New Item</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          New: Install the{' '}
-          <Link
-            href="https://chromewebstore.google.com/detail/injest-capture/goiocnfkcilgalpmbjbkhdjdblcokpjl"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 text-blue-600 hover:text-blue-500"
-          >
-            Injest Capture Chrome extension
-          </Link>{' '}
-          to save items to your workspace with CMD+SHIFT+V.
-        </p>
       </CardHeader>
       <CardContent>
         {/* Warning banner when approaching limit */}
@@ -416,7 +404,7 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
 
           <Input
             type="url"
-            placeholder="URL (optional)"
+            placeholder="Link (optional)"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
           />

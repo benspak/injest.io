@@ -7,7 +7,7 @@ A Chrome extension that replicates the Injest capture form and allows you to qui
 - **Form Interface**: Replicates the exact form from the web app with all fields:
   - Title (optional)
   - Description (optional)
-  - URL (optional)
+  - Link (optional)
   - File attachments (optional)
   - Notes (optional)
 - **Clipboard Capture**: Press `Cmd+Shift+V` (Mac) or `Ctrl+Shift+V` (Windows/Linux) to quickly capture clipboard content

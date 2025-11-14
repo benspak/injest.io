@@ -49,25 +49,113 @@ export default function Home() {
     },
   ];
 
+  const interfaceScreens = [
+    {
+      src: "/inbox-screenshot.png",
+      title: "Unified AI inbox",
+      description: "Watch new captures land in the inbox with instant OCR, tagging, and enrichment.",
+    },
+    {
+      src: "/contacts-screenshot.png",
+      title: "Relationship aware contacts",
+      description: "Every file, email, and note rolls up under the right contact with AI summaries.",
+    },
+    {
+      src: "/imports-screenshot.png",
+      title: "One-click imports",
+      description: "Bring in bookmarks, uploads, and forwarded threads without breaking your flow.",
+    },
+    {
+      src: "/send-screenshot.png",
+      title: "Send from context",
+      description: "Draft follow-ups with attachments already linked back to the source item.",
+    },
+    {
+      src: "/email-summary-screenshot.png",
+      title: "AI email recaps",
+      description: "Let Injest condense multi-step conversations into summaries you can act on.",
+    },
+    {
+      src: "/item-detail-screenshot.png",
+      title: "Deep item detail",
+      description: "Dive into extracted text, metadata, and related actions for every capture.",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
       {/* Hero Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
-        <div className="text-center max-w-4xl mx-auto">
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-            Search Your AI Workspace
-          </h1>
-          <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
-            Injest turns everything you capture into one instantly searchable AI workspace.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="text-lg px-8 py-6">
-              <Link href="/login">Start Free</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6">
-              <Link href="/inbox">Explore the Inbox</Link>
-            </Button>
+        <div className="grid gap-12 lg:grid-cols-2 items-center">
+          <div className="text-center lg:text-left">
+            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
+              Search Your AI Workspace
+            </h1>
+            <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
+              Injest turns everything you capture into one instantly searchable AI workspace.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <Button asChild size="lg" className="text-lg px-8 py-6">
+                <Link href="/login">Start Free</Link>
+              </Button>
+              <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6">
+                <Link href="/inbox">Explore the Inbox</Link>
+              </Button>
+            </div>
           </div>
+          <div className="relative">
+            <div className="absolute inset-0 rounded-[40px] bg-gradient-to-r from-blue-200 via-indigo-200 to-purple-200 blur-3xl opacity-70" />
+            <div className="relative rounded-[32px] border border-white/60 shadow-2xl overflow-hidden bg-white/80 backdrop-blur">
+              <Image
+                src="/dashboard-screenshot.png"
+                alt="Injest dashboard with unified workspace overview"
+                width={1600}
+                height={1030}
+                className="w-full h-auto object-cover"
+                priority
+                sizes="(max-width: 1024px) 100vw, 50vw"
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Product Screens Section */}
+      <section className="container mx-auto px-4 sm:px-6 pb-10 max-w-7xl">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <p className="text-sm font-semibold tracking-wide uppercase text-blue-600">
+            See the workspace in action
+          </p>
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mt-3 mb-4">
+            Purpose-built surfaces for every capture
+          </h2>
+          <p className="text-lg text-gray-600">
+            Real screenshots from Injest that show how emails, contacts, and knowledge stay in lockstep.
+          </p>
+        </div>
+        <div className="grid gap-8 lg:grid-cols-2">
+          {interfaceScreens.map((screen) => (
+            <div
+              key={screen.src}
+              className="group relative rounded-[28px] border border-gray-100 bg-white shadow-lg shadow-blue-100/40 overflow-hidden"
+            >
+              <div className="relative bg-slate-900/5">
+                <Image
+                  src={screen.src}
+                  alt={screen.title}
+                  width={1600}
+                  height={1000}
+                  className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  sizes="(max-width: 1024px) 100vw, 48vw"
+                />
+                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+              </div>
+              <div className="p-8 space-y-3">
+                <h3 className="text-2xl font-semibold text-gray-900">{screen.title}</h3>
+                <p className="text-gray-600 text-lg">{screen.description}</p>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -169,59 +257,6 @@ export default function Home() {
                 </p>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases Section */}
-      <section className="bg-white py-20">
-        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-              Perfect for Your Workflow
-            </h2>
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Research & Reference</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Save articles, screenshots, and notes. Find them instantly with smart search, even months later.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Receipts & Documents</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Capture receipts, invoices, and important papers. Extract text automatically and organize by date or category.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Team Collaboration</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Share items securely with teammates, track who accessed what, and keep everything organized in one place.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Project Planning</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Collect inspiration and save reference materials for your projects.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
           </div>
         </div>
       </section>
@@ -358,47 +393,6 @@ export default function Home() {
                 </CardContent>
               </Card>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Collaboration Section */}
-      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-            Collaboration and Access
-          </h2>
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Invite teammates via email</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Access checks on shared items</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Real-time updates</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  See new items appear as they're processed
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Full context preserved</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  In exports
-                </p>
-              </CardContent>
-            </Card>
           </div>
         </div>
       </section>

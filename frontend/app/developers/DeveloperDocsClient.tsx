@@ -525,8 +525,8 @@ export default function DeveloperDocsClient() {
           <div className="relative mx-auto w-full max-w-xl">
             <div className="relative aspect-[4/3] rounded-3xl border-2 border-white/60 shadow-2xl overflow-hidden">
               <Image
-                src="/hero-image.png"
-                alt="Injest.io workspace showing unified search and send flows"
+                src="/dashboard-screenshot.png"
+                alt="Injest dashboard showing inbox metrics and quick links"
                 fill
                 priority
                 className="object-cover"
