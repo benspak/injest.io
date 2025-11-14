@@ -8,6 +8,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKeys.js';
 import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
+import { LoginSessionModel } from '../models/LoginSession.js';
 import {
   generateTwoFactorSecret,
   verifyTwoFactorToken,
@@ -117,6 +118,14 @@ router.get('/verify', async (req: express.Request, res: express.Response) => {
     }
 
     const sessionToken = createSessionToken(user);
+
+    // Record login session
+    try {
+      await LoginSessionModel.create(user.id);
+    } catch (error) {
+      // Log error but don't fail the login
+      console.error('Error recording login session:', error);
+    }
 
     res.json({
       token: sessionToken,
@@ -302,6 +311,14 @@ router.post('/2fa/challenge', async (req: express.Request, res: express.Response
 
     const sessionToken = createSessionToken(user);
 
+    // Record login session
+    try {
+      await LoginSessionModel.create(user.id);
+    } catch (error) {
+      // Log error but don't fail the login
+      console.error('Error recording login session:', error);
+    }
+
     res.json({
       token: sessionToken,
       user: buildUserResponse(user),
@@ -414,6 +431,50 @@ router.delete('/api-key', authMiddleware, async (req: AuthRequest, res: express.
   } catch (error) {
     console.error('Error revoking API key:', error);
     res.status(500).json({ error: 'Failed to revoke API key' });
+  }
+});
+
+// Get login sessions history
+router.get('/login-sessions', authMiddleware, async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 20;
+    const offset = req.query.offset ? parseInt(req.query.offset as string, 10) : 0;
+
+    const sessions = await LoginSessionModel.findByUserId(req.user.id, limit, offset);
+    const total = await LoginSessionModel.countByUserId(req.user.id);
+
+    res.json({
+      sessions,
+      pagination: {
+        limit,
+        offset,
+        total,
+        hasMore: offset + sessions.length < total,
+      },
+    });
+  } catch (error) {
+    console.error('Error fetching login sessions:', error);
+    res.status(500).json({ error: 'Failed to fetch login sessions' });
+  }
+});
+
+// Get login streak for current week
+router.get('/login-streak', authMiddleware, async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const streak = await LoginSessionModel.getLoginStreak(req.user.id);
+
+    res.json(streak);
+  } catch (error) {
+    console.error('Error fetching login streak:', error);
+    res.status(500).json({ error: 'Failed to fetch login streak' });
   }
 });
 

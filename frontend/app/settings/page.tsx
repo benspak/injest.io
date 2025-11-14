@@ -44,6 +44,19 @@ function SettingsPageContent() {
   const [xcomUsername, setXcomUsername] = useState<string | null>(null);
   const [xcomLoading, setXcomLoading] = useState(false);
   const [checkingXcomStatus, setCheckingXcomStatus] = useState(false);
+  const [loginSessions, setLoginSessions] = useState<
+    Array<{
+      id: string;
+      login_at: string;
+    }>
+  >([]);
+  const [loginSessionsLoading, setLoginSessionsLoading] = useState(false);
+  const [loginSessionsPagination, setLoginSessionsPagination] = useState<{
+    limit: number;
+    offset: number;
+    total: number;
+    hasMore: boolean;
+  } | null>(null);
 
   const loadTwoFactorStatus = useCallback(async () => {
     try {
@@ -186,6 +199,23 @@ function SettingsPageContent() {
     }
   }, [authReady]);
 
+  const loadLoginSessions = useCallback(async () => {
+    if (!authReady) {
+      return;
+    }
+
+    try {
+      setLoginSessionsLoading(true);
+      const response = await apiClient.getLoginSessions(20, 0);
+      setLoginSessions(response.sessions);
+      setLoginSessionsPagination(response.pagination);
+    } catch (error) {
+      console.error('Failed to load login sessions:', error);
+    } finally {
+      setLoginSessionsLoading(false);
+    }
+  }, [authReady]);
+
   const handleConnectXcom = useCallback(async () => {
     try {
       setXcomLoading(true);
@@ -221,7 +251,8 @@ function SettingsPageContent() {
     void loadTwoFactorStatus();
     void loadIndexedCount();
     void loadXcomStatus();
-  }, [authReady, loadIndexedCount, loadTwoFactorStatus, loadXcomStatus]);
+    void loadLoginSessions();
+  }, [authReady, loadIndexedCount, loadTwoFactorStatus, loadXcomStatus, loadLoginSessions]);
 
   useEffect(() => {
     if (!authReady) {
@@ -782,6 +813,46 @@ function SettingsPageContent() {
                   Starting at $5/month with priority processing and API access.
                 </p>
               </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Login History</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {loginSessionsLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : loginSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No login history available.</p>
+            ) : (
+              <div className="space-y-2">
+                {loginSessions.map((session) => {
+                  const loginDate = new Date(session.login_at);
+                  const dateStr = loginDate.toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  });
+                  const timeStr = loginDate.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  });
+                  return (
+                    <div key={session.id} className="text-sm text-gray-600 py-2 border-b border-gray-100 last:border-b-0">
+                      Logged in on {dateStr} at {timeStr}
+                    </div>
+                  );
+                })}
+                {loginSessionsPagination && loginSessionsPagination.total > loginSessions.length && (
+                  <p className="text-xs text-muted-foreground pt-2">
+                    Showing {loginSessions.length} of {loginSessionsPagination.total} logins
+                  </p>
+                )}
+              </div>
             )}
           </CardContent>
         </Card>

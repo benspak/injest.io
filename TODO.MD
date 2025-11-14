@@ -7,6 +7,7 @@
  Activity & Audit Logs
  Permissions & Roles
  Notifications & Digest Emails
+ Email Unsubscribe
 - Reindexing of items
 •	⚙️ SDKs or client wrappers (JS, Python)
 •	🔄 Webhooks (“notify me when image is processed”)

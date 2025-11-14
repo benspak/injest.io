@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info } from 'lucide-react';
+import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info, Flame } from 'lucide-react';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -34,6 +34,11 @@ export default function DashboardPage() {
     isAtLimit: false,
     isApproachingLimit: false,
   });
+  const [loginStreak, setLoginStreak] = useState<{
+    currentStreak: number;
+    weekDays: number[];
+  } | null>(null);
+  const [streakLoading, setStreakLoading] = useState(false);
   const currentUser = auth.getUser();
 
   useEffect(() => {
@@ -62,6 +67,17 @@ export default function DashboardPage() {
           isAtLimit: itemCountResponse.isAtLimit,
           isApproachingLimit: itemCountResponse.isApproachingLimit,
         });
+
+        // Load login streak
+        setStreakLoading(true);
+        try {
+          const streakData = await apiClient.getLoginStreak();
+          setLoginStreak(streakData);
+        } catch (error) {
+          console.error('Failed to load login streak:', error);
+        } finally {
+          setStreakLoading(false);
+        }
       } catch (error) {
         console.error('Failed to load dashboard stats:', error);
       } finally {
@@ -253,6 +269,72 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
+          </div>
+
+          {/* Login Streak Section */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Activity</h2>
+            <Card className="hover:shadow-lg transition-shadow">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-50 rounded-lg">
+                    <Flame className="h-5 w-5 text-orange-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Login Streak</CardTitle>
+                    <CardDescription>Your weekly activity</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {streakLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
+                  </div>
+                ) : loginStreak ? (
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-3xl font-bold text-gray-900">
+                        {loginStreak.currentStreak} <span className="text-lg font-normal text-gray-600">days</span>
+                      </p>
+                      <p className="text-sm text-gray-500">This week</p>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-700">Week overview</p>
+                      <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5, 6, 7].map((day) => {
+                          const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                          const isLoggedIn = loginStreak.weekDays.includes(day);
+                          return (
+                            <div key={day} className="flex-1 text-center">
+                              <div
+                                className={`w-full aspect-square rounded-lg flex items-center justify-center mb-1 ${
+                                  isLoggedIn
+                                    ? 'bg-orange-500 text-white'
+                                    : 'bg-gray-100 text-gray-400'
+                                }`}
+                              >
+                                {isLoggedIn ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : (
+                                  <div className="h-2 w-2 rounded-full bg-current" />
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-600">{dayNames[day - 1]}</p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      You've used Injest {loginStreak.currentStreak} out of 7 days this week
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-600">No streak data available</p>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Usage Details Section */}

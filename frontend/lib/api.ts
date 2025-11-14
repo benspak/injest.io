@@ -1174,6 +1174,59 @@ class ApiClient {
     });
   }
 
+  // Login Sessions
+  async getLoginSessions(limit?: number, offset?: number): Promise<{
+    sessions: Array<{
+      id: string;
+      user_id: string;
+      login_at: string;
+      ip_address?: string | null;
+      user_agent?: string | null;
+      created_at: string;
+    }>;
+    pagination: {
+      limit: number;
+      offset: number;
+      total: number;
+      hasMore: boolean;
+    };
+  }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString();
+    return this.request<{
+      sessions: Array<{
+        id: string;
+        user_id: string;
+        login_at: string;
+        ip_address?: string | null;
+        user_agent?: string | null;
+        created_at: string;
+      }>;
+      pagination: {
+        limit: number;
+        offset: number;
+        total: number;
+        hasMore: boolean;
+      };
+    }>(`/api/auth/login-sessions${query ? `?${query}` : ''}`, {
+      method: 'GET',
+    });
+  }
+
+  async getLoginStreak(): Promise<{
+    currentStreak: number;
+    weekDays: number[];
+  }> {
+    return this.request<{
+      currentStreak: number;
+      weekDays: number[];
+    }>('/api/auth/login-streak', {
+      method: 'GET',
+    });
+  }
+
 }
 
 export const apiClient = new ApiClient(API_URL);
