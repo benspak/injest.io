@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HomepagePricingPlans } from "@/components/homepage-pricing-plans";
@@ -467,6 +468,88 @@ export default function Home() {
                 <p className="text-gray-600 text-lg">
                   Injest keeps everything in one place — search, organize, share, and take action without leaving your workspace.
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Founder Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-6xl">
+          <div className="grid gap-12 lg:grid-cols-2 items-center">
+            <div className="order-2 lg:order-1">
+              <p className="uppercase tracking-wide text-sm font-semibold text-blue-600 mb-3">
+                About the Founder
+              </p>
+              <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+                Built by Ben Spak to tame the modern knowledge flood
+              </h2>
+              <p className="text-lg text-gray-600 mb-6">
+                Ben Spak is a product-minded engineer who has spent his career helping teams
+                capture, search, and act on the information that matters. He founded Injest after
+                watching knowledge workers drown in screenshots, inboxes, and files that never
+                made it back when they were needed most.
+              </p>
+              <p className="text-lg text-gray-600 mb-8">
+                Today he leads Injest with a builder’s mindset: every feature must save time,
+                surface context, and keep ownership of your data squarely in your hands. Ben still
+                personally tests new ingestion paths, answers customer feedback, and obsesses over
+                search quality so you can trust the workspace that powers your day.
+              </p>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+                  <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">
+                    Focus
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    Human + AI workflows that feel natural
+                  </p>
+                </div>
+                <div className="p-4 rounded-2xl border border-gray-200 bg-gray-50">
+                  <p className="text-sm uppercase tracking-wide text-gray-500 mb-1">
+                    Commitment
+                  </p>
+                  <p className="text-lg font-semibold text-gray-900">
+                    Privacy, ownership, and fast execution
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="order-1 lg:order-2 flex justify-center">
+              <div className="w-full max-w-sm">
+                <div className="relative rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-500 to-purple-500 p-1 shadow-xl">
+                  <div className="rounded-3xl bg-white p-8 h-full flex flex-col items-center text-center gap-4">
+                    <div className="w-32 h-32 rounded-full overflow-hidden">
+                      <Image
+                        src="/ben-spak.jpg"
+                        alt="Photo of Ben Spak"
+                        width={128}
+                        height={128}
+                        className="object-cover w-full h-full"
+                        priority
+                      />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-semibold text-gray-900">Ben Spak</p>
+                      <p className="text-sm uppercase tracking-wide text-gray-500">
+                        Founder & Builder
+                      </p>
+                    </div>
+                    <p className="text-gray-600">
+                      “Injest exists so you never lose the spark inside a screenshot, email, or doc
+                      again. If it enters your world, you should be able to find and act on it
+                      instantly.”
+                    </p>
+                    <Link
+                      href="https://x.com/benvspak"
+                      target="_blank"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700"
+                    >
+                      Follow @benvspak ↗
+                    </Link>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
