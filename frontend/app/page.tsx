@@ -53,10 +53,10 @@ export default function Home() {
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="text-center max-w-4xl mx-auto">
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-            Never lose track of your files, notes, and ideas again.
+            Search Your AI Workspace
           </h1>
           <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
-            Whether you're saving research, organizing receipts, or collecting inspiration — Injest makes every image, document, and message instantly searchable and ready to use.
+            Injest turns everything you capture into one instantly searchable AI workspace.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button asChild size="lg" className="text-lg px-8 py-6">
@@ -69,45 +69,45 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Problem Section */}
+      {/* Value Proposition Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
-            You save everything — but can't find anything.
+            Everything you capture, instantly searchable
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
-            You save receipts, screenshots, research notes, and important documents — but when you need them, they're lost in folders, buried in email threads, or forgotten in your downloads. Teams share files and links that disappear when they're needed most. Injest solves this by making every captured file, email, or bookmark instantly searchable, shareable, and ready to use.
+            Capture images, documents, emails, and links — they all flow into your AI workspace. Search by meaning, not just keywords. Find what you need the moment you need it, powered by AI that understands context and content.
           </p>
         </div>
       </section>
 
-      {/* Solution Section */}
+      {/* AI Workspace Features Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-            One workspace for all your data
+            Your AI workspace, powered by intelligent search
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-            Upload images, forward emails, or save links — all flow into a single searchable workspace. Each item is automatically organized with text extraction, smart tagging, and contact detection so it shows up the moment you need it.
+            Everything you capture becomes part of your searchable workspace. AI extracts text, understands context, and organizes content so you can find anything instantly.
           </p>
           <div className="grid md:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Extract text from images</CardTitle>
+                <CardTitle>AI-powered search</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Read text from photos, screenshots, and PDFs automatically
+                  Search by meaning, not just keywords. Find content even when you don't remember exact words.
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Search by meaning</CardTitle>
+                <CardTitle>Instant text extraction</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Find what you're looking for even if you don't remember the exact words
+                  AI reads text from images, PDFs, and screenshots automatically — making everything searchable.
                 </p>
               </CardContent>
             </Card>
@@ -117,7 +117,7 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Filter by type, tags, source, and date to find anything quickly
+                  AI tags, categorizes, and structures your content so it's always ready when you need it.
                 </p>
               </CardContent>
             </Card>
@@ -129,10 +129,10 @@ export default function Home() {
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
-            Search smarter, not harder
+            Search your workspace like you think
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
-            Search by keywords or describe what you're looking for — Injest finds notes, documents, and contacts even when you don't remember the exact words. Filter by type, tags, source, or date to narrow down results instantly.
+            Describe what you're looking for in natural language. Your AI workspace understands context and meaning, finding the right content even when you don't remember exact words. Filter by type, tags, source, or date to refine results instantly.
           </p>
         </div>
       </section>
@@ -229,7 +229,7 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-              From Capture to Action in Three Steps
+              Your AI workspace in three steps
             </h2>
             <div className="space-y-8">
               <div className="flex gap-6">
@@ -238,10 +238,10 @@ export default function Home() {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Capture or forward content
+                    Capture everything
                   </h3>
                   <p className="text-gray-600">
-                    Upload attachments, send email, or save browser tabs.
+                    Upload files, forward emails, or save links — everything flows into your workspace.
                   </p>
                 </div>
               </div>
@@ -251,10 +251,10 @@ export default function Home() {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Injest organizes automatically
+                    AI makes it searchable
                   </h3>
                   <p className="text-gray-600">
-                    Text extraction, smart tagging, and contact detection happen in the background.
+                    AI extracts text, understands context, and organizes content automatically — making everything instantly searchable.
                   </p>
                 </div>
               </div>
@@ -264,10 +264,10 @@ export default function Home() {
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Search, share, and follow up
+                    Search and find instantly
                   </h3>
                   <p className="text-gray-600">
-                    Find what you need and take action instantly.
+                    Search your workspace by meaning, find what you need, and take action — all in one place.
                   </p>
                 </div>
               </div>
@@ -280,7 +280,7 @@ export default function Home() {
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-            Ways to Bring Data In
+            Capture everything into your workspace
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
             <Card>
@@ -289,7 +289,7 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Upload files up to 25 MB each. Text is extracted automatically, and duplicates are skipped.
+                  Upload files up to 25 MB each. AI extracts text automatically, making everything searchable in your workspace.
                 </p>
               </CardContent>
             </Card>
@@ -299,7 +299,7 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Send to input@injest.io. Attachments and threads are preserved and indexed.
+                  Send to input@injest.io. Attachments and threads are preserved, indexed, and made searchable.
                 </p>
               </CardContent>
             </Card>
@@ -309,7 +309,7 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Save tabs from Chrome with one click or import HTML files in bulk.
+                  Save tabs from Chrome with one click. Everything flows into your searchable AI workspace.
                 </p>
               </CardContent>
             </Card>
@@ -477,10 +477,10 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-3xl mx-auto text-center text-white">
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-              Ready to make every file, screenshot, and email searchable?
+              Start searching your AI workspace today
             </h2>
             <p className="text-xl mb-10 text-blue-100">
-              Knowledge workers, researchers, and teams use Injest to capture, search, and act — without juggling extra tools.
+              Turn everything you capture into one instantly searchable AI workspace. Join knowledge workers, researchers, and teams who use Injest to find what they need, when they need it.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">

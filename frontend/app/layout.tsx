@@ -8,8 +8,8 @@ import { AppShell } from '@/components/app-shell'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Injest.io - A personal search engine for your images, files, and notes.',
-  description: 'Capture, search, and organize with AI-powered search. Upload any image. We give you the text, labels, and structured data.',
+  title: 'Search Your AI Workspace',
+  description: 'Injest turns everything you capture into one instantly searchable AI workspace.',
 }
 
 export const viewport: Viewport = {
