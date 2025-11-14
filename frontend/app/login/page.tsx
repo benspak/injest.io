@@ -18,9 +18,10 @@ function LoginForm() {
   const token = searchParams.get('token');
   const error = searchParams.get('error');
   const planParam = searchParams.get('plan');
+  const normalizedPlanParam = planParam === 'plus' ? 'pro' : planParam;
   const plan: SubscriptionTier | null =
-    planParam && ['free', 'plus', 'pro'].includes(planParam)
-      ? (planParam as SubscriptionTier)
+    normalizedPlanParam && ['free', 'pro', 'pro_annual'].includes(normalizedPlanParam)
+      ? (normalizedPlanParam as SubscriptionTier)
       : null;
 
   // Handle token verification

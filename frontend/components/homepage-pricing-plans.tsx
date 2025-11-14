@@ -13,7 +13,7 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { SubscriptionPaymentDialog } from '@/components/subscription-payment-dialog';
-import { PAID_PLAN_ORDER, type SubscriptionTier } from '@/lib/subscriptionPlans';
+import { DEFAULT_PAID_TIER, PAID_PLAN_ORDER, type SubscriptionTier } from '@/lib/subscriptionPlans';
 import { auth } from '@/lib/auth';
 import { apiClient, type User } from '@/lib/api';
 
@@ -42,7 +42,7 @@ function getEffectiveTier(user: User | null): SubscriptionTier {
     return user.subscription_tier;
   }
   if (user.is_premium) {
-    return 'plus';
+    return 'pro';
   }
   return 'free';
 }
@@ -51,7 +51,7 @@ export function HomepagePricingPlans({ plans }: HomepagePricingPlansProps) {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(auth.getUser());
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('plus');
+  const [selectedTier, setSelectedTier] = useState<SubscriptionTier>(DEFAULT_PAID_TIER);
   const [verifyingPayment, setVerifyingPayment] = useState(false);
 
   useEffect(() => {
@@ -175,7 +175,7 @@ export function HomepagePricingPlans({ plans }: HomepagePricingPlansProps) {
 
   return (
     <>
-      <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-8 w-full max-w-6xl mx-auto md:grid-cols-2 xl:grid-cols-3">
         {plans.map((plan) => {
           const actionLabel = buttonLabelForTier(plan.tier, plan.name);
           const actionDisabled =

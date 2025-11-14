@@ -71,21 +71,22 @@ export class StripeService {
     async createSubscriptionPaymentIntent(userId, email, requestedTier) {
         const tier = coerceSubscriptionTier(requestedTier);
         const plan = getPlan(tier);
-        if (plan.monthlyPriceCents <= 0) {
+        if (plan.priceCents <= 0) {
             throw new Error('Cannot create payment intent for free tier');
         }
-        const amount = plan.monthlyPriceCents;
+        const amount = plan.priceCents;
         const customerId = await this.getOrCreateCustomer(userId, email);
         const stripe = getStripe();
         const paymentIntent = await stripe.paymentIntents.create({
             amount,
             currency: 'usd',
             customer: customerId,
-            description: `${plan.name} subscription`,
+            description: `${plan.name} subscription (${plan.billingInterval})`,
             metadata: {
                 userId,
                 type: 'premium_subscription',
                 subscription_tier: tier,
+                billing_interval: plan.billingInterval,
             },
         });
         return paymentIntent;

@@ -21,7 +21,8 @@ import {
 import {
   PAID_PLAN_ORDER,
   SUBSCRIPTION_PLANS,
-  formatPlanPrice,
+  formatPlanLimit,
+  formatPlanRate,
   type SubscriptionTier,
 } from '@/lib/subscriptionPlans';
 import { HomepagePricingPlans } from '@/components/homepage-pricing-plans';
@@ -35,7 +36,7 @@ function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
 }
 
-function hasPlusAccess(user: User | null): boolean {
+function hasProAccess(user: User | null): boolean {
   if (!user) {
     return false;
   }
@@ -45,7 +46,7 @@ function hasPlusAccess(user: User | null): boolean {
   }
 
   const tier = user.subscription_tier;
-  return tier === 'plus' || tier === 'pro';
+  return tier === 'pro' || tier === 'pro_annual';
 }
 
 const openApiUrl = joinUrl(API_URL, '/api/openapi.json');
@@ -143,7 +144,7 @@ export default function DeveloperDocsClient() {
     };
   }, []);
 
-  const allowed = useMemo(() => hasPlusAccess(currentUser), [currentUser]);
+  const allowed = useMemo(() => hasProAccess(currentUser), [currentUser]);
 
   useEffect(() => {
     if (!allowed) {
@@ -206,7 +207,7 @@ export default function DeveloperDocsClient() {
     }
 
     if (!allowed) {
-      toast.error('Upgrade to Plus to manage API keys.');
+      toast.error('Upgrade to Pro to manage API keys.');
       return;
     }
 
@@ -238,7 +239,7 @@ export default function DeveloperDocsClient() {
     }
 
     if (!allowed) {
-      toast.error('Upgrade to Plus to manage API keys.');
+      toast.error('Upgrade to Pro to manage API keys.');
       return;
     }
 
@@ -422,21 +423,29 @@ export default function DeveloperDocsClient() {
   > = {
     free: {
       priceNote: 'forever',
-      features: ['Up to 250 indexed items', 'Semantic search with filters', 'File & bookmark ingestion'],
-    },
-    plus: {
-      badge: 'Most popular',
-      priceNote: 'per month',
       features: [
-        'Everything in Free',
-        'Up to 2,500 indexed items',
+        'Up to 1,000 indexed items',
+        'Semantic search with filters',
+        'File, bookmark, and HTML ingestion',
+        'Email forwarding with tagging',
         'Generate API keys for /api/external',
         'Send plan automation endpoints',
       ],
     },
     pro: {
+      badge: 'Most popular',
       priceNote: 'per month',
-      features: ['Everything in Plus', 'Up to 25,000 indexed items'],
+      features: [
+        'Unlimited indexed items',
+        'Priority ingestion & automation',
+        'Advanced sharing & access controls',
+        'Dedicated support responses',
+      ],
+    },
+    pro_annual: {
+      badge: 'Save 20%',
+      priceNote: 'per year',
+      features: ['Everything in Pro', 'Annual billing discount'],
     },
   };
 
@@ -447,9 +456,12 @@ export default function DeveloperDocsClient() {
       tier: plan.id,
       name: plan.name,
       badge: copy.badge,
-      priceDisplay: plan.monthlyPriceCents === 0 ? '$0' : formatPlanPrice(plan.monthlyPriceCents),
+      priceDisplay: plan.priceCents === 0 ? '$0' : formatPlanRate(plan),
       priceNote: copy.priceNote,
-      limit: `Up to ${plan.maxIndexedItems.toLocaleString()} indexed items`,
+      limit:
+        typeof plan.maxIndexedItems === 'number'
+          ? `Up to ${plan.maxIndexedItems.toLocaleString()} indexed items`
+          : 'Unlimited indexed items',
       description: plan.description,
       features: copy.features,
     };
@@ -611,7 +623,7 @@ export default function DeveloperDocsClient() {
             <div>
               <h2 className="text-4xl font-bold text-gray-900 mb-6">Use the REST API for ingestion and search</h2>
               <p className="text-lg text-gray-600 mb-6">
-                Plus-tier users can generate API keys and call the `/api/external` endpoints from their own tools. Create
+                Pro-tier users can generate API keys and call the `/api/external` endpoints from their own tools. Create
                 items, search with the same filters used in the inbox, and pull full records when you need to sync
                 downstream.
               </p>
@@ -794,7 +806,7 @@ export default function DeveloperDocsClient() {
               <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                 <p className="font-semibold">Upgrade required for API keys</p>
                 <p className="mt-2 text-blue-800">
-                  API access and developer tooling are available for Plus plans and above. Upgrade to unlock authenticated
+                  API access and developer tooling are available for Pro plans and above. Upgrade to unlock authenticated
                   API keys, semantic search integrations, and automation workflows.
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">

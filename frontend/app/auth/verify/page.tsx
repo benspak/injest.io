@@ -29,11 +29,15 @@ function VerifyForm() {
       return null;
     }
     const stored = sessionStorage.getItem('checkoutPlan');
-    if (stored && ['plus', 'pro'].includes(stored)) {
+    if (stored === 'plus') {
+      sessionStorage.removeItem('checkoutPlan');
+      return 'pro';
+    }
+    if (stored && ['free', 'pro', 'pro_annual'].includes(stored)) {
       sessionStorage.removeItem('checkoutPlan');
       return stored as SubscriptionTier;
     }
-    if (stored === 'free') {
+    if (stored) {
       sessionStorage.removeItem('checkoutPlan');
     }
     return null;

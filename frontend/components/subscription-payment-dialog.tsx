@@ -15,9 +15,10 @@ import {
   DEFAULT_PAID_TIER,
   PAID_PLAN_ORDER,
   SUBSCRIPTION_PLANS,
-  formatPlanPrice,
-  type SubscriptionTier,
+  formatPlanLimit,
+  formatPlanRate,
   type SubscriptionPlan,
+  type SubscriptionTier,
 } from '@/lib/subscriptionPlans';
 
 interface SubscriptionPaymentDialogProps {
@@ -147,7 +148,8 @@ export function SubscriptionPaymentDialog({
     tier: SubscriptionTier;
     name: string;
     amountCents: number;
-    maxIndexedItems: number;
+    billingInterval: 'month' | 'year';
+    maxIndexedItems: number | null;
   } | null>(null);
 
   // Initialize Stripe
@@ -177,6 +179,7 @@ export function SubscriptionPaymentDialog({
         tier: paymentData.subscriptionTier ?? tier,
         name: paymentData.plan.name,
         amountCents: paymentData.plan.amountCents,
+        billingInterval: paymentData.plan.billingInterval,
         maxIndexedItems: paymentData.plan.maxIndexedItems,
       });
     } catch (err: unknown) {
@@ -200,14 +203,8 @@ export function SubscriptionPaymentDialog({
     }
 
     const nextTier = (() => {
-      if (currentTier) {
-        const currentIndex = PAID_PLAN_ORDER.indexOf(currentTier);
-        if (currentTier === 'pro') {
-          return 'pro' as SubscriptionTier;
-        }
-        if (currentIndex >= 0 && currentIndex < PAID_PLAN_ORDER.length - 1) {
-          return PAID_PLAN_ORDER[currentIndex + 1];
-        }
+      if (currentTier === 'pro' || currentTier === 'pro_annual') {
+        return currentTier;
       }
       return DEFAULT_PAID_TIER;
     })();
@@ -225,21 +222,20 @@ export function SubscriptionPaymentDialog({
   };
 
   const selectedPlan: SubscriptionPlan = (() => {
+    const basePlan = SUBSCRIPTION_PLANS[selectedTier];
     if (activePlan && activePlan.tier === selectedTier) {
       return {
-        id: activePlan.tier,
-        name: activePlan.name,
-        monthlyPriceCents: activePlan.amountCents,
+        ...basePlan,
+        priceCents: activePlan.amountCents,
+        billingInterval: activePlan.billingInterval,
         maxIndexedItems: activePlan.maxIndexedItems,
-        minIndexedItems: SUBSCRIPTION_PLANS[activePlan.tier].minIndexedItems,
-        description: SUBSCRIPTION_PLANS[activePlan.tier].description,
       };
     }
-    return SUBSCRIPTION_PLANS[selectedTier];
+    return basePlan;
   })();
 
   const currentPlan = SUBSCRIPTION_PLANS[currentTier ?? 'free'];
-  const submitLabel = `Subscribe ${formatPlanPrice(selectedPlan.monthlyPriceCents)}/month`;
+  const submitLabel = `Subscribe ${formatPlanRate(selectedPlan)}`;
 
   const handlePaymentComplete = (id: string) => {
     onPaymentComplete(id);
@@ -264,7 +260,12 @@ export function SubscriptionPaymentDialog({
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg space-y-2">
             <p className="text-sm font-medium">
-              You&apos;re currently on the {currentPlan.name} plan{currentLimit ? ` (up to ${currentLimit.toLocaleString()} items)` : ''}.
+              You&apos;re currently on the {currentPlan.name} plan
+              {typeof currentLimit === 'number'
+                ? Number.isFinite(currentLimit)
+                  ? ` (up to ${currentLimit.toLocaleString()} items)`
+                  : ' (unlimited items)'
+                : ''}.
             </p>
             {typeof currentCount === 'number' && (
               <p className="text-sm">
@@ -298,10 +299,10 @@ export function SubscriptionPaymentDialog({
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-semibold text-gray-900">
-                        {formatPlanPrice(plan.monthlyPriceCents)}/month
+                        {formatPlanRate(plan)}
                       </p>
                       <p className="text-xs text-gray-500">
-                        Up to {plan.maxIndexedItems.toLocaleString()} items
+                        {formatPlanLimit(plan)}
                       </p>
                     </div>
                   </div>
@@ -316,15 +317,15 @@ export function SubscriptionPaymentDialog({
               <span className="font-medium text-gray-900">{selectedPlan.name}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Monthly price:</span>
+              <span className="text-sm text-gray-600">Price:</span>
               <span className="font-bold text-lg text-gray-900">
-                {formatPlanPrice(selectedPlan.monthlyPriceCents)}
+                {formatPlanRate(selectedPlan)}
               </span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Indexed item capacity:</span>
               <span className="text-sm font-medium text-gray-900">
-                Up to {selectedPlan.maxIndexedItems.toLocaleString()} items
+                {formatPlanLimit(selectedPlan)}
               </span>
             </div>
           </div>

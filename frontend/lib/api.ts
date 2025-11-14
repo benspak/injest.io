@@ -635,7 +635,8 @@ class ApiClient {
     subscriptionTier: SubscriptionTier;
     plan: {
       name: string;
-      maxIndexedItems: number;
+      billingInterval: 'month' | 'year';
+      maxIndexedItems: number | null;
       amountCents: number;
     };
   }> {
@@ -647,7 +648,8 @@ class ApiClient {
       subscriptionTier: SubscriptionTier;
       plan: {
         name: string;
-        maxIndexedItems: number;
+        billingInterval: 'month' | 'year';
+        maxIndexedItems: number | null;
         amountCents: number;
       };
     }>('/api/payment/premium-subscription', {

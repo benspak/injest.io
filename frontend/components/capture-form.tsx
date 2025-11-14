@@ -249,8 +249,8 @@ export function CaptureForm({ onItemCreated }: CaptureFormProps) {
       const verification = await apiClient.verifyPayment(paymentIntentId);
 
       if (verification.verified && verification.premium) {
-        const newTier: SubscriptionTier = verification.subscriptionTier ?? 'plus';
-        const plan = SUBSCRIPTION_PLANS[newTier] ?? SUBSCRIPTION_PLANS.plus;
+        const newTier: SubscriptionTier = verification.subscriptionTier ?? 'pro';
+        const plan = SUBSCRIPTION_PLANS[newTier] ?? SUBSCRIPTION_PLANS.pro;
         setSubscriptionTier(newTier);
         setMessage(`${plan.name} plan activated! Retrying upload...`);
 

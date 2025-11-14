@@ -1,45 +1,53 @@
-export type SubscriptionTier = 'free' | 'plus' | 'pro';
+export type SubscriptionTier = 'free' | 'pro' | 'pro_annual';
 
 export interface SubscriptionPlan {
   id: SubscriptionTier;
   name: string;
-  monthlyPriceCents: number;
+  priceCents: number;
+  billingInterval: 'month' | 'year';
   minIndexedItems: number;
-  maxIndexedItems: number;
+  maxIndexedItems: number | null;
 }
+
+const PRO_MONTHLY_PRICE_CENTS = 1200;
+const PRO_ANNUAL_PRICE_CENTS = Math.round(PRO_MONTHLY_PRICE_CENTS * 12 * 0.8); // 20% discount
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
   free: {
     id: 'free',
     name: 'Free',
-    monthlyPriceCents: 0,
+    priceCents: 0,
+    billingInterval: 'month',
     minIndexedItems: 0,
-    maxIndexedItems: 250,
-  },
-  plus: {
-    id: 'plus',
-    name: 'Plus',
-    monthlyPriceCents: 500,
-    minIndexedItems: 0,
-    maxIndexedItems: 2500,
+    maxIndexedItems: 1000,
   },
   pro: {
     id: 'pro',
     name: 'Pro',
-    monthlyPriceCents: 2500,
+    priceCents: PRO_MONTHLY_PRICE_CENTS,
+    billingInterval: 'month',
     minIndexedItems: 0,
-    maxIndexedItems: 25000,
+    maxIndexedItems: null,
+  },
+  pro_annual: {
+    id: 'pro_annual',
+    name: 'Pro Annual',
+    priceCents: PRO_ANNUAL_PRICE_CENTS,
+    billingInterval: 'year',
+    minIndexedItems: 0,
+    maxIndexedItems: null,
   },
 };
 
-export const PAID_TIERS: SubscriptionTier[] = ['plus', 'pro'];
+export const PAID_TIERS: SubscriptionTier[] = ['pro', 'pro_annual'];
 
 export function getPlan(tier: SubscriptionTier): SubscriptionPlan {
   return SUBSCRIPTION_PLANS[tier];
 }
 
 export function getMaxIndexedItems(tier: SubscriptionTier): number {
-  return SUBSCRIPTION_PLANS[tier].maxIndexedItems;
+  const plan = SUBSCRIPTION_PLANS[tier];
+  return plan.maxIndexedItems ?? Number.POSITIVE_INFINITY;
 }
 
 export function isPaidTier(tier: SubscriptionTier): boolean {
@@ -47,8 +55,11 @@ export function isPaidTier(tier: SubscriptionTier): boolean {
 }
 
 export function coerceSubscriptionTier(value: unknown): SubscriptionTier {
-  if (value === 'plus' || value === 'pro') {
+  if (value === 'pro' || value === 'pro_annual') {
     return value;
+  }
+  if (value === 'plus') {
+    return 'pro';
   }
   return 'free';
 }

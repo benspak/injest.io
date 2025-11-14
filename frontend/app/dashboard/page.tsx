@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api';
 import { auth } from '@/lib/auth';
-import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionPlans';
+import { SUBSCRIPTION_PLANS, formatPlanRate } from '@/lib/subscriptionPlans';
 
 interface DashboardStats {
   itemCount: number | null;
@@ -103,8 +103,10 @@ export default function DashboardPage() {
 
   const subscriptionTier = stats.subscriptionTier || currentUser?.subscription_tier || 'free';
   const plan = SUBSCRIPTION_PLANS[subscriptionTier as keyof typeof SUBSCRIPTION_PLANS] || SUBSCRIPTION_PLANS.free;
-  const usagePercentage = stats.itemLimit > 0 ? (stats.itemCount || 0) / stats.itemLimit : 0;
-  const remainingItems = Math.max(0, stats.itemLimit - (stats.itemCount || 0));
+  const hasUnlimitedItems = !Number.isFinite(stats.itemLimit);
+  const usagePercentage =
+    !hasUnlimitedItems && stats.itemLimit > 0 ? (stats.itemCount || 0) / stats.itemLimit : 0;
+  const remainingItems = hasUnlimitedItems ? Infinity : Math.max(0, stats.itemLimit - (stats.itemCount || 0));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -348,7 +350,7 @@ export default function DashboardPage() {
                     <CardDescription>
                       {plan.name} Plan
                       {stats.subscriptionTier !== 'free' && (
-                        <span className="ml-2 text-blue-600">${(plan.monthlyPriceCents / 100).toFixed(2)}/mo</span>
+                        <span className="ml-2 text-blue-600">{formatPlanRate(plan)}</span>
                       )}
                     </CardDescription>
                   </div>
@@ -377,7 +379,8 @@ export default function DashboardPage() {
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-sm font-medium text-gray-700">Indexed Items</span>
                       <span className="text-sm text-gray-600">
-                        {stats.itemCount !== null ? stats.itemCount.toLocaleString() : '0'} / {stats.itemLimit.toLocaleString()}
+                        {stats.itemCount !== null ? stats.itemCount.toLocaleString() : '0'} /{' '}
+                        {hasUnlimitedItems ? 'Unlimited' : stats.itemLimit.toLocaleString()}
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3">
@@ -394,9 +397,11 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex justify-between items-center mt-2">
                       <span className="text-xs text-gray-500">
-                        {remainingItems > 0
-                          ? `${remainingItems.toLocaleString()} items remaining`
-                          : 'No items remaining'}
+                        {hasUnlimitedItems
+                          ? 'Unlimited items remaining'
+                          : remainingItems > 0
+                            ? `${remainingItems.toLocaleString()} items remaining`
+                            : 'No items remaining'}
                       </span>
                       <span className="text-xs text-gray-500">
                         {Math.round(usagePercentage * 100)}% used

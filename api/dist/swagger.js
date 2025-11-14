@@ -20,7 +20,7 @@ const swaggerDefinition = {
     info: {
         title: 'Injest API',
         version: '1.0.0',
-        description: 'Developer documentation for the Injest API. Authenticate with a user session token or a Plus-tier API key to ingest, organize, search, and act on captured knowledge.',
+        description: 'Developer documentation for the Injest API. Authenticate with a user session token or a Pro-tier API key to ingest, organize, search, and act on captured knowledge.',
         contact: {
             name: 'Injest Support',
             email: 'support@injest.io',
@@ -1505,7 +1505,7 @@ const swaggerDefinition = {
                             schema: {
                                 type: 'object',
                                 properties: {
-                                    tier: { type: 'string', enum: ['plus', 'pro'] },
+                                    tier: { type: 'string', enum: ['pro', 'pro_annual'] },
                                 },
                             },
                         },

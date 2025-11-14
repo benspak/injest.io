@@ -6,7 +6,7 @@ import jwt, { SignOptions } from 'jsonwebtoken';
 import { JWT_SECRET, JWT_EXPIRES_IN, FRONTEND_URL } from '../config/auth.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { generateApiKey, hashApiKey } from '../utils/apiKeys.js';
-import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
+import { coerceSubscriptionTier, isPaidTier } from '../utils/subscriptionPlans.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
 import { LoginSessionModel } from '../models/LoginSession.js';
 import {
@@ -387,6 +387,12 @@ router.get('/api-key', authMiddleware, async (req: AuthRequest, res: express.Res
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const tier = coerceSubscriptionTier(user.subscription_tier);
+    const hasProAccess = user.is_premium || isPaidTier(tier);
+    if (!hasProAccess) {
+      return res.status(403).json({ error: 'A Pro subscription is required to view API key information.' });
+    }
+
     res.json({
       hasKey: Boolean(user.api_key_hash),
       createdAt: user.api_key_created_at || null,
@@ -404,10 +410,21 @@ router.post('/api-key', authMiddleware, async (req: AuthRequest, res: express.Re
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
+    const user = await UserModel.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const tier = coerceSubscriptionTier(user.subscription_tier);
+    const hasProAccess = user.is_premium || isPaidTier(tier);
+    if (!hasProAccess) {
+      return res.status(403).json({ error: 'A Pro subscription is required to generate API keys.' });
+    }
+
     const apiKey = generateApiKey();
     const apiKeyHash = hashApiKey(apiKey);
 
-    const updatedUser = await UserModel.setApiKey(req.user.id, apiKeyHash);
+    const updatedUser = await UserModel.setApiKey(user.id, apiKeyHash);
 
     res.json({
       apiKey,
@@ -426,7 +443,18 @@ router.delete('/api-key', authMiddleware, async (req: AuthRequest, res: express.
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    await UserModel.clearApiKey(req.user.id);
+    const user = await UserModel.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const tier = coerceSubscriptionTier(user.subscription_tier);
+    const hasProAccess = user.is_premium || isPaidTier(tier);
+    if (!hasProAccess) {
+      return res.status(403).json({ error: 'A Pro subscription is required to revoke API keys.' });
+    }
+
+    await UserModel.clearApiKey(user.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Error revoking API key:', error);

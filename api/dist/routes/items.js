@@ -28,11 +28,15 @@ import { coerceSubscriptionTier, getMaxIndexedItems, getPlan, } from '../utils/s
 import { searchService } from '../services/search.js';
 const router = express.Router();
 const TIER_UPGRADE_PATH = {
-    free: 'plus',
-    plus: 'pro',
+    free: 'pro',
     pro: null,
+    pro_annual: null,
 };
 const formatCurrency = (cents) => `$${(cents / 100).toFixed(2)}`;
+const formatPlanPriceWithInterval = (plan) => {
+    const suffix = plan.billingInterval === 'year' ? '/year' : '/month';
+    return `${formatCurrency(plan.priceCents)}${suffix}`;
+};
 const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.toLowerCase());
 const normalizeBaseUrl = (value) => {
     if (!value) {
@@ -297,7 +301,9 @@ async function checkItemCreationLimit(userId) {
         const upgradeTier = TIER_UPGRADE_PATH[tier];
         const upgradePlan = upgradeTier ? getPlan(upgradeTier) : null;
         const upgradeMessage = upgradePlan
-            ? ` Upgrade to the ${upgradePlan.name} plan (${formatCurrency(upgradePlan.monthlyPriceCents)}/month) for up to ${upgradePlan.maxIndexedItems.toLocaleString()} items.`
+            ? ` Upgrade to the ${upgradePlan.name} plan (${formatPlanPriceWithInterval(upgradePlan)}) for ${typeof upgradePlan.maxIndexedItems === 'number'
+                ? `up to ${upgradePlan.maxIndexedItems.toLocaleString()} items`
+                : 'unlimited items'}.`
             : '';
         return {
             status: 403,
@@ -317,7 +323,7 @@ async function getItemLimitStatus(userId) {
     // Get user to check subscription tier
     const user = await UserModel.findById(userId);
     if (!user) {
-        return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: 500, subscriptionTier: 'free', planName: getPlan('free').name };
+        return { itemCount: 0, isAtLimit: false, isApproachingLimit: false, limit: 1000, subscriptionTier: 'free', planName: getPlan('free').name };
     }
     const tier = coerceSubscriptionTier(user.subscription_tier);
     const plan = getPlan(tier);
@@ -602,7 +608,7 @@ export async function handleCreateItem(req, res) {
             console.error('Invalid user ID:', req.user.id);
             return res.status(400).json({ error: 'Invalid user ID' });
         }
-        // Check item creation limit (250 items for free tier, higher limits for paid tiers)
+        // Check item creation limit (1,000 items for free tier, unlimited for Pro)
         const limitCheck = await checkItemCreationLimit(req.user.id);
         if (limitCheck) {
             return res.status(limitCheck.status).json({

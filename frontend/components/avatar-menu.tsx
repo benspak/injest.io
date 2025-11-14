@@ -61,7 +61,7 @@ export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
       return SUBSCRIPTION_PLANS[user.subscription_tier].name;
     }
     if (user.is_premium) {
-      return SUBSCRIPTION_PLANS.plus.name;
+      return SUBSCRIPTION_PLANS.pro.name;
     }
     return null;
   })();

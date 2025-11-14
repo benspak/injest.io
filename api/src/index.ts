@@ -70,7 +70,7 @@ app.use((req: express.Request, res: express.Response, next: express.NextFunction
 // Routes
 app.get('/api/docs', requirePlusTier, (req: express.Request, res: express.Response) => {
   res.json({
-    message: 'Interactive API documentation is available inside the Injest web app for Plus plans and above.',
+    message: 'Interactive API documentation is available inside the Injest web app for Pro plans and above.',
   });
 });
 app.get('/api/openapi.json', requirePlusTier, (req: express.Request, res: express.Response) => {

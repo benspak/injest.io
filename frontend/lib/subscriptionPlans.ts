@@ -1,45 +1,63 @@
-export type SubscriptionTier = 'free' | 'plus' | 'pro';
+export type SubscriptionTier = 'free' | 'pro' | 'pro_annual';
 
 export interface SubscriptionPlan {
   id: SubscriptionTier;
   name: string;
-  monthlyPriceCents: number;
-  maxIndexedItems: number;
+  priceCents: number;
+  billingInterval: 'month' | 'year';
+  maxIndexedItems: number | null;
   minIndexedItems: number;
   description: string;
 }
+
+const PRO_MONTHLY_PRICE_CENTS = 1200;
+const PRO_ANNUAL_PRICE_CENTS = Math.round(PRO_MONTHLY_PRICE_CENTS * 12 * 0.8); // 20% discount
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
   free: {
     id: 'free',
     name: 'Free',
-    monthlyPriceCents: 0,
-    maxIndexedItems: 250,
+    priceCents: 0,
+    billingInterval: 'month',
+    maxIndexedItems: 1000,
     minIndexedItems: 0,
-    description: 'Get started with up to 250 indexed items.',
-  },
-  plus: {
-    id: 'plus',
-    name: 'Plus',
-    monthlyPriceCents: 500,
-    maxIndexedItems: 2500,
-    minIndexedItems: 0,
-    description: 'Perfect for growing libraries up to 2,500 items.',
+    description: 'Get started with up to 1,000 indexed items and Pro ingestion features.',
   },
   pro: {
     id: 'pro',
     name: 'Pro',
-    monthlyPriceCents: 2500,
-    maxIndexedItems: 25000,
+    priceCents: PRO_MONTHLY_PRICE_CENTS,
+    billingInterval: 'month',
+    maxIndexedItems: null,
     minIndexedItems: 0,
-    description: 'Scale to 25,000 indexed items with priority capacity.',
+    description: 'Unlimited items, automation, and priority ingest for teams.',
+  },
+  pro_annual: {
+    id: 'pro_annual',
+    name: 'Pro Annual',
+    priceCents: PRO_ANNUAL_PRICE_CENTS,
+    billingInterval: 'year',
+    maxIndexedItems: null,
+    minIndexedItems: 0,
+    description: 'Save 20% with annual billing while keeping unlimited items.',
   },
 };
 
-export const PAID_PLAN_ORDER: SubscriptionTier[] = ['plus', 'pro'];
+export const PAID_PLAN_ORDER: SubscriptionTier[] = ['pro', 'pro_annual'];
 
-export const DEFAULT_PAID_TIER: SubscriptionTier = 'plus';
+export const DEFAULT_PAID_TIER: SubscriptionTier = 'pro';
 
 export function formatPlanPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
+}
+
+export function formatPlanRate(plan: SubscriptionPlan): string {
+  const suffix = plan.billingInterval === 'year' ? '/year' : '/month';
+  return `${formatPlanPrice(plan.priceCents)}${suffix}`;
+}
+
+export function formatPlanLimit(plan: SubscriptionPlan): string {
+  return typeof plan.maxIndexedItems === 'number'
+    ? `Up to ${plan.maxIndexedItems.toLocaleString()} items`
+    : 'Unlimited items';
 }

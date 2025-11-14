@@ -47,7 +47,7 @@ function extractApiKey(req: AuthRequest): string | null {
   return null;
 }
 
-function hasPlusAccess(user: User | null): boolean {
+function hasPaidAccess(user: User | null): boolean {
   if (!user) {
     return false;
   }
@@ -98,8 +98,8 @@ export async function requirePlusTier(req: AuthRequest, res: Response, next: Nex
       return;
     }
 
-    if (!hasPlusAccess(user)) {
-      res.status(403).json({ error: 'A Plus subscription or higher is required to access API documentation' });
+    if (!hasPaidAccess(user)) {
+      res.status(403).json({ error: 'A Pro subscription is required to access API documentation' });
       return;
     }
 
@@ -110,7 +110,7 @@ export async function requirePlusTier(req: AuthRequest, res: Response, next: Nex
 
     next();
   } catch (error) {
-    console.error('Error enforcing Plus tier access:', error);
+    console.error('Error enforcing paid tier access:', error);
     res.status(500).json({ error: 'Failed to verify API documentation access' });
   }
 }

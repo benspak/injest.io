@@ -139,9 +139,9 @@ npm run dev
 
 Open `http://localhost:3000` to see the dashboard. The onboarding flow uses passwordless magic links via Resend.
 
-## 5. Seed a Plus-Tier Developer Account (Optional but Recommended)
+## 5. Seed a Pro-Tier Developer Account (Optional but Recommended)
 
-API key generation, the `/developers` portal, and `/api/external` routes require a Plus (or higher) subscription tier.
+API key generation, the `/developers` portal, and `/api/external` routes require a Pro (or higher) subscription tier.
 
 1. Sign up through the frontend and complete the magic-link login.
 2. In the backend terminal, run:
@@ -168,7 +168,7 @@ API key generation, the `/developers` portal, and `/api/external` routes require
 
 1. **Backend health** – `GET http://localhost:5555/health` returns `{"status":"ok"}`.
 2. **Auth flow** – Submit your email at `/login`, click the magic link, and confirm the dashboard loads.
-3. **External API** – With a Plus user, visit `http://localhost:3000/developers`, generate an API key, and hit `http://localhost:5555/api/external/items`.
+3. **External API** – With a Pro user, visit `http://localhost:3000/developers`, generate an API key, and hit `http://localhost:5555/api/external/items`.
 4. **Email ingestion** – Forward an email to your inbound address and confirm it appears in the dashboard after processing.
 
 ## Troubleshooting
@@ -179,7 +179,7 @@ API key generation, the `/developers` portal, and `/api/external` routes require
 - **Port conflicts**: Adjust `PORT` or `NEXT_PUBLIC_API_URL` if 5555/3000 are occupied.
 - **OpenAI issues**: Verify credits, model name, and network access; errors surface in API logs.
 - **Resend webhooks**: For local development, expose `/api/email/inbound` via ngrok (Resend requires a public URL).
-- **Swagger/OpenAPI blocked**: Only Plus+ accounts can fetch `/api/openapi.json` or load the embedded docs. Upgrade the test user via `npm run make-plus-user`.
+- **Swagger/OpenAPI blocked**: Only Pro accounts can fetch `/api/openapi.json` or load the embedded docs. Upgrade the test user via `npm run make-plus-user`.
 - **Large uploads**: Files over 25 MB are rejected. Ensure `UPLOAD_DIR` exists and the process has write permissions.
 
 ## Production Deployment

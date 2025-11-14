@@ -1,6 +1,6 @@
 # Injest.io RAG System
 
-An AI-assisted knowledge recall platform with ingestion pipelines, semantic search, outbound communication workflows, and a Plus-tier external API. This repository hosts the full monorepo:
+An AI-assisted knowledge recall platform with ingestion pipelines, semantic search, outbound communication workflows, and a Pro-tier external API. This repository hosts the full monorepo:
 
 - `api/` – Express + TypeScript backend (ES modules) with OpenAI-powered enrichment, Stripe billing, and REST APIs.
 - `frontend/` – Next.js 14 frontend with the authenticated dashboard, developer docs, and interactive API explorer.
@@ -11,9 +11,9 @@ An AI-assisted knowledge recall platform with ingestion pipelines, semantic sear
 
 1. Follow the full environment walkthrough in `SETUP.md` (PostgreSQL + pgvector, env vars, migrations).
 2. Start the backend (`cd api && npm run dev`) and frontend (`cd frontend && npm run dev`).
-3. Optional: create a Plus-tier test user with `npm run make-plus-user` so you can exercise external API flows locally.
+3. Optional: create a Pro-tier test user with `npm run make-plus-user` so you can exercise external API flows locally.
 
-The backend exposes Swagger-based docs at `/api/openapi.json`, but access is gated by the Plus plan. The frontend’s `/developers` page loads the OpenAPI spec when the signed-in user has the necessary tier.
+The backend exposes Swagger-based docs at `/api/openapi.json`, but access is gated by the Pro plan. The frontend’s `/developers` page loads the OpenAPI spec when the signed-in user has the necessary tier.
 
 ## Developer Documentation
 
@@ -21,7 +21,7 @@ The backend exposes Swagger-based docs at `/api/openapi.json`, but access is gat
 - `API_DOCUMENTATION.md` – REST endpoints (authenticated vs. external API key access, tasks, send workflows, payments, etc.).
 - `OPENAI_OPTIMIZATION.md` – Guidance for tuning prompts, context windows, and model selection.
 
-In-app developer docs live at `http://localhost:3000/developers` when running locally. Users below Plus see upgrade guidance; Plus users can generate API keys, download the spec, and explore endpoints via Swagger UI.
+In-app developer docs live at `http://localhost:3000/developers` when running locally. Users below Pro see upgrade guidance; Pro users can generate API keys, download the spec, and explore endpoints via Swagger UI.
 
 ## Maintenance & Operational Jobs
 

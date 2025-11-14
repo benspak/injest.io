@@ -16,14 +16,14 @@ async function promptForEmail(): Promise<string> {
 
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question('Enter the email to upgrade to plus: ');
+    const answer = await rl.question('Enter the email to upgrade to pro: ');
     return answer.trim();
   } finally {
     rl.close();
   }
 }
 
-async function upgradeUserToPlus(email: string): Promise<void> {
+async function upgradeUserToPro(email: string): Promise<void> {
   const normalizedEmail = email.toLowerCase();
   console.log(`Looking up user with email: ${normalizedEmail}`);
 
@@ -34,11 +34,11 @@ async function upgradeUserToPlus(email: string): Promise<void> {
     return;
   }
 
-  if (user.subscription_tier === 'plus' || user.is_premium) {
-    console.log('User is already marked as a paid user. Updating subscription tier to ensure it is set to plus.');
+  if (user.subscription_tier === 'pro' || user.subscription_tier === 'pro_annual' || user.is_premium) {
+    console.log('User is already marked as a paid user. Updating subscription tier to ensure it is set to pro.');
   }
 
-  const targetTier: SubscriptionTier = 'plus';
+  const targetTier: SubscriptionTier = 'pro';
 
   const updatedUser = await UserModel.update(user.id, {
     is_premium: true,
@@ -64,7 +64,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    await upgradeUserToPlus(email);
+    await upgradeUserToPro(email);
   } catch (error) {
     console.error('Failed to upgrade user:', error);
     process.exitCode = 1;

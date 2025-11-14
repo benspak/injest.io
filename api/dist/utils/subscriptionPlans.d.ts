@@ -1,10 +1,11 @@
-export type SubscriptionTier = 'free' | 'plus' | 'pro';
+export type SubscriptionTier = 'free' | 'pro' | 'pro_annual';
 export interface SubscriptionPlan {
     id: SubscriptionTier;
     name: string;
-    monthlyPriceCents: number;
+    priceCents: number;
+    billingInterval: 'month' | 'year';
     minIndexedItems: number;
-    maxIndexedItems: number;
+    maxIndexedItems: number | null;
 }
 export declare const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan>;
 export declare const PAID_TIERS: SubscriptionTier[];

@@ -42,7 +42,7 @@ router.post('/bookmark-import', async (req: AuthRequest, res: express.Response) 
 
     let userTier: SubscriptionTier = coerceSubscriptionTier(user.subscription_tier);
     if (!isPaidTier(userTier) && user.is_premium) {
-      userTier = 'plus';
+      userTier = 'pro';
     }
 
     // Check if user is premium (they can import for free)
@@ -54,8 +54,9 @@ router.post('/bookmark-import', async (req: AuthRequest, res: express.Response) 
         subscriptionTier: userTier,
         plan: {
           name: plan.name,
+          billingInterval: plan.billingInterval,
           maxIndexedItems: plan.maxIndexedItems,
-          amountCents: plan.monthlyPriceCents,
+          amountCents: plan.priceCents,
         },
       });
     }
@@ -99,9 +100,9 @@ router.post('/premium-subscription', async (req: AuthRequest, res: express.Respo
     }
 
     const requestedTierRaw = typeof req.body?.tier === 'string' ? req.body.tier : undefined;
-    let tier: SubscriptionTier = requestedTierRaw ? coerceSubscriptionTier(requestedTierRaw) : 'plus';
+    let tier: SubscriptionTier = requestedTierRaw ? coerceSubscriptionTier(requestedTierRaw) : 'pro';
     if (!isPaidTier(tier)) {
-      tier = 'plus';
+      tier = 'pro';
     }
     const plan = getPlan(tier);
 
@@ -132,8 +133,9 @@ router.post('/premium-subscription', async (req: AuthRequest, res: express.Respo
       subscriptionTier: tier,
       plan: {
         name: plan.name,
+        billingInterval: plan.billingInterval,
         maxIndexedItems: plan.maxIndexedItems,
-        amountCents: plan.monthlyPriceCents,
+        amountCents: plan.priceCents,
       },
     });
   } catch (error: any) {
@@ -187,9 +189,9 @@ router.post('/verify', async (req: AuthRequest, res: express.Response) => {
 
     if (paymentType === 'premium_subscription') {
       const metadataTier = paymentIntent.metadata?.subscription_tier;
-      let tier: SubscriptionTier = metadataTier ? coerceSubscriptionTier(metadataTier) : 'plus';
+      let tier: SubscriptionTier = metadataTier ? coerceSubscriptionTier(metadataTier) : 'pro';
       if (!isPaidTier(tier)) {
-        tier = 'plus';
+        tier = 'pro';
       }
       const plan = getPlan(tier);
 

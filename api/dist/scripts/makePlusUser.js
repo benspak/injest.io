@@ -11,14 +11,14 @@ async function promptForEmail() {
     }
     const rl = readline.createInterface({ input, output });
     try {
-        const answer = await rl.question('Enter the email to upgrade to plus: ');
+        const answer = await rl.question('Enter the email to upgrade to pro: ');
         return answer.trim();
     }
     finally {
         rl.close();
     }
 }
-async function upgradeUserToPlus(email) {
+async function upgradeUserToPro(email) {
     const normalizedEmail = email.toLowerCase();
     console.log(`Looking up user with email: ${normalizedEmail}`);
     const user = await UserModel.findByEmail(normalizedEmail);
@@ -27,10 +27,10 @@ async function upgradeUserToPlus(email) {
         process.exitCode = 1;
         return;
     }
-    if (user.subscription_tier === 'plus' || user.is_premium) {
-        console.log('User is already marked as a paid user. Updating subscription tier to ensure it is set to plus.');
+    if (user.subscription_tier === 'pro' || user.subscription_tier === 'pro_annual' || user.is_premium) {
+        console.log('User is already marked as a paid user. Updating subscription tier to ensure it is set to pro.');
     }
-    const targetTier = 'plus';
+    const targetTier = 'pro';
     const updatedUser = await UserModel.update(user.id, {
         is_premium: true,
         subscription_tier: targetTier,
@@ -52,7 +52,7 @@ async function main() {
             process.exitCode = 1;
             return;
         }
-        await upgradeUserToPlus(email);
+        await upgradeUserToPro(email);
     }
     catch (error) {
         console.error('Failed to upgrade user:', error);

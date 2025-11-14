@@ -80,7 +80,7 @@ function SettingsPageContent() {
         if (response.user.subscription_tier) {
           setSubscriptionTier(response.user.subscription_tier);
         } else if (response.user.is_premium) {
-          setSubscriptionTier('plus');
+          setSubscriptionTier('pro');
         }
       }
     } catch (error) {
@@ -100,7 +100,7 @@ function SettingsPageContent() {
         if (user?.subscription_tier) {
           setSubscriptionTier(user.subscription_tier);
         } else if (user?.is_premium) {
-          setSubscriptionTier('plus');
+          setSubscriptionTier('pro');
         } else {
           setSubscriptionTier('free');
         }
@@ -260,8 +260,9 @@ function SettingsPageContent() {
     }
 
     const upgradeParam = searchParams?.get('upgrade');
-    if (upgradeParam && ['plus', 'pro'].includes(upgradeParam)) {
-      const tier = upgradeParam as SubscriptionTier;
+    if (upgradeParam && ['plus', 'pro', 'pro_annual'].includes(upgradeParam)) {
+      const normalizedTier = upgradeParam === 'plus' ? 'pro' : upgradeParam;
+      const tier = normalizedTier as SubscriptionTier;
       setRequestedTier(tier);
       setSubscriptionDialogOpen(true);
     }
@@ -429,7 +430,7 @@ function SettingsPageContent() {
     ? new Date(twoFactorStatus.confirmedAt).toLocaleString()
     : null;
   const effectiveSubscriptionTier: SubscriptionTier =
-    currentUser?.subscription_tier ?? (currentUser?.is_premium ? 'plus' : subscriptionTier);
+    currentUser?.subscription_tier ?? (currentUser?.is_premium ? 'pro' : subscriptionTier);
   const isSubscriber = Boolean(
     currentUser?.is_premium || (effectiveSubscriptionTier && effectiveSubscriptionTier !== 'free')
   );
