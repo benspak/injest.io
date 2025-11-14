@@ -20,8 +20,12 @@ const serializeMetadata = (metadata) => {
 };
 const buildContactSummary = (contact) => {
     const summaryParts = [];
-    if (contact.name)
-        summaryParts.push(contact.name);
+    // Build full name from first and last name
+    const fullName = contact.first_name || contact.last_name
+        ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+        : contact.name;
+    if (fullName)
+        summaryParts.push(fullName);
     if (contact.email)
         summaryParts.push(`Email: ${contact.email}`);
     if (contact.phone)
@@ -215,14 +219,68 @@ export class IndexingService {
     }
     async performContactIndexing(contact) {
         const textParts = [];
-        if (contact.name)
-            textParts.push(contact.name);
+        // Build full name from first and last name
+        const fullName = contact.first_name || contact.last_name
+            ? `${contact.first_name || ''} ${contact.last_name || ''}`.trim()
+            : contact.name;
+        if (fullName)
+            textParts.push(fullName);
+        if (contact.first_name)
+            textParts.push(contact.first_name);
+        if (contact.last_name)
+            textParts.push(contact.last_name);
         if (contact.email)
             textParts.push(contact.email);
         if (contact.phone)
             textParts.push(contact.phone);
         if (contact.metadata)
             textParts.push(serializeMetadata(contact.metadata));
+        // Include matched user profile data if available
+        let matchedUserProfile = null;
+        if (contact.matched_user_id) {
+            try {
+                const matchedUser = await UserModel.findById(contact.matched_user_id);
+                if (matchedUser && !matchedUser.profile_private) {
+                    // Only include public profile data
+                    matchedUserProfile = {
+                        id: matchedUser.id,
+                        public_username: matchedUser.public_username,
+                        first_name: matchedUser.first_name,
+                        last_name: matchedUser.last_name,
+                        headline: matchedUser.headline,
+                        bio: matchedUser.bio,
+                        company: matchedUser.company,
+                        project_title: matchedUser.project_title,
+                        project_description: matchedUser.project_description,
+                        city: matchedUser.city,
+                        x_profile_url: matchedUser.x_profile_url,
+                        youtube_url: matchedUser.youtube_url,
+                        github_url: matchedUser.github_url,
+                        linkedin_url: matchedUser.linkedin_url,
+                    };
+                    // Add matched user profile information to searchable text
+                    if (matchedUser.first_name)
+                        textParts.push(matchedUser.first_name);
+                    if (matchedUser.last_name)
+                        textParts.push(matchedUser.last_name);
+                    if (matchedUser.headline)
+                        textParts.push(matchedUser.headline);
+                    if (matchedUser.bio)
+                        textParts.push(matchedUser.bio);
+                    if (matchedUser.company)
+                        textParts.push(matchedUser.company);
+                    if (matchedUser.project_title)
+                        textParts.push(matchedUser.project_title);
+                }
+            }
+            catch (error) {
+                console.warn('[Indexing] Failed to fetch matched user profile for contact:', {
+                    contactId: contact.id,
+                    matchedUserId: contact.matched_user_id,
+                    error,
+                });
+            }
+        }
         const textContent = textParts.join(' ').trim();
         if (textContent.length === 0) {
             console.warn(`[Indexing] Contact ${contact.id} has no text content to index; skipping.`);
@@ -233,7 +291,7 @@ export class IndexingService {
             ownerId: contact.owner_id,
             entityType: 'contact',
             entityId: contact.id,
-            title: contact.name ?? contact.email ?? summary,
+            title: fullName ?? contact.email ?? summary,
             content: textContent,
             summary,
             tags,
@@ -241,6 +299,8 @@ export class IndexingService {
                 email: contact.email,
                 phone: contact.phone,
                 sourceItemId: contact.source_item_id,
+                matchedUserId: contact.matched_user_id,
+                matchedUserProfile: matchedUserProfile,
                 metadata: contact.metadata ?? {},
             },
         });
@@ -265,6 +325,16 @@ export class IndexingService {
             textParts.push(user.last_name);
         if (user.public_username)
             textParts.push(user.public_username);
+        if (user.headline)
+            textParts.push(user.headline);
+        if (user.bio)
+            textParts.push(user.bio);
+        if (user.company)
+            textParts.push(user.company);
+        if (user.project_title)
+            textParts.push(user.project_title);
+        if (user.project_description)
+            textParts.push(user.project_description);
         // Add social links as searchable text
         if (user.x_profile_url)
             textParts.push(user.x_profile_url);
@@ -291,7 +361,10 @@ export class IndexingService {
         if (user.public_username) {
             summaryParts.push(`@${user.public_username}`);
         }
-        const summary = summaryParts.join(' ') || title;
+        if (user.headline) {
+            summaryParts.push(user.headline);
+        }
+        const summary = summaryParts.join(' • ') || title;
         // Build tags
         const tags = new Set();
         tags.add('user');
@@ -324,6 +397,11 @@ export class IndexingService {
                 first_name: user.first_name,
                 last_name: user.last_name,
                 public_username: user.public_username,
+                headline: user.headline,
+                bio: user.bio,
+                company: user.company,
+                project_title: user.project_title,
+                project_description: user.project_description,
                 x_profile_url: user.x_profile_url,
                 youtube_url: user.youtube_url,
                 github_url: user.github_url,

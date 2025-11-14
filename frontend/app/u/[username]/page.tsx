@@ -111,23 +111,31 @@ function PublicProfilePageContent() {
   const avatarUrl = getAvatarUrl(profile.avatar_url);
   const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.public_username || 'User';
 
+  const formatJoinDate = (dateString: string): string => {
+    const date = new Date(dateString);
+    const month = date.toLocaleDateString('en-US', { month: 'long' });
+    const year = date.getFullYear();
+    return `Joined ${month} ${year}`;
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <main className="container mx-auto px-3 sm:px-4 md:px-6 py-8 sm:py-12 max-w-4xl">
+      <main className="container mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8 max-w-4xl space-y-6">
+        {/* Top Section: Short User Details */}
         <Card>
-          <CardContent className="pt-8 pb-8">
-            <div className="flex flex-col items-center text-center space-y-6">
+          <CardContent className="pt-6 pb-6">
+            <div className="flex flex-col items-center text-center space-y-3">
               {/* Avatar */}
               <div className="relative">
                 {avatarUrl ? (
                   <img
                     src={avatarUrl}
                     alt={fullName}
-                    className="h-32 w-32 rounded-full object-cover border-4 border-white shadow-lg"
+                    className="h-24 w-24 rounded-full object-cover border-2 border-white shadow-md"
                   />
                 ) : (
-                  <div className="h-32 w-32 rounded-full bg-gray-300 flex items-center justify-center border-4 border-white shadow-lg">
-                    <span className="text-4xl font-bold text-gray-600">
+                  <div className="h-24 w-24 rounded-full bg-gray-300 flex items-center justify-center border-2 border-white shadow-md">
+                    <span className="text-3xl font-bold text-gray-600">
                       {fullName.charAt(0).toUpperCase()}
                     </span>
                   </div>
@@ -136,28 +144,48 @@ function PublicProfilePageContent() {
 
               {/* Name */}
               <div>
-                <h1 className="text-3xl font-bold text-gray-900">{fullName}</h1>
+                <h1 className="text-2xl font-bold text-gray-900">{fullName}</h1>
                 {profile.public_username && (
-                  <p className="text-gray-500 mt-1">@{profile.public_username}</p>
+                  <p className="text-gray-500 text-sm mt-0.5">@{profile.public_username}</p>
                 )}
               </div>
 
-              {/* Location */}
-              {profile.city && (
-                <p className="text-gray-600">
-                  <span className="inline-flex items-center">
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    {profile.city}
-                  </span>
-                </p>
+              {/* Headline */}
+              {profile.headline && (
+                <p className="text-base text-gray-700 font-medium">{profile.headline}</p>
+              )}
+
+              {/* Location and Join Date */}
+              {(profile.city || profile.created_at) && (
+                <div className="flex flex-wrap items-center justify-center gap-2 text-sm text-gray-500">
+                  {profile.city && (
+                    <span className="inline-flex items-center">
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      {profile.city}
+                    </span>
+                  )}
+                  {profile.city && profile.created_at && (
+                    <span>•</span>
+                  )}
+                  {profile.created_at && (
+                    <span>{formatJoinDate(profile.created_at)}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Bio */}
+              {profile.bio && (
+                <div className="max-w-2xl w-full mt-2">
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{profile.bio}</p>
+                </div>
               )}
 
               {/* Social Links */}
               {(profile.x_profile_url || profile.youtube_url || profile.github_url || profile.linkedin_url) && (
-                <div className="flex flex-wrap gap-3 justify-center">
+                <div className="flex flex-wrap gap-3 justify-center pt-2">
                   {profile.x_profile_url && (
                     <Button
                       variant="outline"
@@ -235,6 +263,77 @@ function PublicProfilePageContent() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Company Section */}
+        {profile.company && (
+          <Card className="border-2 border-blue-200 bg-blue-50/30">
+            <CardContent className="pt-8 pb-8 px-6">
+              <div className="flex items-start gap-6">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shadow-sm">
+                    <svg
+                      className="w-6 h-6 text-blue-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-base font-semibold text-gray-900 mb-3">Current Company</h2>
+                  <p className="text-base text-gray-800 font-medium leading-relaxed">{profile.company}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Current Project Section */}
+        {(profile.project_title || profile.project_description) && (
+          <Card className="border-2 border-purple-200 bg-purple-50/30">
+            <CardContent className="pt-8 pb-8 px-6">
+              <div className="flex items-start gap-6">
+                <div className="flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center shadow-sm">
+                    <svg
+                      className="w-6 h-6 text-purple-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                      />
+                    </svg>
+                  </div>
+                </div>
+                <div className="flex-1 min-w-0 space-y-4">
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900 mb-3">Current Project</h2>
+                    {profile.project_title && (
+                      <h3 className="text-base font-semibold text-gray-800 mb-3">{profile.project_title}</h3>
+                    )}
+                  </div>
+                  {profile.project_description && (
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                      {profile.project_description}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );

@@ -88,7 +88,7 @@ export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
             {planLabel && <p className="mt-1 text-xs font-semibold uppercase text-blue-600">{planLabel}</p>}
           </div>
           <div className="flex flex-col">
-            {user.public_username && (
+            {user.public_username && user.public_username.trim() !== '' && !user.profile_private && (
               <Link
                 href={`/u/${user.public_username}`}
                 role="menuitem"
@@ -98,6 +98,14 @@ export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
                 View Profile
               </Link>
             )}
+            <Link
+              href="/settings/profile"
+              role="menuitem"
+              className="px-4 py-2 text-sm text-gray-700 transition hover:bg-gray-100 hover:text-gray-900"
+              onClick={() => setOpen(false)}
+            >
+              Edit Profile
+            </Link>
             <Link
               href="/settings"
               role="menuitem"

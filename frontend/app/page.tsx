@@ -215,6 +215,53 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Profile Privacy & Contact Enrichment Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
+              Privacy First, Enrichment Optional
+            </h2>
+            <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
+              Your privacy is our priority. All you need is an email address to get started, and your profile is private by default.
+            </p>
+            <div className="grid md:grid-cols-2 gap-8">
+              <Card className="border-2 border-gray-200">
+                <CardHeader>
+                  <CardTitle className="text-xl">Private by Default</CardTitle>
+                  <CardDescription className="text-base">
+                    Your profile stays private unless you choose to make it public
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    All you need is an email address to create an account. Your profile information remains private by default, giving you full control over your visibility.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-2 border-blue-200 bg-blue-50/30">
+                <CardHeader>
+                  <CardTitle className="text-xl">Enrich Contacts with Public Profiles</CardTitle>
+                  <CardDescription className="text-base">
+                    Unlock enhanced contact details when both profiles are public
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    For users who choose to make their profile public, Injest automatically enriches your contacts by matching them with other public profiles. This unlocks access to social media links and profile information, making your contact database more complete and actionable.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="mt-8 p-6 rounded-2xl bg-gray-50 border border-gray-200">
+              <p className="text-center text-gray-700">
+                <span className="font-semibold">How it works:</span> When you create a contact, Injest automatically matches it to public user profiles based on name. If a match is found, your contact is enriched with social media links (LinkedIn, X.com, GitHub) and a link to their public profile — all while respecting privacy settings.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Search Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-3xl mx-auto text-center">

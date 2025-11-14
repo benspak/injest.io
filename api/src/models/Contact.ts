@@ -1,11 +1,16 @@
 import type { Pool, PoolClient } from 'pg';
 import pool from '../config/database.js';
+import { contactEnrichmentService } from '../services/contactEnrichment.js';
 
 export interface Contact {
   id: string;
   owner_id: string;
-  name: string | null;
-  normalized_name: string;
+  name: string | null; // Deprecated, kept for backward compatibility
+  normalized_name: string; // Deprecated, kept for backward compatibility
+  first_name: string | null;
+  last_name: string | null;
+  normalized_first_name: string;
+  normalized_last_name: string;
   email: string | null;
   normalized_email: string;
   phone: string | null;
@@ -14,6 +19,7 @@ export interface Contact {
   x_url: string | null;
   github_url: string | null;
   source_item_id: string | null;
+  matched_user_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
@@ -21,13 +27,16 @@ export interface Contact {
 
 export interface UpsertContactInput {
   ownerId: string;
-  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null; // Deprecated, kept for backward compatibility
   email?: string | null;
   phone?: string | null;
   linkedinUrl?: string | null;
   xUrl?: string | null;
   githubUrl?: string | null;
   sourceItemId?: string | null;
+  matchedUserId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -38,12 +47,15 @@ export interface ListContactsOptions {
 }
 
 export interface UpdateContactInput {
-  name?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null; // Deprecated, kept for backward compatibility
   email?: string | null;
   phone?: string | null;
   linkedinUrl?: string | null;
   xUrl?: string | null;
   githubUrl?: string | null;
+  matchedUserId?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 
@@ -67,6 +79,30 @@ const normalizeName = (value?: string | null): string => {
     return '';
   }
   return value.trim().toLowerCase();
+};
+
+const normalizeFirstName = (value?: string | null): string => {
+  if (!value) {
+    return '';
+  }
+  return value.trim().toLowerCase();
+};
+
+const normalizeLastName = (value?: string | null): string => {
+  if (!value) {
+    return '';
+  }
+  return value.trim().toLowerCase();
+};
+
+// Helper to build full name from first and last name
+const buildFullName = (firstName?: string | null, lastName?: string | null): string | null => {
+  const first = firstName?.trim() || '';
+  const last = lastName?.trim() || '';
+  if (!first && !last) {
+    return null;
+  }
+  return `${first} ${last}`.trim();
 };
 
 const sanitizeNullable = (value?: string | null): string | null => {
@@ -120,24 +156,27 @@ const buildContactSearchFilters = (ownerId: string, search?: string | null) => {
   const whereClauses = ['owner_id = $1'];
   const params: Array<string | number> = [ownerId];
 
-  if (search && search.trim().length > 0) {
-    const normalizedQuery = search.trim().toLowerCase();
-    const likeQuery = `%${normalizedQuery}%`;
-    const digitsOnly = normalizedQuery.replace(/\D+/g, '');
+    if (search && search.trim().length > 0) {
+      const normalizedQuery = search.trim().toLowerCase();
+      const likeQuery = `%${normalizedQuery}%`;
+      const digitsOnly = normalizedQuery.replace(/\D+/g, '');
 
-    params.push(likeQuery);
-    const searchConditions = [
-      `normalized_name LIKE $${params.length}`,
-      `normalized_email LIKE $${params.length}`,
-    ];
+      params.push(likeQuery);
+      const searchConditions = [
+        `normalized_first_name LIKE $${params.length}`,
+        `normalized_last_name LIKE $${params.length}`,
+        `(normalized_first_name || ' ' || normalized_last_name) LIKE $${params.length}`,
+        `normalized_name LIKE $${params.length}`,
+        `normalized_email LIKE $${params.length}`,
+      ];
 
-    if (digitsOnly.length > 0) {
-      params.push(`%${digitsOnly}%`);
-      searchConditions.push(`normalized_phone LIKE $${params.length}`);
+      if (digitsOnly.length > 0) {
+        params.push(`%${digitsOnly}%`);
+        searchConditions.push(`normalized_phone LIKE $${params.length}`);
+      }
+
+      whereClauses.push(`(${searchConditions.join(' OR ')})`);
     }
-
-    whereClauses.push(`(${searchConditions.join(' OR ')})`);
-  }
 
   return { whereClauses, params };
 };
@@ -147,18 +186,37 @@ export class ContactModel {
     input: UpsertContactInput,
     client: Pool | PoolClient = pool
   ): Promise<Contact | null> {
-    const name = sanitizeNullable(input.name);
+    // Handle firstName/lastName or parse from name (backward compatibility)
+    let firstName: string | null = sanitizeNullable(input.firstName);
+    let lastName: string | null = sanitizeNullable(input.lastName);
+
+    // If name is provided but firstName/lastName are not, parse name
+    if (input.name && !firstName && !lastName) {
+      const nameParts = input.name.trim().split(/\s+/);
+      if (nameParts.length > 0) {
+        firstName = sanitizeNullable(nameParts[0]);
+        if (nameParts.length > 1) {
+          lastName = sanitizeNullable(nameParts.slice(1).join(' '));
+        }
+      }
+    }
+
+    // Build full name for backward compatibility
+    const name = buildFullName(firstName, lastName);
+
     const email = sanitizeNullable(input.email);
     const phone = sanitizeNullable(input.phone);
     const linkedinUrl = sanitizeUrl(input.linkedinUrl);
     const xUrl = sanitizeUrl(input.xUrl);
     const githubUrl = sanitizeUrl(input.githubUrl);
 
+    const normalizedFirstName = normalizeFirstName(firstName);
+    const normalizedLastName = normalizeLastName(lastName);
     const normalizedName = normalizeName(name);
     const normalizedEmail = normalizeEmail(email);
     const normalizedPhone = normalizePhone(phone);
 
-    if (!name && !email && !phone) {
+    if (!firstName && !lastName && !email && !phone) {
       return null;
     }
 
@@ -170,6 +228,10 @@ export class ContactModel {
           owner_id,
           name,
           normalized_name,
+          first_name,
+          last_name,
+          normalized_first_name,
+          normalized_last_name,
           email,
           normalized_email,
           phone,
@@ -178,10 +240,11 @@ export class ContactModel {
           x_url,
           github_url,
           source_item_id,
+          matched_user_id,
           metadata
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        ON CONFLICT (owner_id, normalized_email, normalized_phone)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        ON CONFLICT (owner_id, normalized_email, normalized_phone, normalized_first_name, normalized_last_name)
         DO UPDATE SET
           name = CASE
             WHEN EXCLUDED.name IS NOT NULL THEN EXCLUDED.name
@@ -190,6 +253,22 @@ export class ContactModel {
           normalized_name = CASE
             WHEN EXCLUDED.normalized_name <> '' THEN EXCLUDED.normalized_name
             ELSE contacts.normalized_name
+          END,
+          first_name = CASE
+            WHEN EXCLUDED.first_name IS NOT NULL THEN EXCLUDED.first_name
+            ELSE contacts.first_name
+          END,
+          last_name = CASE
+            WHEN EXCLUDED.last_name IS NOT NULL THEN EXCLUDED.last_name
+            ELSE contacts.last_name
+          END,
+          normalized_first_name = CASE
+            WHEN EXCLUDED.normalized_first_name <> '' THEN EXCLUDED.normalized_first_name
+            ELSE contacts.normalized_first_name
+          END,
+          normalized_last_name = CASE
+            WHEN EXCLUDED.normalized_last_name <> '' THEN EXCLUDED.normalized_last_name
+            ELSE contacts.normalized_last_name
           END,
           email = CASE
             WHEN EXCLUDED.email IS NOT NULL THEN EXCLUDED.email
@@ -211,6 +290,7 @@ export class ContactModel {
           x_url = COALESCE(EXCLUDED.x_url, contacts.x_url),
           github_url = COALESCE(EXCLUDED.github_url, contacts.github_url),
           source_item_id = COALESCE(contacts.source_item_id, EXCLUDED.source_item_id),
+          matched_user_id = COALESCE(EXCLUDED.matched_user_id, contacts.matched_user_id),
           metadata = jsonb_strip_nulls(COALESCE(contacts.metadata, '{}'::jsonb) || COALESCE(EXCLUDED.metadata, '{}'::jsonb)),
           updated_at = CURRENT_TIMESTAMP
         RETURNING *
@@ -219,6 +299,10 @@ export class ContactModel {
         input.ownerId,
         name,
         normalizedName,
+        firstName,
+        lastName,
+        normalizedFirstName,
+        normalizedLastName,
         email,
         normalizedEmail,
         phone,
@@ -227,11 +311,53 @@ export class ContactModel {
         xUrl,
         githubUrl,
         input.sourceItemId ?? null,
+        input.matchedUserId ?? null,
         metadata,
       ]
     );
 
-    return result.rows[0] ?? null;
+    const contact = result.rows[0] ?? null;
+    if (!contact) {
+      return null;
+    }
+
+    // Run enrichment if matchedUserId was not explicitly provided
+    if (input.matchedUserId === undefined && (contact.first_name || contact.last_name)) {
+      try {
+        const matchedUser = await contactEnrichmentService.matchContactToUser(contact);
+        if (matchedUser && matchedUser.id !== contact.matched_user_id) {
+          // Enrich social links from matched user profile (only if contact doesn't have them)
+          const enrichedLinkedinUrl = contact.linkedin_url || matchedUser.linkedin_url || null;
+          const enrichedXUrl = contact.x_url || matchedUser.x_profile_url || null;
+          const enrichedGithubUrl = contact.github_url || matchedUser.github_url || null;
+
+          // Update the contact with the matched user ID and enriched social links
+          const updateResult = await client.query<Contact>(
+            `
+              UPDATE contacts
+              SET
+                matched_user_id = $1,
+                linkedin_url = COALESCE($2, linkedin_url),
+                x_url = COALESCE($3, x_url),
+                github_url = COALESCE($4, github_url),
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = $5
+              RETURNING *
+            `,
+            [matchedUser.id, enrichedLinkedinUrl, enrichedXUrl, enrichedGithubUrl, contact.id]
+          );
+          return updateResult.rows[0] ?? contact;
+        }
+      } catch (error) {
+        // Enrichment failures should not block contact creation/updates
+        console.warn('[ContactModel] Failed to enrich contact during upsert:', {
+          contactId: contact.id,
+          error,
+        });
+      }
+    }
+
+    return contact;
   }
 
   static async upsertMany(
@@ -340,8 +466,36 @@ export class ContactModel {
       return null;
     }
 
-    const name =
-      updates.name !== undefined ? sanitizeNullable(updates.name) : existing.name;
+    // Handle firstName/lastName or parse from name (backward compatibility)
+    let firstName: string | null =
+      updates.firstName !== undefined ? sanitizeNullable(updates.firstName) : existing.first_name;
+    let lastName: string | null =
+      updates.lastName !== undefined ? sanitizeNullable(updates.lastName) : existing.last_name;
+
+    // If name is provided but firstName/lastName are not, parse name
+    if (updates.name !== undefined && updates.firstName === undefined && updates.lastName === undefined) {
+      if (updates.name) {
+        const nameParts = updates.name.trim().split(/\s+/);
+        if (nameParts.length > 0) {
+          firstName = sanitizeNullable(nameParts[0]);
+          if (nameParts.length > 1) {
+            lastName = sanitizeNullable(nameParts.slice(1).join(' '));
+          } else {
+            lastName = null;
+          }
+        } else {
+          firstName = null;
+          lastName = null;
+        }
+      } else {
+        firstName = null;
+        lastName = null;
+      }
+    }
+
+    // Build full name for backward compatibility
+    const name = buildFullName(firstName, lastName);
+
     const email =
       updates.email !== undefined ? sanitizeNullable(updates.email) : existing.email;
     const phone =
@@ -352,11 +506,15 @@ export class ContactModel {
       updates.xUrl !== undefined ? sanitizeUrl(updates.xUrl) : existing.x_url;
     const githubUrl =
       updates.githubUrl !== undefined ? sanitizeUrl(updates.githubUrl) : existing.github_url;
+    const matchedUserId =
+      updates.matchedUserId !== undefined ? updates.matchedUserId : existing.matched_user_id;
 
-    if (!name && !email && !phone) {
-      throw new Error('At least one of name, email, or phone must be provided.');
+    if (!firstName && !lastName && !email && !phone) {
+      throw new Error('At least one of first name, last name, email, or phone must be provided.');
     }
 
+    const normalizedFirstName = normalizeFirstName(firstName);
+    const normalizedLastName = normalizeLastName(lastName);
     const normalizedName = normalizeName(name);
     const normalizedEmail = normalizeEmail(email);
     const normalizedPhone = normalizePhone(phone);
@@ -366,28 +524,43 @@ export class ContactModel {
         ? mergeMetadata(existing.metadata, updates.metadata)
         : existing.metadata;
 
+    // Check if name changed (for re-running enrichment)
+    const nameChanged =
+      (updates.firstName !== undefined && firstName !== existing.first_name) ||
+      (updates.lastName !== undefined && lastName !== existing.last_name) ||
+      (updates.name !== undefined && name !== existing.name);
+
     const result = await client.query<Contact>(
       `
         UPDATE contacts
         SET
           name = $1,
           normalized_name = $2,
-          email = $3,
-          normalized_email = $4,
-          phone = $5,
-          normalized_phone = $6,
-          linkedin_url = $7,
-          x_url = $8,
-          github_url = $9,
-          metadata = COALESCE($10::jsonb, '{}'::jsonb),
+          first_name = $3,
+          last_name = $4,
+          normalized_first_name = $5,
+          normalized_last_name = $6,
+          email = $7,
+          normalized_email = $8,
+          phone = $9,
+          normalized_phone = $10,
+          linkedin_url = $11,
+          x_url = $12,
+          github_url = $13,
+          matched_user_id = $14,
+          metadata = COALESCE($15::jsonb, '{}'::jsonb),
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $11
-          AND owner_id = $12
+        WHERE id = $16
+          AND owner_id = $17
         RETURNING *
       `,
       [
         name,
         normalizedName,
+        firstName,
+        lastName,
+        normalizedFirstName,
+        normalizedLastName,
         email,
         normalizedEmail,
         phone,
@@ -395,13 +568,55 @@ export class ContactModel {
         linkedinUrl,
         xUrl,
         githubUrl,
+        matchedUserId,
         metadata,
         contactId,
         ownerId,
       ]
     );
 
-    return result.rows[0] ?? null;
+    const contact = result.rows[0] ?? null;
+    if (!contact) {
+      return null;
+    }
+
+    // Re-run enrichment if name changed and matchedUserId was not explicitly provided
+    if (nameChanged && updates.matchedUserId === undefined && (contact.first_name || contact.last_name)) {
+      try {
+        const matchedUser = await contactEnrichmentService.matchContactToUser(contact);
+        if (matchedUser && matchedUser.id !== contact.matched_user_id) {
+          // Enrich social links from matched user profile (only if contact doesn't have them)
+          const enrichedLinkedinUrl = contact.linkedin_url || matchedUser.linkedin_url || null;
+          const enrichedXUrl = contact.x_url || matchedUser.x_profile_url || null;
+          const enrichedGithubUrl = contact.github_url || matchedUser.github_url || null;
+
+          // Update the contact with the matched user ID and enriched social links
+          const updateResult = await client.query<Contact>(
+            `
+              UPDATE contacts
+              SET
+                matched_user_id = $1,
+                linkedin_url = COALESCE($2, linkedin_url),
+                x_url = COALESCE($3, x_url),
+                github_url = COALESCE($4, github_url),
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = $5
+              RETURNING *
+            `,
+            [matchedUser.id, enrichedLinkedinUrl, enrichedXUrl, enrichedGithubUrl, contact.id]
+          );
+          return updateResult.rows[0] ?? contact;
+        }
+      } catch (error) {
+        // Enrichment failures should not block contact updates
+        console.warn('[ContactModel] Failed to enrich contact during update:', {
+          contactId: contact.id,
+          error,
+        });
+      }
+    }
+
+    return contact;
   }
 
   static async delete(

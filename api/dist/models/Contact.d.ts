@@ -4,6 +4,10 @@ export interface Contact {
     owner_id: string;
     name: string | null;
     normalized_name: string;
+    first_name: string | null;
+    last_name: string | null;
+    normalized_first_name: string;
+    normalized_last_name: string;
     email: string | null;
     normalized_email: string;
     phone: string | null;
@@ -12,12 +16,15 @@ export interface Contact {
     x_url: string | null;
     github_url: string | null;
     source_item_id: string | null;
+    matched_user_id: string | null;
     metadata: Record<string, unknown> | null;
     created_at: Date;
     updated_at: Date;
 }
 export interface UpsertContactInput {
     ownerId: string;
+    firstName?: string | null;
+    lastName?: string | null;
     name?: string | null;
     email?: string | null;
     phone?: string | null;
@@ -25,6 +32,7 @@ export interface UpsertContactInput {
     xUrl?: string | null;
     githubUrl?: string | null;
     sourceItemId?: string | null;
+    matchedUserId?: string | null;
     metadata?: Record<string, unknown> | null;
 }
 export interface ListContactsOptions {
@@ -33,12 +41,15 @@ export interface ListContactsOptions {
     search?: string | null;
 }
 export interface UpdateContactInput {
+    firstName?: string | null;
+    lastName?: string | null;
     name?: string | null;
     email?: string | null;
     phone?: string | null;
     linkedinUrl?: string | null;
     xUrl?: string | null;
     githubUrl?: string | null;
+    matchedUserId?: string | null;
     metadata?: Record<string, unknown> | null;
 }
 export declare class ContactModel {

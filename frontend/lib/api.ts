@@ -99,13 +99,16 @@ export interface Item {
 export interface Contact {
   id: string;
   owner_id: string;
-  name: string | null;
+  name: string | null; // Deprecated, kept for backward compatibility
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
   linkedin_url: string | null;
   x_url: string | null;
   github_url: string | null;
   source_item_id: string | null;
+  matched_user_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
@@ -160,6 +163,11 @@ export interface User {
   public_username?: string | null;
   first_name?: string | null;
   last_name?: string | null;
+  headline?: string | null;
+  bio?: string | null;
+  company?: string | null;
+  project_title?: string | null;
+  project_description?: string | null;
   zip_code?: string | null;
   city?: string | null;
   avatar_url?: string | null;
@@ -175,6 +183,11 @@ export interface PublicProfile {
   public_username: string | null;
   first_name: string | null;
   last_name: string | null;
+  headline: string | null;
+  bio: string | null;
+  company: string | null;
+  project_title: string | null;
+  project_description: string | null;
   city: string | null;
   avatar_url: string | null;
   x_profile_url: string | null;
@@ -188,6 +201,11 @@ export interface ProfileUpdateData {
   public_username?: string;
   first_name?: string;
   last_name?: string;
+  headline?: string;
+  bio?: string;
+  company?: string;
+  project_title?: string;
+  project_description?: string;
   zip_code?: string;
   x_profile_url?: string;
   youtube_url?: string;
@@ -690,8 +708,12 @@ class ApiClient {
     return this.request<{ count: number }>(`/api/contacts/count${query ? `?${query}` : ''}`);
   }
 
-  async createContact(payload: { name?: string | null; email?: string | null; phone?: string | null; linkedinUrl?: string | null; xUrl?: string | null; githubUrl?: string | null; metadata?: Record<string, unknown> | null; sourceItemId?: string | null }): Promise<Contact> {
+  async createContact(payload: { firstName?: string | null; lastName?: string | null; first_name?: string | null; last_name?: string | null; name?: string | null; email?: string | null; phone?: string | null; linkedinUrl?: string | null; xUrl?: string | null; githubUrl?: string | null; metadata?: Record<string, unknown> | null; sourceItemId?: string | null }): Promise<Contact> {
     const body: Record<string, unknown> = {};
+    if (payload.firstName !== undefined) body.first_name = payload.firstName;
+    if (payload.lastName !== undefined) body.last_name = payload.lastName;
+    if (payload.first_name !== undefined) body.first_name = payload.first_name;
+    if (payload.last_name !== undefined) body.last_name = payload.last_name;
     if (payload.name !== undefined) body.name = payload.name;
     if (payload.email !== undefined) body.email = payload.email;
     if (payload.phone !== undefined) body.phone = payload.phone;
@@ -709,8 +731,12 @@ class ApiClient {
     return response.contact;
   }
 
-  async updateContact(contactId: string, payload: { name?: string | null; email?: string | null; phone?: string | null; linkedinUrl?: string | null; xUrl?: string | null; githubUrl?: string | null; metadata?: Record<string, unknown> | null }): Promise<Contact> {
+  async updateContact(contactId: string, payload: { firstName?: string | null; lastName?: string | null; first_name?: string | null; last_name?: string | null; name?: string | null; email?: string | null; phone?: string | null; linkedinUrl?: string | null; xUrl?: string | null; githubUrl?: string | null; metadata?: Record<string, unknown> | null }): Promise<Contact> {
     const body: Record<string, unknown> = {};
+    if (payload.firstName !== undefined) body.first_name = payload.firstName;
+    if (payload.lastName !== undefined) body.last_name = payload.lastName;
+    if (payload.first_name !== undefined) body.first_name = payload.first_name;
+    if (payload.last_name !== undefined) body.last_name = payload.last_name;
     if (payload.name !== undefined) body.name = payload.name;
     if (payload.email !== undefined) body.email = payload.email;
     if (payload.phone !== undefined) body.phone = payload.phone;
@@ -1126,6 +1152,12 @@ class ApiClient {
     });
   }
 
+  async getPublicUsernameByUserId(userId: string): Promise<{ username: string }> {
+    return this.request<{ username: string }>(`/api/profiles/user/${encodeURIComponent(userId)}/username`, {
+      method: 'GET',
+    });
+  }
+
   async getMyProfile(): Promise<{ profile: User }> {
     return this.request<{ profile: User }>('/api/profiles/me', {
       method: 'GET',
@@ -1143,6 +1175,21 @@ class ApiClient {
     }
     if (profileData.last_name !== undefined) {
       formData.append('last_name', profileData.last_name);
+    }
+    if (profileData.headline !== undefined) {
+      formData.append('headline', profileData.headline);
+    }
+    if (profileData.bio !== undefined) {
+      formData.append('bio', profileData.bio);
+    }
+    if (profileData.company !== undefined) {
+      formData.append('company', profileData.company);
+    }
+    if (profileData.project_title !== undefined) {
+      formData.append('project_title', profileData.project_title);
+    }
+    if (profileData.project_description !== undefined) {
+      formData.append('project_description', profileData.project_description);
     }
     if (profileData.zip_code !== undefined) {
       formData.append('zip_code', profileData.zip_code);

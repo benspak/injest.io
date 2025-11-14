@@ -43,15 +43,19 @@ export default function ContactsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewingContact, setViewingContact] = useState<Contact | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
+  const [matchedProfileUsername, setMatchedProfileUsername] = useState<string | null>(null);
+  const [loadingMatchedProfile, setLoadingMatchedProfile] = useState(false);
   const [formValues, setFormValues] = useState<{
-    name: string;
+    firstName: string;
+    lastName: string;
     email: string;
     phone: string;
     linkedinUrl: string;
     xUrl: string;
     githubUrl: string;
   }>({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     linkedinUrl: '',
@@ -401,7 +405,7 @@ export default function ContactsPage() {
 
   const resetDialog = useCallback(() => {
     setDialogState(null);
-    setFormValues({ name: '', email: '', phone: '', linkedinUrl: '', xUrl: '', githubUrl: '' });
+    setFormValues({ firstName: '', lastName: '', email: '', phone: '', linkedinUrl: '', xUrl: '', githubUrl: '' });
     setFormError(null);
     setSavingContact(false);
   }, []);
@@ -420,7 +424,7 @@ export default function ContactsPage() {
 
   const openCreateDialog = useCallback(() => {
     setDialogState({ mode: 'create' });
-    setFormValues({ name: '', email: '', phone: '', linkedinUrl: '', xUrl: '', githubUrl: '' });
+    setFormValues({ firstName: '', lastName: '', email: '', phone: '', linkedinUrl: '', xUrl: '', githubUrl: '' });
     setFormError(null);
     setIsDialogOpen(true);
   }, []);
@@ -428,7 +432,8 @@ export default function ContactsPage() {
   const openEditDialog = useCallback((contact: Contact) => {
     setDialogState({ mode: 'edit', contact });
     setFormValues({
-      name: contact.name ?? '',
+      firstName: contact.first_name ?? '',
+      lastName: contact.last_name ?? '',
       email: contact.email ?? '',
       phone: contact.phone ?? '',
       linkedinUrl: contact.linkedin_url ?? '',
@@ -440,7 +445,7 @@ export default function ContactsPage() {
   }, []);
 
   const handleFormChange = useCallback(
-    (field: 'name' | 'email' | 'phone' | 'linkedinUrl' | 'xUrl' | 'githubUrl', value: string) => {
+    (field: 'firstName' | 'lastName' | 'email' | 'phone' | 'linkedinUrl' | 'xUrl' | 'githubUrl', value: string) => {
       setFormValues((prev) => ({
         ...prev,
         [field]: value,
@@ -454,15 +459,16 @@ export default function ContactsPage() {
       return;
     }
 
-    const trimmedName = formValues.name.trim();
+    const trimmedFirstName = formValues.firstName.trim();
+    const trimmedLastName = formValues.lastName.trim();
     const trimmedEmail = formValues.email.trim();
     const trimmedPhone = formValues.phone.trim();
     const trimmedLinkedinUrl = formValues.linkedinUrl.trim();
     const trimmedXUrl = formValues.xUrl.trim();
     const trimmedGithubUrl = formValues.githubUrl.trim();
 
-    if (!trimmedName && !trimmedEmail && !trimmedPhone) {
-      setFormError('Provide at least one of name, email, or phone.');
+    if (!trimmedFirstName && !trimmedLastName && !trimmedEmail && !trimmedPhone) {
+      setFormError('Provide at least one of first name, last name, email, or phone.');
       return;
     }
 
@@ -470,7 +476,8 @@ export default function ContactsPage() {
     setSavingContact(true);
 
     const payload = {
-      name: trimmedName || null,
+      firstName: trimmedFirstName || null,
+      lastName: trimmedLastName || null,
       email: trimmedEmail || null,
       phone: trimmedPhone || null,
       linkedinUrl: trimmedLinkedinUrl || null,
@@ -529,9 +536,24 @@ export default function ContactsPage() {
     [appliedSearch, loadContacts, refreshContactCount]
   );
 
-  const handleViewContact = useCallback((contact: Contact) => {
+  const handleViewContact = useCallback(async (contact: Contact) => {
     setViewingContact(contact);
     setIsViewDialogOpen(true);
+    setMatchedProfileUsername(null);
+
+    // Fetch matched profile username if available
+    if (contact.matched_user_id) {
+      setLoadingMatchedProfile(true);
+      try {
+        const response = await apiClient.getPublicUsernameByUserId(contact.matched_user_id);
+        setMatchedProfileUsername(response.username);
+      } catch (error) {
+        // Silently fail - profile might be private or not found
+        console.warn('Failed to fetch matched profile username:', error);
+      } finally {
+        setLoadingMatchedProfile(false);
+      }
+    }
   }, []);
 
   const handleEditFromView = useCallback(() => {
@@ -762,7 +784,7 @@ export default function ContactsPage() {
           }
         }}
       >
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Contact Details</DialogTitle>
             <DialogDescription>
@@ -771,119 +793,138 @@ export default function ContactsPage() {
           </DialogHeader>
 
           {viewingContact && (
-            <div className="space-y-6 py-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">Name</Label>
-                <div className="text-base text-gray-900">
-                  {viewingContact.name || <span className="text-muted-foreground">—</span>}
+            <div className="space-y-4 py-2">
+              {/* Name fields in a grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">First Name</Label>
+                  <div className="text-sm text-gray-900">
+                    {viewingContact.first_name || <span className="text-muted-foreground">—</span>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Last Name</Label>
+                  <div className="text-sm text-gray-900">
+                    {viewingContact.last_name || <span className="text-muted-foreground">—</span>}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">Email</Label>
-                <div className="text-base text-gray-900">
-                  {viewingContact.email ? (
-                    <a
-                      href={`mailto:${viewingContact.email}`}
-                      className="text-blue-600 hover:underline break-words"
-                    >
-                      {viewingContact.email}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+              {/* Contact info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Email</Label>
+                  <div className="text-sm text-gray-900">
+                    {viewingContact.email ? (
+                      <a
+                        href={`mailto:${viewingContact.email}`}
+                        className="text-blue-600 hover:underline break-words"
+                      >
+                        {viewingContact.email}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Phone</Label>
+                  <div className="text-sm text-gray-900">
+                    {viewingContact.phone ? (
+                      <a
+                        href={`tel:${viewingContact.phone}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {viewingContact.phone}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">Phone</Label>
-                <div className="text-base text-gray-900">
-                  {viewingContact.phone ? (
-                    <a
-                      href={`tel:${viewingContact.phone}`}
-                      className="text-blue-600 hover:underline"
-                    >
-                      {viewingContact.phone}
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">Social Profiles</Label>
-                <div className="space-y-2">
-                  {viewingContact.linkedin_url ? (
-                    <div>
+              {/* Social Profiles */}
+              {(viewingContact.linkedin_url || viewingContact.x_url || viewingContact.github_url) && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Social Profiles</Label>
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    {viewingContact.linkedin_url && (
                       <a
                         href={viewingContact.linkedin_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline break-words"
+                        className="text-blue-600 hover:underline"
                       >
-                        LinkedIn: {viewingContact.linkedin_url}
+                        LinkedIn
                       </a>
-                    </div>
-                  ) : null}
-                  {viewingContact.x_url ? (
-                    <div>
+                    )}
+                    {viewingContact.x_url && (
                       <a
                         href={viewingContact.x_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline break-words"
+                        className="text-blue-600 hover:underline"
                       >
-                        X.com: {viewingContact.x_url}
+                        X.com
                       </a>
-                    </div>
-                  ) : null}
-                  {viewingContact.github_url ? (
-                    <div>
+                    )}
+                    {viewingContact.github_url && (
                       <a
                         href={viewingContact.github_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-600 hover:underline break-words"
+                        className="text-blue-600 hover:underline"
                       >
-                        GitHub: {viewingContact.github_url}
+                        GitHub
                       </a>
-                    </div>
-                  ) : null}
-                  {!viewingContact.linkedin_url && !viewingContact.x_url && !viewingContact.github_url && (
-                    <span className="text-muted-foreground">—</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">Created</Label>
-                <div className="text-base text-gray-900">
-                  {viewingContact.created_at
-                    ? new Date(viewingContact.created_at).toLocaleString()
-                    : <span className="text-muted-foreground">—</span>}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold text-gray-700">Last Updated</Label>
-                <div className="text-base text-gray-900">
-                  {viewingContact.updated_at
-                    ? new Date(viewingContact.updated_at).toLocaleString()
-                    : <span className="text-muted-foreground">—</span>}
-                </div>
-              </div>
-
-              {viewingContact.metadata && Object.keys(viewingContact.metadata).length > 0 && (
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold text-gray-700">Metadata</Label>
-                  <div className="text-base text-gray-900">
-                    <pre className="whitespace-pre-wrap break-words bg-gray-50 p-3 rounded border text-sm">
-                      {JSON.stringify(viewingContact.metadata, null, 2)}
-                    </pre>
+                    )}
                   </div>
                 </div>
               )}
+
+              {/* Matched Profile */}
+              {viewingContact.matched_user_id && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Matched Profile</Label>
+                  <div className="text-sm text-gray-900">
+                    {loadingMatchedProfile ? (
+                      <span className="text-muted-foreground">Loading...</span>
+                    ) : matchedProfileUsername ? (
+                      <a
+                        href={`/u/${matchedProfileUsername}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        @{matchedProfileUsername}
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">Profile not available (may be private)</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Dates in a grid */}
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Created</Label>
+                  <div className="text-xs text-gray-500">
+                    {viewingContact.created_at
+                      ? new Date(viewingContact.created_at).toLocaleString()
+                      : <span className="text-muted-foreground">—</span>}
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold text-gray-600">Last Updated</Label>
+                  <div className="text-xs text-gray-500">
+                    {viewingContact.updated_at
+                      ? new Date(viewingContact.updated_at).toLocaleString()
+                      : <span className="text-muted-foreground">—</span>}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -915,82 +956,118 @@ export default function ContactsPage() {
       </Dialog>
 
       <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
-        <DialogContent>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {dialogState?.mode === 'edit' ? 'Edit contact' : 'Add contact'}
             </DialogTitle>
             <DialogDescription>
-              Provide at least one of name, email, or phone. Email is required for mailto links.
+              Provide at least one of first name, last name, email, or phone.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="contact-name">Name</Label>
-              <Input
-                id="contact-name"
-                placeholder="Ada Lovelace"
-                value={formValues.name}
-                onChange={(event) => handleFormChange('name', event.target.value)}
-                disabled={savingContact}
-              />
+            {/* Name fields in a grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="contact-first-name" className="text-xs font-semibold">First Name</Label>
+                <Input
+                  id="contact-first-name"
+                  placeholder="Ada"
+                  value={formValues.firstName}
+                  onChange={(event) => handleFormChange('firstName', event.target.value)}
+                  disabled={savingContact}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="contact-last-name" className="text-xs font-semibold">Last Name</Label>
+                <Input
+                  id="contact-last-name"
+                  placeholder="Lovelace"
+                  value={formValues.lastName}
+                  onChange={(event) => handleFormChange('lastName', event.target.value)}
+                  disabled={savingContact}
+                  className="h-9"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact-email">Email</Label>
-              <Input
-                id="contact-email"
-                type="email"
-                placeholder="ada@example.com"
-                value={formValues.email}
-                onChange={(event) => handleFormChange('email', event.target.value)}
-                disabled={savingContact}
-              />
+
+            {/* Contact info in a grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="contact-email" className="text-xs font-semibold">Email</Label>
+                <Input
+                  id="contact-email"
+                  type="email"
+                  placeholder="ada@example.com"
+                  value={formValues.email}
+                  onChange={(event) => handleFormChange('email', event.target.value)}
+                  disabled={savingContact}
+                  className="h-9"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="contact-phone" className="text-xs font-semibold">Phone</Label>
+                <Input
+                  id="contact-phone"
+                  placeholder="+1 (555) 123-4567"
+                  value={formValues.phone}
+                  onChange={(event) => handleFormChange('phone', event.target.value)}
+                  disabled={savingContact}
+                  className="h-9"
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact-phone">Phone</Label>
-              <Input
-                id="contact-phone"
-                placeholder="+1 (555) 123-4567"
-                value={formValues.phone}
-                onChange={(event) => handleFormChange('phone', event.target.value)}
-                disabled={savingContact}
-              />
+
+            {/* Social profiles */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-xs font-semibold text-gray-600">Social Profiles (Optional)</Label>
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-linkedin" className="text-xs text-gray-600">LinkedIn URL</Label>
+                  <Input
+                    id="contact-linkedin"
+                    type="url"
+                    placeholder="https://linkedin.com/in/username"
+                    value={formValues.linkedinUrl}
+                    onChange={(event) => handleFormChange('linkedinUrl', event.target.value)}
+                    disabled={savingContact}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-x" className="text-xs text-gray-600">X.com URL</Label>
+                  <Input
+                    id="contact-x"
+                    type="url"
+                    placeholder="https://x.com/username"
+                    value={formValues.xUrl}
+                    onChange={(event) => handleFormChange('xUrl', event.target.value)}
+                    disabled={savingContact}
+                    className="h-9 text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="contact-github" className="text-xs text-gray-600">GitHub URL</Label>
+                  <Input
+                    id="contact-github"
+                    type="url"
+                    placeholder="https://github.com/username"
+                    value={formValues.githubUrl}
+                    onChange={(event) => handleFormChange('githubUrl', event.target.value)}
+                    disabled={savingContact}
+                    className="h-9 text-sm"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact-linkedin">LinkedIn URL</Label>
-              <Input
-                id="contact-linkedin"
-                type="url"
-                placeholder="https://linkedin.com/in/username"
-                value={formValues.linkedinUrl}
-                onChange={(event) => handleFormChange('linkedinUrl', event.target.value)}
-                disabled={savingContact}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact-x">X.com URL</Label>
-              <Input
-                id="contact-x"
-                type="url"
-                placeholder="https://x.com/username"
-                value={formValues.xUrl}
-                onChange={(event) => handleFormChange('xUrl', event.target.value)}
-                disabled={savingContact}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="contact-github">GitHub URL</Label>
-              <Input
-                id="contact-github"
-                type="url"
-                placeholder="https://github.com/username"
-                value={formValues.githubUrl}
-                onChange={(event) => handleFormChange('githubUrl', event.target.value)}
-                disabled={savingContact}
-              />
-            </div>
-            {formError && <p className="text-sm text-red-600">{formError}</p>}
+
+            {formError && (
+              <div className="pt-2">
+                <p className="text-sm text-red-600">{formError}</p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>

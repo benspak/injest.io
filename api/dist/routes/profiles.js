@@ -51,6 +51,61 @@ function validateSocialUrl(url, allowedDomains) {
         return { valid: false, error: 'Invalid URL format' };
     }
 }
+// Validate headline length
+function validateHeadline(headline) {
+    if (!headline || headline.trim().length === 0) {
+        return { valid: true }; // Optional field
+    }
+    const trimmed = headline.trim();
+    if (trimmed.length > 100) {
+        return { valid: false, error: 'Headline must be at most 100 characters' };
+    }
+    return { valid: true };
+}
+// Validate bio length
+function validateBio(bio) {
+    if (!bio || bio.trim().length === 0) {
+        return { valid: true }; // Optional field
+    }
+    const trimmed = bio.trim();
+    if (trimmed.length > 250) {
+        return { valid: false, error: 'Bio must be at most 250 characters' };
+    }
+    return { valid: true };
+}
+// Validate company length
+function validateCompany(company) {
+    if (!company || company.trim().length === 0) {
+        return { valid: true }; // Optional field
+    }
+    const trimmed = company.trim();
+    if (trimmed.length > 200) {
+        return { valid: false, error: 'Company must be at most 200 characters' };
+    }
+    return { valid: true };
+}
+// Validate project title length
+function validateProjectTitle(title) {
+    if (!title || title.trim().length === 0) {
+        return { valid: true }; // Optional field
+    }
+    const trimmed = title.trim();
+    if (trimmed.length > 200) {
+        return { valid: false, error: 'Project title must be at most 200 characters' };
+    }
+    return { valid: true };
+}
+// Validate project description length
+function validateProjectDescription(description) {
+    if (!description || description.trim().length === 0) {
+        return { valid: true }; // Optional field
+    }
+    const trimmed = description.trim();
+    if (trimmed.length > 500) {
+        return { valid: false, error: 'Project description must be at most 500 characters' };
+    }
+    return { valid: true };
+}
 // Configure multer for avatar uploads
 const avatarStorage = multer.diskStorage({
     destination: (req, file, cb) => {
@@ -111,7 +166,7 @@ router.get('/me', authMiddleware, async (req, res) => {
 router.put('/me', authMiddleware, avatarUpload.single('avatar'), async (req, res) => {
     try {
         const userId = req.user.id;
-        const { public_username, first_name, last_name, zip_code, x_profile_url, youtube_url, github_url, linkedin_url, } = req.body;
+        const { public_username, first_name, last_name, headline, bio, company, project_title, project_description, zip_code, x_profile_url, youtube_url, github_url, linkedin_url, } = req.body;
         const updates = {};
         // Validate and update username
         if (public_username !== undefined) {
@@ -134,6 +189,46 @@ router.put('/me', authMiddleware, avatarUpload.single('avatar'), async (req, res
         }
         if (last_name !== undefined) {
             updates.last_name = last_name?.trim() || null;
+        }
+        if (headline !== undefined) {
+            const validation = validateHeadline(headline);
+            if (!validation.valid) {
+                res.status(400).json({ error: validation.error });
+                return;
+            }
+            updates.headline = headline?.trim() || null;
+        }
+        if (bio !== undefined) {
+            const validation = validateBio(bio);
+            if (!validation.valid) {
+                res.status(400).json({ error: validation.error });
+                return;
+            }
+            updates.bio = bio?.trim() || null;
+        }
+        if (company !== undefined) {
+            const validation = validateCompany(company);
+            if (!validation.valid) {
+                res.status(400).json({ error: validation.error });
+                return;
+            }
+            updates.company = company?.trim() || null;
+        }
+        if (project_title !== undefined) {
+            const validation = validateProjectTitle(project_title);
+            if (!validation.valid) {
+                res.status(400).json({ error: validation.error });
+                return;
+            }
+            updates.project_title = project_title?.trim() || null;
+        }
+        if (project_description !== undefined) {
+            const validation = validateProjectDescription(project_description);
+            if (!validation.valid) {
+                res.status(400).json({ error: validation.error });
+                return;
+            }
+            updates.project_description = project_description?.trim() || null;
         }
         if (zip_code !== undefined) {
             const trimmedZip = zip_code?.trim() || null;
@@ -258,6 +353,35 @@ router.put('/me/privacy', authMiddleware, async (req, res) => {
         res.status(500).json({ error: 'Failed to update profile privacy' });
     }
 });
+// GET /api/profiles/user/:userId/username - Get public username by user ID (no auth required)
+router.get('/user/:userId/username', async (req, res) => {
+    try {
+        const { userId } = req.params;
+        if (!userId) {
+            res.status(400).json({ error: 'User ID is required' });
+            return;
+        }
+        const user = await UserModel.findById(userId);
+        if (!user) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        // Only return username if profile is public
+        if (user.profile_private) {
+            res.status(403).json({ error: 'This profile is private' });
+            return;
+        }
+        if (!user.public_username) {
+            res.status(404).json({ error: 'User does not have a public username' });
+            return;
+        }
+        res.json({ username: user.public_username });
+    }
+    catch (error) {
+        console.error('Error fetching username by user ID:', error);
+        res.status(500).json({ error: 'Failed to fetch username' });
+    }
+});
 // GET /api/profiles/:username - Public profile endpoint (no auth required)
 // This must come AFTER /me routes to avoid matching "me" as a username
 router.get('/:username', async (req, res) => {
@@ -283,6 +407,11 @@ router.get('/:username', async (req, res) => {
             public_username: user.public_username,
             first_name: user.first_name,
             last_name: user.last_name,
+            headline: user.headline,
+            bio: user.bio,
+            company: user.company,
+            project_title: user.project_title,
+            project_description: user.project_description,
             city: user.city,
             avatar_url: user.avatar_url,
             x_profile_url: user.x_profile_url,

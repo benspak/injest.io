@@ -115,17 +115,29 @@ router.post('/import', contactsUpload.single('contactsFile'), async (req, res) =
         skippedDuplicates = 0;
         for (const entry of parsedEntries) {
             const name = sanitizeString(entry.name);
+            // Parse name into first and last name
+            let firstName = null;
+            let lastName = null;
+            if (name) {
+                const nameParts = name.trim().split(/\s+/);
+                if (nameParts.length > 0) {
+                    firstName = sanitizeString(nameParts[0]);
+                    if (nameParts.length > 1) {
+                        lastName = sanitizeString(nameParts.slice(1).join(' '));
+                    }
+                }
+            }
             const email = entry.emails.map((value) => sanitizeString(value)).find((value) => value) ?? null;
             const phone = entry.phones
                 .map((value) => sanitizeString(value))
                 .find((value) => value && value.replace(/\D+/g, '').length >= 6) ?? null;
-            if (!name && !email && !phone) {
+            if (!firstName && !lastName && !email && !phone) {
                 skippedMissingDetails += 1;
                 continue;
             }
             const normalizedEmail = (email ?? '').toLowerCase();
             const normalizedPhone = phone ? phone.replace(/\D+/g, '') : '';
-            const dedupeKey = `${normalizedEmail}::${normalizedPhone}`;
+            const dedupeKey = `${normalizedEmail}::${normalizedPhone}::${firstName ?? ''}::${lastName ?? ''}`;
             if (dedupeKeys.has(dedupeKey)) {
                 skippedDuplicates += 1;
                 continue;
@@ -133,7 +145,9 @@ router.post('/import', contactsUpload.single('contactsFile'), async (req, res) =
             dedupeKeys.add(dedupeKey);
             inputs.push({
                 ownerId: req.user.id,
-                name,
+                firstName,
+                lastName,
+                name, // Keep for backward compatibility
                 email,
                 phone,
                 metadata: {
@@ -276,24 +290,28 @@ router.post('/', async (req, res) => {
         if (!req.user) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
-        const name = sanitizeString(req.body?.name);
+        const firstName = sanitizeString(req.body?.first_name ?? req.body?.firstName);
+        const lastName = sanitizeString(req.body?.last_name ?? req.body?.lastName);
+        const name = sanitizeString(req.body?.name); // Backward compatibility
         const email = sanitizeString(req.body?.email);
         const phone = sanitizeString(req.body?.phone);
         const linkedinUrl = sanitizeString(req.body?.linkedin_url ?? req.body?.linkedinUrl);
         const xUrl = sanitizeString(req.body?.x_url ?? req.body?.xUrl);
         const githubUrl = sanitizeString(req.body?.github_url ?? req.body?.githubUrl);
         const sourceItemId = sanitizeString(req.body?.source_item_id ?? req.body?.sourceItemId);
-        if (!name && !email && !phone) {
+        if (!firstName && !lastName && !name && !email && !phone) {
             return res
                 .status(400)
-                .json({ error: 'Provide at least one of name, email, or phone to create a contact.' });
+                .json({ error: 'Provide at least one of first name, last name, email, or phone to create a contact.' });
         }
         const metadata = req.body?.metadata && typeof req.body.metadata === 'object'
             ? req.body.metadata
             : undefined;
         const contact = await ContactModel.upsert({
             ownerId: req.user.id,
-            name,
+            firstName,
+            lastName,
+            name, // Backward compatibility
             email,
             phone,
             linkedinUrl,
@@ -335,7 +353,13 @@ router.patch('/:id', async (req, res) => {
             return res.status(400).json({ error: 'Contact ID is required.' });
         }
         const updates = {
-            name: req.body?.name !== undefined ? sanitizeString(req.body.name) : undefined,
+            firstName: req.body?.first_name !== undefined || req.body?.firstName !== undefined
+                ? sanitizeString(req.body.first_name ?? req.body.firstName)
+                : undefined,
+            lastName: req.body?.last_name !== undefined || req.body?.lastName !== undefined
+                ? sanitizeString(req.body.last_name ?? req.body.lastName)
+                : undefined,
+            name: req.body?.name !== undefined ? sanitizeString(req.body.name) : undefined, // Backward compatibility
             email: req.body?.email !== undefined ? sanitizeString(req.body.email) : undefined,
             phone: req.body?.phone !== undefined ? sanitizeString(req.body.phone) : undefined,
             linkedinUrl: req.body?.linkedin_url !== undefined || req.body?.linkedinUrl !== undefined

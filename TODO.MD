@@ -23,8 +23,12 @@
 4.	Notion / Obsidian plugins → creators love these ecosystems
 5.	Webflow / Framer API → structured captions → SEO content
 
-
 - Item collections (one item can be in many collections)
 •	🧭 Smart folders (auto-group images by detected topics or keywords)
 - Github integration
 - Markdown file support
+
+
+- Integrate Slack API for posting and message saving.
+- More robust user profiles
+- Public user posts.

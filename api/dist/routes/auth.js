@@ -26,6 +26,8 @@ function buildUserResponse(user) {
         subscription_tier: coerceSubscriptionTier(user.subscription_tier),
         two_factor_enabled: user.two_factor_enabled || false,
         two_factor_confirmed_at: user.two_factor_confirmed_at || null,
+        public_username: user.public_username || null,
+        profile_private: user.profile_private || false,
     };
 }
 // Send magic link

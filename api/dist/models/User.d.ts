@@ -18,6 +18,11 @@ export interface User {
     public_username?: string | null;
     first_name?: string | null;
     last_name?: string | null;
+    headline?: string | null;
+    bio?: string | null;
+    company?: string | null;
+    project_title?: string | null;
+    project_description?: string | null;
     zip_code?: string | null;
     city?: string | null;
     avatar_url?: string | null;

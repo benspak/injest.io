@@ -89,6 +89,26 @@ export class UserModel {
             fields.push(`last_name = $${paramCount++}`);
             values.push(updates.last_name);
         }
+        if (updates.headline !== undefined) {
+            fields.push(`headline = $${paramCount++}`);
+            values.push(updates.headline);
+        }
+        if (updates.bio !== undefined) {
+            fields.push(`bio = $${paramCount++}`);
+            values.push(updates.bio);
+        }
+        if (updates.company !== undefined) {
+            fields.push(`company = $${paramCount++}`);
+            values.push(updates.company);
+        }
+        if (updates.project_title !== undefined) {
+            fields.push(`project_title = $${paramCount++}`);
+            values.push(updates.project_title);
+        }
+        if (updates.project_description !== undefined) {
+            fields.push(`project_description = $${paramCount++}`);
+            values.push(updates.project_description);
+        }
         if (updates.zip_code !== undefined) {
             fields.push(`zip_code = $${paramCount++}`);
             values.push(updates.zip_code);

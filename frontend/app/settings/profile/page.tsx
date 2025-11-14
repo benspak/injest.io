@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { auth } from '@/lib/auth';
 import { apiClient, type User } from '@/lib/api';
 import { API_URL } from '@/lib/api';
@@ -27,6 +28,11 @@ function ProfileSettingsPageContent() {
   const [publicUsername, setPublicUsername] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [headline, setHeadline] = useState('');
+  const [bio, setBio] = useState('');
+  const [company, setCompany] = useState('');
+  const [projectTitle, setProjectTitle] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [xProfileUrl, setXProfileUrl] = useState('');
   const [youtubeUrl, setYoutubeUrl] = useState('');
@@ -51,6 +57,11 @@ function ProfileSettingsPageContent() {
       setPublicUsername(userProfile.public_username || '');
       setFirstName(userProfile.first_name || '');
       setLastName(userProfile.last_name || '');
+      setHeadline(userProfile.headline || '');
+      setBio(userProfile.bio || '');
+      setCompany(userProfile.company || '');
+      setProjectTitle(userProfile.project_title || '');
+      setProjectDescription(userProfile.project_description || '');
       setZipCode(userProfile.zip_code || '');
       setXProfileUrl(userProfile.x_profile_url || '');
       setYoutubeUrl(userProfile.youtube_url || '');
@@ -136,6 +147,11 @@ function ProfileSettingsPageContent() {
         public_username: publicUsername.trim() || undefined,
         first_name: firstName.trim() || undefined,
         last_name: lastName.trim() || undefined,
+        headline: headline.trim() || undefined,
+        bio: bio.trim() || undefined,
+        company: company.trim() || undefined,
+        project_title: projectTitle.trim() || undefined,
+        project_description: projectDescription.trim() || undefined,
         zip_code: zipCode.trim() || undefined,
         x_profile_url: xProfileUrl.trim() || undefined,
         youtube_url: youtubeUrl.trim() || undefined,
@@ -146,6 +162,15 @@ function ProfileSettingsPageContent() {
 
       toast.success('Profile updated successfully');
       await loadProfile();
+      // Refresh auth user to update AvatarMenu
+      try {
+        const userResponse = await apiClient.getCurrentUser();
+        if (userResponse.user) {
+          auth.setUser(userResponse.user);
+        }
+      } catch (error) {
+        console.error('Failed to refresh user data:', error);
+      }
       setAvatarFile(null);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update profile';
@@ -169,6 +194,15 @@ function ProfileSettingsPageContent() {
       await apiClient.updateProfilePrivacy(newPrivacy);
       toast.success(`Profile is now ${newPrivacy ? 'private' : 'public'}`);
       await loadProfile();
+      // Refresh auth user to update AvatarMenu
+      try {
+        const userResponse = await apiClient.getCurrentUser();
+        if (userResponse.user) {
+          auth.setUser(userResponse.user);
+        }
+      } catch (error) {
+        console.error('Failed to refresh user data:', error);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to update privacy setting';
       toast.error(message);
@@ -267,6 +301,52 @@ function ProfileSettingsPageContent() {
                 </div>
 
                 <div className="space-y-2">
+                  <Label htmlFor="headline">Headline</Label>
+                  <Input
+                    id="headline"
+                    type="text"
+                    value={headline}
+                    onChange={(e) => setHeadline(e.target.value)}
+                    placeholder="e.g., Software Engineer at Company"
+                    maxLength={100}
+                  />
+                  <p className="text-xs text-gray-500">
+                    A short description that appears on your profile ({headline.length}/100 characters)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bio">Bio</Label>
+                  <Textarea
+                    id="bio"
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value)}
+                    placeholder="Tell us about yourself..."
+                    rows={4}
+                    className="resize-none"
+                    maxLength={250}
+                  />
+                  <p className="text-xs text-gray-500">
+                    A longer description about yourself, your interests, and what you do ({bio.length}/250 characters)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="company">Company</Label>
+                  <Input
+                    id="company"
+                    type="text"
+                    value={company}
+                    onChange={(e) => setCompany(e.target.value)}
+                    placeholder="e.g., Acme Inc."
+                    maxLength={200}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Your current company or organization ({company.length}/200 characters)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="zip-code">Zip Code</Label>
                   <Input
                     id="zip-code"
@@ -297,6 +377,44 @@ function ProfileSettingsPageContent() {
                   </div>
                   <p className="text-xs text-gray-500">
                     JPG, PNG, or WebP. Maximum 5MB. Square images recommended.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Current Project</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="project-title">Project Title</Label>
+                  <Input
+                    id="project-title"
+                    type="text"
+                    value={projectTitle}
+                    onChange={(e) => setProjectTitle(e.target.value)}
+                    placeholder="e.g., Building a new mobile app"
+                    maxLength={200}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Title of the project you're working on ({projectTitle.length}/200 characters)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="project-description">Project Description</Label>
+                  <Textarea
+                    id="project-description"
+                    value={projectDescription}
+                    onChange={(e) => setProjectDescription(e.target.value)}
+                    placeholder="Tell us about your project..."
+                    rows={4}
+                    className="resize-none"
+                    maxLength={500}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Describe what you're working on and what makes it interesting ({projectDescription.length}/500 characters)
                   </p>
                 </div>
               </CardContent>
