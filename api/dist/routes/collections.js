@@ -5,6 +5,34 @@ import { ItemModel } from '../models/Item.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { normalizeItem } from '../utils/itemNormalization.js';
 const router = express.Router();
+// Public route: Get collection by share token (no auth required)
+router.get('/shared/:token', async (req, res) => {
+    try {
+        const { token } = req.params;
+        if (!token) {
+            return res.status(400).json({ error: 'Share token is required' });
+        }
+        const collection = await CollectionModel.findByShareToken(token);
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found or not publicly shareable' });
+        }
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = parseInt(req.query.offset) || 0;
+        // Get items in the collection
+        const items = await CollectionItemModel.findByCollection(collection.id, limit, offset);
+        const normalizedItems = items.map((item) => normalizeItem(item));
+        const itemCount = await CollectionItemModel.countByCollection(collection.id);
+        res.json({
+            ...collection,
+            item_count: itemCount,
+            items: normalizedItems,
+        });
+    }
+    catch (error) {
+        console.error('Error getting shared collection:', error);
+        res.status(500).json({ error: 'Failed to get shared collection' });
+    }
+});
 router.use(authMiddleware);
 // Create collection
 router.post('/', async (req, res) => {
@@ -272,6 +300,127 @@ router.delete('/:id/items/:itemId', async (req, res) => {
     catch (error) {
         console.error('Error removing item from collection:', error);
         res.status(500).json({ error: 'Failed to remove item from collection' });
+    }
+});
+// Post collection to profile
+router.post('/:id/post-to-profile', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const collection = await CollectionModel.findById(req.params.id);
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+        if (collection.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        const updatedCollection = await CollectionModel.update(req.params.id, { posted_to_profile: true });
+        const itemCount = await CollectionItemModel.countByCollection(updatedCollection.id);
+        res.json({
+            ...updatedCollection,
+            item_count: itemCount,
+        });
+    }
+    catch (error) {
+        console.error('Error posting collection to profile:', error);
+        res.status(500).json({ error: 'Failed to post collection to profile' });
+    }
+});
+// Remove collection from profile
+router.delete('/:id/post-to-profile', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const collection = await CollectionModel.findById(req.params.id);
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+        if (collection.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        const updatedCollection = await CollectionModel.update(req.params.id, { posted_to_profile: false });
+        const itemCount = await CollectionItemModel.countByCollection(updatedCollection.id);
+        res.json({
+            ...updatedCollection,
+            item_count: itemCount,
+        });
+    }
+    catch (error) {
+        console.error('Error removing collection from profile:', error);
+        res.status(500).json({ error: 'Failed to remove collection from profile' });
+    }
+});
+// Update collection sharing settings
+router.patch('/:id/sharing', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const collection = await CollectionModel.findById(req.params.id);
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+        if (collection.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        const { is_publicly_shareable } = req.body;
+        if (typeof is_publicly_shareable !== 'boolean') {
+            return res.status(400).json({ error: 'is_publicly_shareable must be a boolean' });
+        }
+        let updatedCollection;
+        if (is_publicly_shareable) {
+            // Enable sharing - generate token if not exists
+            if (!collection.share_token) {
+                updatedCollection = await CollectionModel.generateShareToken(req.params.id);
+            }
+            else {
+                updatedCollection = await CollectionModel.update(req.params.id, { is_publicly_shareable: true });
+            }
+        }
+        else {
+            // Disable sharing - clear token
+            updatedCollection = await CollectionModel.update(req.params.id, {
+                is_publicly_shareable: false,
+                share_token: null,
+            });
+        }
+        const itemCount = await CollectionItemModel.countByCollection(updatedCollection.id);
+        res.json({
+            ...updatedCollection,
+            item_count: itemCount,
+        });
+    }
+    catch (error) {
+        console.error('Error updating collection sharing:', error);
+        res.status(500).json({ error: 'Failed to update collection sharing' });
+    }
+});
+// Get share token (or generate if not exists)
+router.get('/:id/share-token', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const collection = await CollectionModel.findById(req.params.id);
+        if (!collection) {
+            return res.status(404).json({ error: 'Collection not found' });
+        }
+        if (collection.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        let shareToken = collection.share_token;
+        // Generate token if not exists and sharing is enabled
+        if (!shareToken && collection.is_publicly_shareable) {
+            const updated = await CollectionModel.generateShareToken(req.params.id);
+            shareToken = updated.share_token || null;
+        }
+        res.json({ share_token: shareToken });
+    }
+    catch (error) {
+        console.error('Error getting share token:', error);
+        res.status(500).json({ error: 'Failed to get share token' });
     }
 });
 export default router;

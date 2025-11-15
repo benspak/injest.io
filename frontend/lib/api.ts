@@ -104,9 +104,13 @@ export interface Collection {
   description?: string | null;
   color?: string | null;
   icon?: string | null;
+  posted_to_profile?: boolean;
+  is_publicly_shareable?: boolean;
+  share_token?: string | null;
   created_at: string;
   updated_at: string;
   item_count?: number;
+  items?: Item[]; // For public collection view
 }
 
 export interface CollectionItem {
@@ -1415,6 +1419,69 @@ class ApiClient {
       `/api/collections/${collectionId}/items/${itemId}`,
       {
         method: 'DELETE',
+      }
+    );
+  }
+
+  // Collection sharing methods
+  async postCollectionToProfile(id: string): Promise<Collection> {
+    return this.request<Collection>(`/api/collections/${id}/post-to-profile`, {
+      method: 'POST',
+    });
+  }
+
+  async removeCollectionFromProfile(id: string): Promise<Collection> {
+    return this.request<Collection>(`/api/collections/${id}/post-to-profile`, {
+      method: 'DELETE',
+    });
+  }
+
+  async updateCollectionSharing(
+    id: string,
+    isPubliclyShareable: boolean
+  ): Promise<Collection> {
+    return this.request<Collection>(`/api/collections/${id}/sharing`, {
+      method: 'PATCH',
+      body: JSON.stringify({ is_publicly_shareable: isPubliclyShareable }),
+    });
+  }
+
+  async getCollectionShareToken(id: string): Promise<{ share_token: string | null }> {
+    return this.request<{ share_token: string | null }>(`/api/collections/${id}/share-token`, {
+      method: 'GET',
+    });
+  }
+
+  async getPublicCollectionByToken(
+    token: string,
+    limit?: number,
+    offset?: number
+  ): Promise<Collection> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString();
+    return this.request<Collection>(
+      `/api/collections/shared/${token}${query ? `?${query}` : ''}`,
+      {
+        method: 'GET',
+      }
+    );
+  }
+
+  async getProfileCollections(
+    username: string,
+    limit?: number,
+    offset?: number
+  ): Promise<{ collections: Collection[] }> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString();
+    return this.request<{ collections: Collection[] }>(
+      `/api/profiles/${encodeURIComponent(username)}/collections${query ? `?${query}` : ''}`,
+      {
+        method: 'GET',
       }
     );
   }

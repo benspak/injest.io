@@ -18,6 +18,7 @@ export default function Home() {
         "Smart search",
         "Advanced search filters",
         "Email forwarding & automation",
+        "Collections & organization",
       ],
     },
     {
@@ -32,6 +33,7 @@ export default function Home() {
         "Unlimited storage & automation",
         "Priority tagging & API keys",
         "Priority support",
+        "Public profiles & sharing",
       ],
     },
     {
@@ -80,6 +82,11 @@ export default function Home() {
       title: "Deep item detail",
       description: "Dive into extracted text, metadata, and related actions for every capture.",
     },
+    {
+      src: "/collections-screenshot.png",
+      title: "Organize with collections",
+      description: "Group related items into custom collections with colors, icons, and descriptions. Share them publicly or keep them private.",
+    },
   ];
 
   return (
@@ -89,10 +96,10 @@ export default function Home() {
         <div className="grid gap-12 lg:grid-cols-2 items-center">
           <div className="text-center lg:text-left">
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-              Search Your AI Workspace
+              Your AI Workspace. Searchable. Shareable. Organized.
             </h1>
             <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
-              Injest turns everything you capture into one instantly searchable AI workspace.
+              Capture everything, organize with collections, and share your knowledge. AI-powered search that understands context, public profiles to showcase your work, and smart organization that keeps your workspace ready when you need it.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button asChild size="lg" className="text-lg px-8 py-6">
@@ -215,15 +222,85 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Profile Privacy & Contact Enrichment Section */}
+      {/* Collections & Sharing Section */}
       <section className="bg-white py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-              Privacy First, Enrichment Optional
+              Organize and Share Your Knowledge
             </h2>
             <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-              Your privacy is our priority. All you need is an email address to get started, and your profile is private by default.
+              Create collections to organize your items, share them publicly, and discover what others are working on.
+            </p>
+            <div className="grid md:grid-cols-2 gap-8">
+              <Card className="border-2 border-blue-200 bg-blue-50/30">
+                <CardHeader>
+                  <CardTitle className="text-xl">Collections</CardTitle>
+                  <CardDescription className="text-base">
+                    Organize your items into custom collections
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Group related items together with custom collections. Add titles, descriptions, colors, and icons to make your workspace truly yours. Create collections from search results or filtered items with one click.
+                  </p>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex items-start">
+                      <span className="mr-2">•</span>
+                      <span>Create unlimited collections with custom names and descriptions</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2">•</span>
+                      <span>Add items to multiple collections for flexible organization</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2">•</span>
+                      <span>Quickly create collections from filtered search results</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+              <Card className="border-2 border-purple-200 bg-purple-50/30">
+                <CardHeader>
+                  <CardTitle className="text-xl">Public Sharing</CardTitle>
+                  <CardDescription className="text-base">
+                    Share your work with the world
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">
+                    Showcase your collections and items on your public profile. Generate shareable links for collections or post items to your profile. Connect with others and discover what they're working on.
+                  </p>
+                  <ul className="space-y-2 text-sm text-gray-600">
+                    <li className="flex items-start">
+                      <span className="mr-2">•</span>
+                      <span>Create public profiles to showcase your work</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2">•</span>
+                      <span>Share collections via unique links — no account required</span>
+                    </li>
+                    <li className="flex items-start">
+                      <span className="mr-2">•</span>
+                      <span>Post items and collections to your public profile</span>
+                    </li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Profile Privacy & Social Features Section */}
+      <section className="bg-white py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
+              Privacy First, Sharing Optional
+            </h2>
+            <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
+              Your privacy is our priority. All you need is an email address to get started, and your profile is private by default. Choose what to share and when.
             </p>
             <div className="grid md:grid-cols-2 gap-8">
               <Card className="border-2 border-gray-200">
@@ -235,42 +312,30 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    All you need is an email address to create an account. Your profile information remains private by default, giving you full control over your visibility.
+                    All you need is an email address to create an account. Your profile information remains private by default, giving you full control over your visibility. Share only what you want, when you want.
                   </p>
                 </CardContent>
               </Card>
               <Card className="border-2 border-blue-200 bg-blue-50/30">
                 <CardHeader>
-                  <CardTitle className="text-xl">Enrich Contacts with Public Profiles</CardTitle>
+                  <CardTitle className="text-xl">Public Profiles & Sharing</CardTitle>
                   <CardDescription className="text-base">
-                    Unlock enhanced contact details when both profiles are public
+                    Showcase your work and connect with others
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    For users who choose to make their profile public, Injest automatically enriches your contacts by matching them with other public profiles. This unlocks access to social media links and profile information, making your contact database more complete and actionable.
+                    Create a public profile to showcase your collections and posted items. Share collections via unique links that anyone can access. Discover what others are working on and enrich your contacts with public profile information.
                   </p>
                 </CardContent>
               </Card>
             </div>
             <div className="mt-8 p-6 rounded-2xl bg-gray-50 border border-gray-200">
               <p className="text-center text-gray-700">
-                <span className="font-semibold">How it works:</span> When you create a contact, Injest automatically matches it to public user profiles based on name. If a match is found, your contact is enriched with social media links (LinkedIn, X.com, GitHub) and a link to their public profile — all while respecting privacy settings.
+                <span className="font-semibold">How it works:</span> When you create a contact, Injest automatically matches it to public user profiles based on name. If a match is found, your contact is enriched with social media links (LinkedIn, X.com, GitHub) and a link to their public profile — all while respecting privacy settings. You can also share individual collections via unique links or post them to your public profile.
               </p>
             </div>
           </div>
-        </div>
-      </section>
-
-      {/* Search Section */}
-      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
-            Search your workspace like you think
-          </h2>
-          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
-            Describe what you're looking for in natural language. Your AI workspace understands context and meaning, finding the right content even when you don't remember exact words. Filter by type, tags, source, or date to refine results instantly.
-          </p>
         </div>
       </section>
 
@@ -284,6 +349,26 @@ export default function Home() {
             Injest isn't just storage — it's where actions happen.
           </p>
           <div className="grid md:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Organize with collections</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Group related items into custom collections. Create collections from search results or filtered items with one click.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Share publicly or privately</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Share collections via unique links or post them to your public profile. Showcase your work and discover what others are building.
+                </p>
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Generate send plans or follow-up drafts</CardTitle>
@@ -602,10 +687,10 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-3xl mx-auto text-center text-white">
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-              Start searching your AI workspace today
+              Start building your AI workspace today
             </h2>
             <p className="text-xl mb-10 text-blue-100">
-              Turn everything you capture into one instantly searchable AI workspace. Join knowledge workers, researchers, and teams who use Injest to find what they need, when they need it.
+              Capture everything, organize with collections, and share your knowledge. Join knowledge workers, researchers, and teams who use Injest to search, organize, and share what matters most.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">

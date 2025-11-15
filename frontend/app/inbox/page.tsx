@@ -9,9 +9,12 @@ import { ItemList } from '@/components/item-list';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
+import { CollectionDialog } from '@/components/collection-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, ReceivedEmail, API_URL, type SearchResult, type SearchFilters } from '@/lib/api';
 import { BOOKMARK_IMPORT_EVENT, ITEM_CREATED_EVENT } from '@/lib/events';
+import { FolderPlus } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function InboxPage() {
   const router = useRouter();
@@ -35,6 +38,7 @@ export default function InboxPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [createCollectionDialogOpen, setCreateCollectionDialogOpen] = useState(false);
   const BATCH_SIZE = 50;
   const searchFilters: SearchFilters = { entities: ['item'] };
 
@@ -49,6 +53,51 @@ export default function InboxPage() {
   const handleSearchQueryChange = useCallback((value: string) => {
     setSearchQuery(value);
   }, []);
+
+  const getCurrentItemIds = useCallback((): string[] => {
+    if (searchQuery.length >= 2) {
+      // Get item IDs from search results
+      return searchResults
+        .filter((result) => result.entityType === 'item' && result.item && !result.item.isResendEmail)
+        .map((result) => result.item!.id);
+    } else {
+      // Get item IDs from filtered items
+      return items
+        .filter((item) => !item.isResendEmail)
+        .map((item) => item.id);
+    }
+  }, [searchQuery, searchResults, items]);
+
+  const handleCreateCollectionFromResults = async (data: {
+    title: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  }) => {
+    try {
+      const itemIds = getCurrentItemIds();
+
+      if (itemIds.length === 0) {
+        toast.error('No items to add to collection');
+        return;
+      }
+
+      // Create the collection
+      const collection = await apiClient.createCollection(data);
+
+      // Add all items to the collection
+      await apiClient.addItemsToCollection(collection.id, itemIds);
+
+      toast.success(`Created collection "${data.title}" with ${itemIds.length} item${itemIds.length !== 1 ? 's' : ''}`);
+      setCreateCollectionDialogOpen(false);
+
+      // Optionally navigate to the collection
+      router.push(`/collections/${collection.id}`);
+    } catch (error) {
+      console.error('Error creating collection from results:', error);
+      toast.error('Failed to create collection');
+    }
+  };
 
   const itemMatchesFilters = useCallback((item: Item): boolean => {
     if (sourceFilter) {
@@ -647,39 +696,65 @@ export default function InboxPage() {
                   </span>
                 )}
               </h2>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <label htmlFor="source-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
-                    Source:
-                  </label>
-                  <select
-                    id="source-filter"
-                    value={sourceFilter}
-                    onChange={(e) => setSourceFilter(e.target.value)}
-                    className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">All Sources</option>
-                    <option value="web">Web</option>
-                    <option value="bookmark">Bookmark</option>
-                    <option value="email">Email</option>
-                  </select>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <label htmlFor="source-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
+                      Source:
+                    </label>
+                    <select
+                      id="source-filter"
+                      value={sourceFilter}
+                      onChange={(e) => setSourceFilter(e.target.value)}
+                      className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">All Sources</option>
+                      <option value="web">Web</option>
+                      <option value="bookmark">Bookmark</option>
+                      <option value="email">Email</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <label htmlFor="file-type-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
+                      File Type:
+                    </label>
+                    <select
+                      id="file-type-filter"
+                      value={fileTypeFilter}
+                      onChange={(e) => setFileTypeFilter(e.target.value)}
+                      className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">All Types</option>
+                      <option value="image">Image</option>
+                      <option value="spreadsheet">Spreadsheet</option>
+                      <option value="document">Document</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <label htmlFor="file-type-filter" className="whitespace-nowrap text-xs font-medium text-gray-700 sm:text-sm">
-                    File Type:
-                  </label>
-                  <select
-                    id="file-type-filter"
-                    value={fileTypeFilter}
-                    onChange={(e) => setFileTypeFilter(e.target.value)}
-                    className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">All Types</option>
-                    <option value="image">Image</option>
-                    <option value="spreadsheet">Spreadsheet</option>
-                    <option value="document">Document</option>
-                  </select>
-                </div>
+                {(() => {
+                  const hasActiveFilters = sourceFilter || fileTypeFilter;
+                  const hasSearchResults = searchQuery.length >= 2 && searchResults.length > 0;
+                  const hasFilteredItems = !searchQuery && items.length > 0;
+                  const itemCount = getCurrentItemIds().length;
+
+                  return (hasActiveFilters || hasSearchResults || hasFilteredItems) && (
+                    <Button
+                      onClick={() => setCreateCollectionDialogOpen(true)}
+                      size="sm"
+                      variant="outline"
+                      className="whitespace-nowrap"
+                      title={itemCount > 0 ? `Create collection with ${itemCount} item${itemCount !== 1 ? 's' : ''}` : 'Create collection from current results'}
+                    >
+                      <FolderPlus className="mr-2 h-4 w-4" />
+                      Create Collection from Results
+                      {itemCount > 0 && (
+                        <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
+                          {itemCount}
+                        </span>
+                      )}
+                    </Button>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -728,6 +803,12 @@ export default function InboxPage() {
           </div>
         </div>
       </main>
+
+      <CollectionDialog
+        open={createCollectionDialogOpen}
+        onOpenChange={setCreateCollectionDialogOpen}
+        onSave={handleCreateCollectionFromResults}
+      />
     </div>
   );
 }

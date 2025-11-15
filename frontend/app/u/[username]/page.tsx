@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { apiClient, type PublicProfile, type Item, API_URL } from '@/lib/api';
+import { apiClient, type PublicProfile, type Item, type Collection, API_URL } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { CollectionCard } from '@/components/collection-card';
 
 function PublicProfilePageContent() {
   const params = useParams();
@@ -16,6 +17,8 @@ function PublicProfilePageContent() {
   const [error, setError] = useState<string | null>(null);
   const [profileItems, setProfileItems] = useState<Item[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [profileCollections, setProfileCollections] = useState<Collection[]>([]);
+  const [collectionsLoading, setCollectionsLoading] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -50,6 +53,27 @@ function PublicProfilePageContent() {
 
     void loadProfile();
   }, [username]);
+
+  useEffect(() => {
+    const loadProfileCollections = async () => {
+      if (!username || error || !profile) {
+        return;
+      }
+
+      try {
+        setCollectionsLoading(true);
+        const response = await apiClient.getProfileCollections(username);
+        setProfileCollections(response.collections);
+      } catch (err) {
+        console.error('Failed to load profile collections:', err);
+        // Don't show error to user, just log it
+      } finally {
+        setCollectionsLoading(false);
+      }
+    };
+
+    void loadProfileCollections();
+  }, [username, profile, error]);
 
   useEffect(() => {
     const loadProfileItems = async () => {
@@ -355,6 +379,37 @@ function PublicProfilePageContent() {
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Collections Section */}
+        {(collectionsLoading || profileCollections.length > 0) && (
+          <Card>
+            <CardContent className="pt-6 pb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">Collections</h2>
+              {collectionsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                </div>
+              ) : profileCollections.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-8">No collections posted yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {profileCollections.map((collection) => {
+                    // Use public view link if shareable, otherwise use regular collection link
+                    const collectionLink = collection.is_publicly_shareable && collection.share_token
+                      ? `/c/${collection.share_token}`
+                      : `/collections/${collection.id}`;
+
+                    return (
+                      <Link key={collection.id} href={collectionLink}>
+                        <CollectionCard collection={collection} href={collectionLink} />
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}

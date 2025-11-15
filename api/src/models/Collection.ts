@@ -8,6 +8,9 @@ export interface Collection {
   description?: string | null;
   color?: string | null;
   icon?: string | null;
+  posted_to_profile?: boolean;
+  is_publicly_shareable?: boolean;
+  share_token?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -18,6 +21,8 @@ export interface CreateCollectionInput {
   description?: string;
   color?: string;
   icon?: string;
+  posted_to_profile?: boolean;
+  is_publicly_shareable?: boolean;
 }
 
 export class CollectionModel {
@@ -76,6 +81,18 @@ export class CollectionModel {
       fields.push(`icon = $${paramCount++}`);
       values.push(updates.icon || null);
     }
+    if (updates.posted_to_profile !== undefined) {
+      fields.push(`posted_to_profile = $${paramCount++}`);
+      values.push(updates.posted_to_profile || false);
+    }
+    if (updates.is_publicly_shareable !== undefined) {
+      fields.push(`is_publicly_shareable = $${paramCount++}`);
+      values.push(updates.is_publicly_shareable || false);
+    }
+    if (updates.share_token !== undefined) {
+      fields.push(`share_token = $${paramCount++}`);
+      values.push(updates.share_token || null);
+    }
 
     if (fields.length === 0) {
       return await this.findById(id) as Collection;
@@ -95,5 +112,39 @@ export class CollectionModel {
       [id]
     );
     return (result.rowCount ?? 0) > 0;
+  }
+
+  static async generateShareToken(id: string): Promise<Collection> {
+    // Generate a new UUID for the share token
+    const result = await pool.query(
+      `UPDATE collections
+       SET share_token = gen_random_uuid(),
+           is_publicly_shareable = true,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1
+       RETURNING *`,
+      [id]
+    );
+    return result.rows[0] as Collection;
+  }
+
+  static async findByShareToken(token: string): Promise<Collection | null> {
+    const result = await pool.query(
+      'SELECT * FROM collections WHERE share_token = $1 AND is_publicly_shareable = true',
+      [token]
+    );
+    return result.rows[0] || null;
+  }
+
+  static async findPostedCollectionsByOwner(
+    ownerId: string,
+    limit: number = 50,
+    offset: number = 0
+  ): Promise<Collection[]> {
+    const result = await pool.query(
+      'SELECT * FROM collections WHERE owner_id = $1 AND posted_to_profile = true ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      [ownerId, limit, offset]
+    );
+    return result.rows;
   }
 }

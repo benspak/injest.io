@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { ArrowLeft, Edit2, Trash2, X } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, X, Share2, Globe, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AnnouncementBanner } from '@/components/announcement-banner';
@@ -14,6 +14,7 @@ import { ItemList } from '@/components/item-list';
 import { auth } from '@/lib/auth';
 import { apiClient, Collection, Item } from '@/lib/api';
 import { CollectionDialog } from '@/components/collection-dialog';
+import { ShareCollectionDialog } from '@/components/share-collection-dialog';
 
 export default function CollectionDetailPage() {
   const params = useParams<{ id: string }>();
@@ -23,6 +24,7 @@ export default function CollectionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -120,6 +122,18 @@ export default function CollectionDetailPage() {
     } catch (error) {
       console.error('Error updating collection:', error);
       toast.error('Failed to update collection');
+    }
+  };
+
+  const handleShareSuccess = async () => {
+    // Reload collection to get updated sharing status
+    if (params?.id && typeof params.id === 'string') {
+      try {
+        const updated = await apiClient.getCollection(params.id);
+        setCollection(updated);
+      } catch (error) {
+        console.error('Error reloading collection:', error);
+      }
     }
   };
 
@@ -231,6 +245,15 @@ export default function CollectionDetailPage() {
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <Button
+              onClick={() => setShareDialogOpen(true)}
+              variant="outline"
+              size="sm"
+              className="text-xs sm:text-sm"
+            >
+              <Share2 className="mr-2 h-4 w-4" />
+              Share
+            </Button>
+            <Button
               onClick={() => setEditDialogOpen(true)}
               variant="outline"
               size="sm"
@@ -278,6 +301,25 @@ export default function CollectionDetailPage() {
               <span>•</span>
               <span>Created {new Date(collection.created_at).toLocaleDateString()}</span>
             </div>
+            {(collection.posted_to_profile || collection.is_publicly_shareable) && (
+              <div className="pt-2 border-t">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Sharing Status</h3>
+                <div className="flex flex-wrap gap-3">
+                  {collection.posted_to_profile && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <span>Posted to profile</span>
+                    </div>
+                  )}
+                  {collection.is_publicly_shareable && (
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                      <Globe className="h-4 w-4 text-blue-600" />
+                      <span>Public link sharing enabled</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -321,6 +363,13 @@ export default function CollectionDetailPage() {
         onOpenChange={setEditDialogOpen}
         onSave={handleUpdateCollection}
         collection={collection}
+      />
+      <ShareCollectionDialog
+        open={shareDialogOpen}
+        onOpenChange={setShareDialogOpen}
+        collectionId={collection.id}
+        collectionTitle={collection.title}
+        onSuccess={handleShareSuccess}
       />
     </div>
   );

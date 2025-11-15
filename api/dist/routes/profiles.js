@@ -384,6 +384,44 @@ router.get('/user/:userId/username', async (req, res) => {
         res.status(500).json({ error: 'Failed to fetch username' });
     }
 });
+// GET /api/profiles/:username/collections - Get posted collections for a profile (no auth required)
+router.get('/:username/collections', async (req, res) => {
+    try {
+        const { username } = req.params;
+        if (!username) {
+            res.status(400).json({ error: 'Username is required' });
+            return;
+        }
+        const user = await UserModel.findByPublicUsername(username);
+        if (!user) {
+            res.status(404).json({ error: 'Profile not found' });
+            return;
+        }
+        // Check if profile is private
+        if (user.profile_private) {
+            res.status(403).json({ error: 'This profile is private' });
+            return;
+        }
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = parseInt(req.query.offset) || 0;
+        const { CollectionModel } = await import('../models/Collection.js');
+        const { CollectionItemModel } = await import('../models/CollectionItem.js');
+        const collections = await CollectionModel.findPostedCollectionsByOwner(user.id, limit, offset);
+        // Get item counts for each collection
+        const collectionsWithCounts = await Promise.all(collections.map(async (collection) => {
+            const itemCount = await CollectionItemModel.countByCollection(collection.id);
+            return {
+                ...collection,
+                item_count: itemCount,
+            };
+        }));
+        res.json({ collections: collectionsWithCounts });
+    }
+    catch (error) {
+        console.error('Error fetching profile collections:', error);
+        res.status(500).json({ error: 'Failed to fetch profile collections' });
+    }
+});
 // GET /api/profiles/:username/items - Get posted items for a profile (no auth required)
 router.get('/:username/items', async (req, res) => {
     try {
