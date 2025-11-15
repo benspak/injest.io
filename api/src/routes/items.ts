@@ -36,6 +36,7 @@ import {
   type SubscriptionTier,
 } from '../utils/subscriptionPlans.js';
 import { searchService } from '../services/search.js';
+import { CollectionItemModel } from '../models/CollectionItem.js';
 
 type UploadedFileWithChecksum = Express.Multer.File & { checksum: string };
 
@@ -2112,6 +2113,38 @@ router.post('/:id/email-summary', async (req: AuthRequest, res: express.Response
   } catch (error) {
     console.error('Error generating email summary:', error);
     res.status(500).json({ error: 'Failed to generate email summary' });
+  }
+});
+
+// Get collections containing an item
+router.get('/:id/collections', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const item = await ItemModel.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    const hasAccess =
+      item.owner_id === req.user.id ||
+      (await ItemAccessModel.userHasAccess(item.id, req.user.id, req.user.email));
+
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Only return collections owned by the user
+    const collections = await CollectionItemModel.findByItem(req.params.id);
+    const userCollections = collections.filter((c) => c.owner_id === req.user!.id);
+
+    res.json(userCollections);
+  } catch (error) {
+    console.error('Error getting item collections:', error);
+    res.status(500).json({ error: 'Failed to get item collections' });
   }
 });
 

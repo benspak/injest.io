@@ -14,6 +14,7 @@ import paymentRoutes from './routes/payment.js';
 import contactsRoutes from './routes/contacts.js';
 import sendRoutes from './routes/send.js';
 import profilesRoutes from './routes/profiles.js';
+import collectionsRoutes from './routes/collections.js';
 import { swaggerSpec } from './swagger.js';
 import externalRoutes from './routes/external.js';
 import xcomRoutes from './routes/xcom.js';
@@ -75,6 +76,7 @@ app.use('/api/payment', paymentRoutes);
 app.use('/api/contacts', contactsRoutes);
 app.use('/api/send', sendRoutes);
 app.use('/api/profiles', profilesRoutes);
+app.use('/api/collections', collectionsRoutes);
 app.use('/api/external', externalRoutes);
 // Serve uploaded files (avatars, attachments, etc.)
 app.get('/api/uploads/:path(*)', (req, res) => {

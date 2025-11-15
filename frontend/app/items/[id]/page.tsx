@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { Share2 } from 'lucide-react';
+import { Share2, FolderPlus, X } from 'lucide-react';
 
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -18,9 +18,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { apiClient, Item } from '@/lib/api';
+import { apiClient, Item, Collection } from '@/lib/api';
 import { auth } from '@/lib/auth';
 import { ShareItemDialog } from '@/components/share-item-dialog';
+import { AddToCollectionDialog } from '@/components/add-to-collection-dialog';
 
 type Attachment = NonNullable<Item['attachments']>[number];
 
@@ -34,6 +35,9 @@ export default function ItemDetailPage() {
   const [selectedImage, setSelectedImage] = useState<(Attachment & { previewUrl: string }) | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [isRemovingFromProfile, setIsRemovingFromProfile] = useState(false);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [loadingCollections, setLoadingCollections] = useState(false);
+  const [addToCollectionDialogOpen, setAddToCollectionDialogOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +58,10 @@ export default function ItemDetailPage() {
       try {
         const data = await apiClient.getItem(itemId);
         setItem(data);
+        // Load collections for this item
+        if (!data.isResendEmail) {
+          loadItemCollections(itemId);
+        }
       } catch (err) {
         console.error('Error loading item:', err);
         setError('Unable to load item. It may have been deleted or you may not have access.');
@@ -64,6 +72,37 @@ export default function ItemDetailPage() {
 
     load();
   }, [params?.id, router]);
+
+  const loadItemCollections = async (itemId: string) => {
+    try {
+      setLoadingCollections(true);
+      const data = await apiClient.getItemCollections(itemId);
+      setCollections(data);
+    } catch (error) {
+      console.error('Error loading collections:', error);
+    } finally {
+      setLoadingCollections(false);
+    }
+  };
+
+  const handleRemoveFromCollection = async (collectionId: string) => {
+    if (!item) return;
+
+    try {
+      await apiClient.removeItemFromCollection(collectionId, item.id);
+      toast.success('Removed from collection');
+      await loadItemCollections(item.id);
+    } catch (error) {
+      console.error('Error removing from collection:', error);
+      toast.error('Failed to remove from collection');
+    }
+  };
+
+  const handleCollectionSuccess = () => {
+    if (item && !item.isResendEmail) {
+      loadItemCollections(item.id);
+    }
+  };
 
   const imageAttachments = useMemo(() => {
     if (!Array.isArray(item?.attachments)) {
@@ -198,6 +237,17 @@ export default function ItemDetailPage() {
                 disabled={isRemovingFromProfile}
               >
                 {isRemovingFromProfile ? 'Removing…' : 'Remove from profile'}
+              </Button>
+            )}
+            {item && !item.isResendEmail && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs sm:text-sm"
+                onClick={() => setAddToCollectionDialogOpen(true)}
+              >
+                <FolderPlus className="mr-2 h-4 w-4" />
+                Add to Collection
               </Button>
             )}
             <Button
@@ -373,10 +423,77 @@ export default function ItemDetailPage() {
                   </div>
                 </section>
               )}
+
+              {!item.isResendEmail && (
+                <section className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-sm font-semibold text-gray-700">Collections</h2>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setAddToCollectionDialogOpen(true)}
+                    >
+                      <FolderPlus className="mr-2 h-4 w-4" />
+                      Add to Collection
+                    </Button>
+                  </div>
+                  {loadingCollections ? (
+                    <p className="text-sm text-muted-foreground">Loading collections...</p>
+                  ) : collections.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Not in any collections</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {collections.map((collection) => {
+                        const collectionColor = collection.color || '#6366f1';
+                        const collectionIcon = collection.icon || '📁';
+                        return (
+                          <div
+                            key={collection.id}
+                            className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1.5 text-xs"
+                          >
+                            <div
+                              className="w-4 h-4 rounded flex items-center justify-center text-white text-[10px]"
+                              style={{ backgroundColor: collectionColor }}
+                            >
+                              {collectionIcon}
+                            </div>
+                            <Link
+                              href={`/collections/${collection.id}`}
+                              className="text-gray-700 hover:text-gray-900 hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {collection.title}
+                            </Link>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemoveFromCollection(collection.id);
+                              }}
+                              className="ml-1 text-gray-400 hover:text-gray-600"
+                              title="Remove from collection"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
             </CardContent>
           </Card>
         ) : null}
       </main>
+
+      {item && !item.isResendEmail && (
+        <AddToCollectionDialog
+          open={addToCollectionDialogOpen}
+          onOpenChange={setAddToCollectionDialogOpen}
+          itemIds={[item.id]}
+          onSuccess={handleCollectionSuccess}
+        />
+      )}
 
       <Dialog
         open={imageDialogOpen}

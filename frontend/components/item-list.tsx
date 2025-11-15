@@ -1,6 +1,6 @@
 'use client';
 
-import { MouseEvent, useState } from 'react';
+import { MouseEvent, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,8 +13,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { apiClient, Item, LinkMetadata } from '@/lib/api';
-import { Share2 } from 'lucide-react';
+import { Share2, FolderPlus } from 'lucide-react';
 import { ShareItemDialog } from '@/components/share-item-dialog';
+import { AddToCollectionDialog } from '@/components/add-to-collection-dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface ItemListProps {
   items: Item[];
@@ -50,6 +52,10 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   } | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<{ id: string; title?: string } | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [addToCollectionDialogOpen, setAddToCollectionDialogOpen] = useState(false);
+  const [itemCollections, setItemCollections] = useState<Record<string, string[]>>({});
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -573,8 +579,120 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     );
   };
 
+  const handleToggleBulkMode = () => {
+    setBulkMode(!bulkMode);
+    setSelectedItems(new Set());
+  };
+
+  const handleToggleItemSelection = (itemId: string, event?: MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    // Only select items that can be added to collections (exclude Resend emails)
+    const selectableItems = items.filter((item) => !item.isResendEmail);
+    const selectableItemIds = selectableItems.map((item) => item.id);
+    const allSelected = selectableItemIds.every((id) => selectedItems.has(id));
+
+    if (allSelected) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(selectableItemIds));
+    }
+  };
+
+  const handleAddToCollection = () => {
+    setAddToCollectionDialogOpen(true);
+  };
+
+  const handleCollectionSuccess = () => {
+    // Refresh item collections
+    items.forEach((item) => {
+      if (!item.isResendEmail) {
+        apiClient.getItemCollections(item.id).then((collections) => {
+          setItemCollections((prev) => ({
+            ...prev,
+            [item.id]: collections.map((c) => c.id),
+          }));
+        }).catch(() => {});
+      }
+    });
+    setSelectedItems(new Set());
+  };
+
+  // Load collections for items on mount
+  useEffect(() => {
+    items.forEach((item) => {
+      if (!item.isResendEmail && !itemCollections[item.id]) {
+        apiClient.getItemCollections(item.id).then((collections) => {
+          setItemCollections((prev) => ({
+            ...prev,
+            [item.id]: collections.map((c) => c.id),
+          }));
+        }).catch(() => {});
+      }
+    });
+  }, [items]);
+
   return (
     <>
+      {bulkMode && items.length > 0 && (
+        <div className="sticky top-0 z-10 bg-white border-b px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={
+                (() => {
+                  const selectableItems = items.filter((item) => !item.isResendEmail);
+                  return selectableItems.length > 0 && selectableItems.every((item) => selectedItems.has(item.id));
+                })()
+              }
+              onCheckedChange={handleSelectAll}
+            />
+            <span className="text-sm text-gray-700">
+              {selectedItems.size} of {items.filter((item) => !item.isResendEmail).length} selected
+              {items.some((item) => item.isResendEmail) && (
+                <span className="text-xs text-gray-500 ml-1">
+                  ({items.filter((item) => item.isResendEmail).length} Resend email{items.filter((item) => item.isResendEmail).length !== 1 ? 's' : ''} excluded)
+                </span>
+              )}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleAddToCollection}
+              disabled={selectedItems.size === 0}
+              size="sm"
+              variant="outline"
+            >
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Add to Collection
+            </Button>
+            <Button onClick={handleToggleBulkMode} size="sm" variant="outline">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!bulkMode && items.length > 0 && (
+        <div className="px-4 py-2 flex justify-end border-b">
+          <Button onClick={handleToggleBulkMode} size="sm" variant="outline">
+            Select Items
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-0">
         {items.length === 0 ? (
           <p className="text-center text-muted-foreground py-8">No items yet</p>
@@ -621,13 +739,39 @@ export function ItemList({ items, onDelete }: ItemListProps) {
               }
             }
 
+            const itemCollectionIds = itemCollections[item.id] || [];
+            const isSelected = selectedItems.has(item.id);
+            const canAddToCollection = !item.isResendEmail;
+
             return (
               <div
                 key={item.id}
-                className="cursor-pointer border-b border-gray-200 hover:bg-gray-50 transition-colors px-4 py-3 group"
-                onClick={() => handleItemClick(item)}
+                className={`border-b border-gray-200 hover:bg-gray-50 transition-colors px-4 py-3 group ${
+                  bulkMode && !canAddToCollection ? 'opacity-50' : ''
+                } ${bulkMode ? '' : 'cursor-pointer'} ${isSelected ? 'bg-blue-50' : ''}`}
+                onClick={(e) => {
+                  if (bulkMode && canAddToCollection) {
+                    handleToggleItemSelection(item.id, e);
+                  } else if (!bulkMode) {
+                    handleItemClick(item);
+                  }
+                }}
               >
                 <div className="flex items-start gap-3">
+                  {bulkMode && (
+                    <div className="flex-shrink-0 pt-1" onClick={(e) => e.stopPropagation()}>
+                      {canAddToCollection ? (
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => handleToggleItemSelection(item.id)}
+                        />
+                      ) : (
+                        <div className="w-4 h-4 flex items-center justify-center text-gray-400" title="Resend emails cannot be added to collections">
+                          <span className="text-xs">—</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {/* Left side - image preview */}
                   {previewImage && (
                     <div className="flex-shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
@@ -708,6 +852,14 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                           </span>
                         </>
                       )}
+                      {itemCollectionIds.length > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="whitespace-nowrap text-blue-600">
+                            {itemCollectionIds.length} collection{itemCollectionIds.length !== 1 ? 's' : ''}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -716,6 +868,13 @@ export function ItemList({ items, onDelete }: ItemListProps) {
           })
         )}
       </div>
+
+      <AddToCollectionDialog
+        open={addToCollectionDialogOpen}
+        onOpenChange={setAddToCollectionDialogOpen}
+        itemIds={Array.from(selectedItems)}
+        onSuccess={handleCollectionSuccess}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={handleCloseDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden w-[calc(100vw-2rem)] sm:w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl left-4 right-4 sm:left-[50%] sm:right-auto translate-x-0 sm:translate-x-[-50%] top-4 sm:top-[50%] translate-y-0 sm:translate-y-[-50%] p-4 sm:p-6">

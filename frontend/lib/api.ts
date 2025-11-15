@@ -97,6 +97,24 @@ export interface Item {
   resendEmailId?: string;
 }
 
+export interface Collection {
+  id: string;
+  owner_id: string;
+  title: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  created_at: string;
+  updated_at: string;
+  item_count?: number;
+}
+
+export interface CollectionItem {
+  collection_id: string;
+  item_id: string;
+  created_at: string;
+}
+
 export interface Contact {
   id: string;
   owner_id: string;
@@ -1294,6 +1312,115 @@ class ApiClient {
       currentStreak: number;
       weekDays: number[];
     }>('/api/auth/login-streak', {
+      method: 'GET',
+    });
+  }
+
+  // Collections
+  async getCollections(): Promise<Collection[]> {
+    return this.request<Collection[]>('/api/collections', {
+      method: 'GET',
+    });
+  }
+
+  async getCollection(id: string): Promise<Collection> {
+    return this.request<Collection>(`/api/collections/${id}`, {
+      method: 'GET',
+    });
+  }
+
+  async createCollection(data: {
+    title: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  }): Promise<Collection> {
+    return this.request<Collection>('/api/collections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateCollection(
+    id: string,
+    data: {
+      title?: string;
+      description?: string | null;
+      color?: string | null;
+      icon?: string | null;
+    }
+  ): Promise<Collection> {
+    return this.request<Collection>(`/api/collections/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteCollection(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/collections/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getCollectionItems(
+    collectionId: string,
+    limit?: number,
+    offset?: number
+  ): Promise<Item[]> {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString();
+    return this.request<Item[]>(
+      `/api/collections/${collectionId}/items${query ? `?${query}` : ''}`,
+      {
+        method: 'GET',
+      }
+    );
+  }
+
+  async addItemToCollection(
+    collectionId: string,
+    itemId: string
+  ): Promise<{ message: string; addedCount: number; totalRequested: number }> {
+    return this.request<{
+      message: string;
+      addedCount: number;
+      totalRequested: number;
+    }>(`/api/collections/${collectionId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ itemIds: [itemId] }),
+    });
+  }
+
+  async addItemsToCollection(
+    collectionId: string,
+    itemIds: string[]
+  ): Promise<{ message: string; addedCount: number; totalRequested: number }> {
+    return this.request<{
+      message: string;
+      addedCount: number;
+      totalRequested: number;
+    }>(`/api/collections/${collectionId}/items`, {
+      method: 'POST',
+      body: JSON.stringify({ itemIds }),
+    });
+  }
+
+  async removeItemFromCollection(
+    collectionId: string,
+    itemId: string
+  ): Promise<{ message: string }> {
+    return this.request<{ message: string }>(
+      `/api/collections/${collectionId}/items/${itemId}`,
+      {
+        method: 'DELETE',
+      }
+    );
+  }
+
+  async getItemCollections(itemId: string): Promise<Collection[]> {
+    return this.request<Collection[]>(`/api/items/${itemId}/collections`, {
       method: 'GET',
     });
   }
