@@ -691,11 +691,13 @@ export function SearchResults({ results }: SearchResultsProps) {
                   );
                   if (imageAttachments.length > 0) {
                     const firstImage = imageAttachments[0];
+                    const previewUrl = apiClient.getAttachmentPreviewUrl(item.id, firstImage, true);
+                    if (!previewUrl) return null;
                     return (
                       <div className="mb-3 border rounded-lg overflow-hidden bg-white">
                         <div className="w-full bg-gray-100 overflow-hidden" style={{ maxHeight: '120px' }}>
                           <img
-                            src={apiClient.getAttachmentPreviewUrl(item.id, firstImage, true)}
+                            src={previewUrl}
                             alt={firstImage.originalname}
                             className="w-full h-auto max-h-[120px] object-cover"
                             onError={(e) => {
@@ -1140,23 +1142,25 @@ export function SearchResults({ results }: SearchResultsProps) {
                               >
                                 {isImage ? (
                                   <>
-                                    <img
-                                      src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)}
-                                      alt={file.originalname}
-                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96"
-                                      onError={(e) => {
-                                        // Fallback to download button if image fails to load
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'none';
-                                        const parent = target.parentElement;
-                                        if (parent) {
-                                          const fallback = parent.querySelector('.image-fallback');
-                                          if (fallback) {
-                                            (fallback as HTMLElement).style.display = 'flex';
+                                    {apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true) && (
+                                      <img
+                                        src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)!}
+                                        alt={file.originalname}
+                                        className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96"
+                                        onError={(e) => {
+                                          // Fallback to download button if image fails to load
+                                          const target = e.target as HTMLImageElement;
+                                          target.style.display = 'none';
+                                          const parent = target.parentElement;
+                                          if (parent) {
+                                            const fallback = parent.querySelector('.image-fallback');
+                                            if (fallback) {
+                                              (fallback as HTMLElement).style.display = 'flex';
+                                            }
                                           }
-                                        }
-                                      }}
-                                    />
+                                        }}
+                                      />
+                                    )}
                                     <div className="image-fallback hidden flex items-center justify-between w-full">
                                       <div className="flex-1">
                                         <p className="text-sm font-medium">{file.originalname}</p>

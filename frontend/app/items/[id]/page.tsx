@@ -32,7 +32,7 @@ export default function ItemDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
-  const [selectedImage, setSelectedImage] = useState<(Attachment & { previewUrl: string }) | null>(null);
+  const [selectedImage, setSelectedImage] = useState<(Attachment & { previewUrl: string | null }) | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [isRemovingFromProfile, setIsRemovingFromProfile] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -513,7 +513,7 @@ export default function ItemDetailPage() {
               </DialogDescription>
             )}
           </DialogHeader>
-          {item && selectedImage && (
+          {item && selectedImage && selectedImage.previewUrl && (
             <div className="space-y-4">
               <div className="relative w-full">
                 <img

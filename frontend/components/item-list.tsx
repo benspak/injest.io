@@ -48,7 +48,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     itemId: string;
     resendEmailId?: string;
     file: Attachment;
-    previewSrc: string;
+    previewSrc: string | null;
   } | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareTarget, setShareTarget] = useState<{ id: string; title?: string } | null>(null);
@@ -486,23 +486,25 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                     >
                       {isImage ? (
                         <>
-                          <img
-                            src={apiClient.getAttachmentPreviewUrl((itemDetails || item).id, file, true)}
-                            alt={file.originalname}
-                            className="w-full max-w-md h-auto rounded-md object-contain max-h-64"
-                            onError={(e) => {
-                              // Fallback to download button if image fails to load
-                              const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
-                              const parent = target.parentElement;
-                              if (parent) {
-                                const fallback = parent.querySelector('.image-fallback');
-                                if (fallback) {
-                                  (fallback as HTMLElement).style.display = 'flex';
+                          {apiClient.getAttachmentPreviewUrl((itemDetails || item).id, file, true) && (
+                            <img
+                              src={apiClient.getAttachmentPreviewUrl((itemDetails || item).id, file, true)!}
+                              alt={file.originalname}
+                              className="w-full max-w-md h-auto rounded-md object-contain max-h-64"
+                              onError={(e) => {
+                                // Fallback to download button if image fails to load
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  const fallback = parent.querySelector('.image-fallback');
+                                  if (fallback) {
+                                    (fallback as HTMLElement).style.display = 'flex';
+                                  }
                                 }
-                              }
-                            }}
-                          />
+                              }}
+                            />
+                          )}
                           <div className="image-fallback hidden flex items-center justify-between w-full">
                             <div className="flex-1">
                               <p className="text-sm font-medium">{file.originalname}</p>
@@ -1383,7 +1385,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
               </DialogDescription>
             )}
           </DialogHeader>
-          {selectedImage && (
+          {selectedImage && selectedImage.previewSrc && (
             <div className="space-y-4">
               <div className="relative w-full">
                 <img

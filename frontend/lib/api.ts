@@ -993,7 +993,7 @@ class ApiClient {
     );
   }
 
-  getAttachmentPreviewUrl(itemId: string, attachment: ItemAttachment, inline: boolean = false): string {
+  getAttachmentPreviewUrl(itemId: string, attachment: ItemAttachment, inline: boolean = false): string | null {
     if (this.isRemoteAttachment(attachment)) {
       if (attachment.url) {
         return attachment.url;
@@ -1006,7 +1006,21 @@ class ApiClient {
       }
     }
 
-    return this.getFileUrl(itemId, attachment.filename, inline);
+    // Check if we have a token before trying to generate file URL
+    // For public profiles, we may not have authentication
+    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    if (!token) {
+      // Return null if no token is available (e.g., viewing public profile)
+      // The UI should handle null gracefully
+      return null;
+    }
+
+    try {
+      return this.getFileUrl(itemId, attachment.filename, inline);
+    } catch (error) {
+      // If getFileUrl throws an error (e.g., no token), return null
+      return null;
+    }
   }
 
   // Search
