@@ -285,6 +285,10 @@ export class ItemModel {
             // PostgreSQL JSONB accepts objects directly, no need to stringify
             values.push(updates.link_metadata || null);
         }
+        if (updates.posted_to_profile !== undefined) {
+            fields.push(`posted_to_profile = $${paramCount++}`);
+            values.push(updates.posted_to_profile || false);
+        }
         if (updates.type !== undefined) {
             fields.push(`type = $${paramCount++}`);
             values.push(updates.type || null);
@@ -337,6 +341,10 @@ export class ItemModel {
     }
     static async findByOwnerAndType(ownerId, type, limit = 100, offset = 0) {
         const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND type = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $3 OFFSET $4', [ownerId, type, limit, offset]);
+        return result.rows;
+    }
+    static async findPostedItemsByOwner(ownerId, limit = 100, offset = 0) {
+        const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND posted_to_profile = true AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3', [ownerId, limit, offset]);
         return result.rows;
     }
 }

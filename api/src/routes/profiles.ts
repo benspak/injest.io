@@ -7,6 +7,8 @@ import { authMiddleware, type AuthRequest } from '../middleware/auth.js';
 import { UserModel, type User } from '../models/User.js';
 import { zipCodeToCity } from '../utils/zipToCity.js';
 import { indexingService } from '../services/indexing.js';
+import { ItemModel } from '../models/Item.js';
+import { normalizeItem } from '../utils/itemNormalization.js';
 
 const router = express.Router();
 
@@ -458,6 +460,42 @@ router.get('/user/:userId/username', async (req: express.Request, res: express.R
   } catch (error) {
     console.error('Error fetching username by user ID:', error);
     res.status(500).json({ error: 'Failed to fetch username' });
+  }
+});
+
+// GET /api/profiles/:username/items - Get posted items for a profile (no auth required)
+router.get('/:username/items', async (req: express.Request, res: express.Response) => {
+  try {
+    const { username } = req.params;
+
+    if (!username) {
+      res.status(400).json({ error: 'Username is required' });
+      return;
+    }
+
+    const user = await UserModel.findByPublicUsername(username);
+
+    if (!user) {
+      res.status(404).json({ error: 'Profile not found' });
+      return;
+    }
+
+    // Check if profile is private
+    if (user.profile_private) {
+      res.status(403).json({ error: 'This profile is private' });
+      return;
+    }
+
+    const limit = parseInt(req.query.limit as string) || 50;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const items = await ItemModel.findPostedItemsByOwner(user.id, limit, offset);
+    const normalizedItems = items.map((item) => normalizeItem(item));
+
+    res.json({ items: normalizedItems });
+  } catch (error) {
+    console.error('Error fetching profile items:', error);
+    res.status(500).json({ error: 'Failed to fetch profile items' });
   }
 });
 

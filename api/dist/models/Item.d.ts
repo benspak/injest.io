@@ -22,6 +22,7 @@ export interface Item {
     embedding_id?: string;
     link_metadata?: any;
     notes?: string;
+    posted_to_profile?: boolean;
     deleted_at?: Date | null;
     created_at: Date;
     updated_at: Date;
@@ -60,5 +61,6 @@ export declare class ItemModel {
     static delete(id: string): Promise<boolean>;
     static findByResendEmailId(resendEmailId: string): Promise<Item | null>;
     static findByOwnerAndType(ownerId: string, type: string, limit?: number, offset?: number): Promise<Item[]>;
+    static findPostedItemsByOwner(ownerId: string, limit?: number, offset?: number): Promise<Item[]>;
 }
 //# sourceMappingURL=Item.d.ts.map

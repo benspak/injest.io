@@ -30,5 +30,23 @@
 
 
 - Integrate Slack API for posting and message saving.
-- More robust user profiles
 - Public user posts.
+- Shared workspaces, permissions, team roles, collaborative workflows.
+- Calendar/kanban, multi-step actions
+- Full browser extension capturing arbitrary content (screenshots, web clipping beyond bookmark)
+- Mobile app capture and usage.
+- Saved search queries or alerts.
+- Recommendation engines (suggest “you might act on X”)
+- Collaboration features where users share content publicly/community features.
+- public workspace/teams, social or network features, cross-user search/sharing.
+- Knowledge graph of entities, relationships, timeline views.
+- Merge duplicate contacts, visualize relationships.
+
+1.	Build team/organization workspaces, with user roles, shared items, permissions.
+2.	Build task/workflow module: allow users to turn items into tasks, set due dates, automate triggers.
+3.	Develop mobile native apps (iOS and Android) with capture and search.
+4.	Extend integrations: Slack, Notion, Google Drive, Dropbox, browser screencap, etc.
+5.	Build analytics & saved queries: show workspace usage stats, create alerts when search fails, saved search macros.
+6.	Build advanced knowledge graph: visualize contacts/entities, relationships, timeline view of items.
+7.	Refine monetization: add team pricing, enterprise features (SSO, data export, compliance), usage-based pricing.
+8.	Add public/shared features: allow content sharing across users/teams, build network effects (collaboration, community).

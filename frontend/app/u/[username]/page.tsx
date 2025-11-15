@@ -2,8 +2,9 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { apiClient, type PublicProfile, API_URL } from '@/lib/api';
+import { apiClient, type PublicProfile, type Item, API_URL } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
@@ -13,6 +14,8 @@ function PublicProfilePageContent() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<PublicProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [profileItems, setProfileItems] = useState<Item[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -47,6 +50,27 @@ function PublicProfilePageContent() {
 
     void loadProfile();
   }, [username]);
+
+  useEffect(() => {
+    const loadProfileItems = async () => {
+      if (!username || error || !profile) {
+        return;
+      }
+
+      try {
+        setItemsLoading(true);
+        const response = await apiClient.getProfileItems(username);
+        setProfileItems(response.items);
+      } catch (err) {
+        console.error('Failed to load profile items:', err);
+        // Don't show error to user, just log it
+      } finally {
+        setItemsLoading(false);
+      }
+    };
+
+    void loadProfileItems();
+  }, [username, profile, error]);
 
   const getAvatarUrl = (avatarUrl: string | null): string | null => {
     if (!avatarUrl) return null;
@@ -334,6 +358,165 @@ function PublicProfilePageContent() {
             </CardContent>
           </Card>
         )}
+
+        {/* Items Feed Section */}
+        <Card>
+          <CardContent className="pt-6 pb-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Posted Items</h2>
+            {itemsLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              </div>
+            ) : profileItems.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-8">No items posted yet.</p>
+            ) : (
+              <div className="space-y-0">
+                {profileItems.map((item) => {
+                  const formatRelativeTime = (date: Date) => {
+                    const now = new Date();
+                    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+                    if (diffInSeconds < 60) {
+                      return 'just now';
+                    }
+
+                    const diffInMinutes = Math.floor(diffInSeconds / 60);
+                    if (diffInMinutes < 60) {
+                      return `${diffInMinutes}m ago`;
+                    }
+
+                    const diffInHours = Math.floor(diffInMinutes / 60);
+                    if (diffInHours < 24) {
+                      return `${diffInHours}h ago`;
+                    }
+
+                    const diffInDays = Math.floor(diffInHours / 24);
+                    if (diffInDays < 7) {
+                      return `${diffInDays}d ago`;
+                    }
+
+                    const diffInWeeks = Math.floor(diffInDays / 7);
+                    if (diffInWeeks < 4) {
+                      return `${diffInWeeks}w ago`;
+                    }
+
+                    const diffInMonths = Math.floor(diffInDays / 30);
+                    if (diffInMonths < 12) {
+                      return `${diffInMonths}mo ago`;
+                    }
+
+                    const diffInYears = Math.floor(diffInDays / 365);
+                    return `${diffInYears}y ago`;
+                  };
+
+                  const date = new Date(item.created_at);
+                  const timeAgo = formatRelativeTime(date);
+
+                  // Get title for display
+                  const itemTitle = item.link_metadata?.title || item.title || 'Untitled';
+
+                  // Get description preview
+                  const descriptionPreview = item.link_metadata?.description || item.description || '';
+                  const truncatedDescription = descriptionPreview.length > 150
+                    ? descriptionPreview.substring(0, 150) + '...'
+                    : descriptionPreview;
+
+                  // Get image for preview - prioritize metadata image, then first image attachment
+                  let previewImage: string | null = null;
+                  let previewImageAlt = '';
+
+                  if (item.link_metadata?.image) {
+                    previewImage = item.link_metadata.image;
+                    previewImageAlt = item.link_metadata.title || 'Preview';
+                  } else if (item.attachments && Array.isArray(item.attachments) && item.attachments.length > 0) {
+                    const imageAttachments = item.attachments.filter((file: any) =>
+                      apiClient.isImageMimetype(file.mimetype)
+                    );
+                    if (imageAttachments.length > 0) {
+                      const firstImage = imageAttachments[0];
+                      previewImage = apiClient.getAttachmentPreviewUrl(item.id, firstImage, true);
+                      previewImageAlt = firstImage.originalname || 'Attachment';
+                    }
+                  }
+
+                  return (
+                    <Link
+                      key={item.id}
+                      href={`/items/${item.id}`}
+                      className="block cursor-pointer border-b border-gray-200 hover:bg-gray-50 transition-colors px-4 py-3 group"
+                    >
+                      <div className="flex items-start gap-3">
+                        {/* Left side - image preview */}
+                        {previewImage && (
+                          <div className="flex-shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
+                            <img
+                              src={previewImage}
+                              alt={previewImageAlt}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Right side - main content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h3 className="text-sm font-semibold text-gray-900 truncate flex-1">
+                              {itemTitle}
+                            </h3>
+                          </div>
+
+                          {/* Description preview */}
+                          {truncatedDescription && (
+                            <p className="text-xs text-gray-600 line-clamp-1 mb-1.5">
+                              {truncatedDescription}
+                            </p>
+                          )}
+
+                          {/* Metadata row */}
+                          <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap">
+                            <span className="whitespace-nowrap">{timeAgo}</span>
+                            {item.type && (
+                              <>
+                                <span>•</span>
+                                <span className="whitespace-nowrap capitalize">{item.type}</span>
+                              </>
+                            )}
+                            {item.source && (
+                              <>
+                                <span>•</span>
+                                <span className="whitespace-nowrap truncate max-w-[200px]">{item.source}</span>
+                              </>
+                            )}
+                            {item.attachments && item.attachments.length > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="whitespace-nowrap">
+                                  {item.attachments.length} attachment{item.attachments.length !== 1 ? 's' : ''}
+                                </span>
+                              </>
+                            )}
+                            {item.url && (
+                              <>
+                                <span>•</span>
+                                <span className="truncate max-w-[200px] text-blue-600">
+                                  {item.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

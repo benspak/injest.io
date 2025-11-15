@@ -7,6 +7,8 @@ import { authMiddleware } from '../middleware/auth.js';
 import { UserModel } from '../models/User.js';
 import { zipCodeToCity } from '../utils/zipToCity.js';
 import { indexingService } from '../services/indexing.js';
+import { ItemModel } from '../models/Item.js';
+import { normalizeItem } from '../utils/itemNormalization.js';
 const router = express.Router();
 // Reserved usernames that cannot be used
 const RESERVED_USERNAMES = ['admin', 'api', 'settings', 'profile', 'profiles', 'auth', 'login', 'logout', 'signup', 'signin'];
@@ -380,6 +382,35 @@ router.get('/user/:userId/username', async (req, res) => {
     catch (error) {
         console.error('Error fetching username by user ID:', error);
         res.status(500).json({ error: 'Failed to fetch username' });
+    }
+});
+// GET /api/profiles/:username/items - Get posted items for a profile (no auth required)
+router.get('/:username/items', async (req, res) => {
+    try {
+        const { username } = req.params;
+        if (!username) {
+            res.status(400).json({ error: 'Username is required' });
+            return;
+        }
+        const user = await UserModel.findByPublicUsername(username);
+        if (!user) {
+            res.status(404).json({ error: 'Profile not found' });
+            return;
+        }
+        // Check if profile is private
+        if (user.profile_private) {
+            res.status(403).json({ error: 'This profile is private' });
+            return;
+        }
+        const limit = parseInt(req.query.limit) || 50;
+        const offset = parseInt(req.query.offset) || 0;
+        const items = await ItemModel.findPostedItemsByOwner(user.id, limit, offset);
+        const normalizedItems = items.map((item) => normalizeItem(item));
+        res.json({ items: normalizedItems });
+    }
+    catch (error) {
+        console.error('Error fetching profile items:', error);
+        res.status(500).json({ error: 'Failed to fetch profile items' });
     }
 });
 // GET /api/profiles/:username - Public profile endpoint (no auth required)

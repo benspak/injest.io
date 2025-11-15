@@ -33,6 +33,7 @@ export default function ItemDetailPage() {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [selectedImage, setSelectedImage] = useState<(Attachment & { previewUrl: string }) | null>(null);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [isRemovingFromProfile, setIsRemovingFromProfile] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -154,6 +155,22 @@ export default function ItemDetailPage() {
     setImageDialogOpen(true);
   };
 
+  const handleRemoveFromProfile = async () => {
+    if (!item) return;
+
+    try {
+      setIsRemovingFromProfile(true);
+      const updatedItem = await apiClient.removeItemFromProfile(item.id);
+      setItem(updatedItem);
+      toast.success('Item removed from profile.');
+    } catch (error) {
+      console.error('Failed to remove item from profile:', error);
+      toast.error('Unable to remove item from profile. Please try again.');
+    } finally {
+      setIsRemovingFromProfile(false);
+    }
+  };
+
   if (!auth.isAuthenticated() && !loading) {
     return null;
   }
@@ -172,6 +189,17 @@ export default function ItemDetailPage() {
             <h1 className="text-xl font-semibold">Item Details</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
+            {item && currentUser && item.owner_id === currentUser.id && item.posted_to_profile && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs sm:text-sm"
+                onClick={handleRemoveFromProfile}
+                disabled={isRemovingFromProfile}
+              >
+                {isRemovingFromProfile ? 'Removing…' : 'Remove from profile'}
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"

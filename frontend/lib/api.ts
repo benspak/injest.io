@@ -89,6 +89,7 @@ export interface Item {
   embedding_id?: string;
   link_metadata?: LinkMetadata;
   notes?: string;
+  posted_to_profile?: boolean;
   created_at: string;
   updated_at: string;
   // Flag to indicate if this is a Resend email (not in database)
@@ -823,6 +824,27 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ email }),
     });
+  }
+
+  async postItemToProfile(itemId: string): Promise<Item> {
+    return this.request<Item>(`/api/items/${itemId}/post-to-profile`, {
+      method: 'POST',
+    });
+  }
+
+  async removeItemFromProfile(itemId: string): Promise<Item> {
+    return this.request<Item>(`/api/items/${itemId}/post-to-profile`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getProfileItems(username: string, limit: number = 50, offset: number = 0): Promise<{ items: Item[] }> {
+    const params = new URLSearchParams();
+    params.append('limit', limit.toString());
+    if (offset > 0) {
+      params.append('offset', offset.toString());
+    }
+    return this.request<{ items: Item[] }>(`/api/profiles/${encodeURIComponent(username)}/items?${params.toString()}`);
   }
 
   async updateItemNotes(id: string, notes: string): Promise<Item> {

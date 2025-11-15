@@ -1562,6 +1562,48 @@ router.post('/:id/share', async (req, res) => {
         res.status(500).json({ error: 'Failed to send item share email.' });
     }
 });
+// Post item to profile
+router.post('/:id/post-to-profile', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const item = await ItemModel.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        if (item.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        const updatedItem = await ItemModel.update(item.id, { posted_to_profile: true });
+        res.json(normalizeItem(updatedItem));
+    }
+    catch (error) {
+        console.error('Error posting item to profile:', error);
+        res.status(500).json({ error: 'Failed to post item to profile.' });
+    }
+});
+// Remove item from profile
+router.delete('/:id/post-to-profile', async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const item = await ItemModel.findById(req.params.id);
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        if (item.owner_id !== req.user.id) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        const updatedItem = await ItemModel.update(item.id, { posted_to_profile: false });
+        res.json(normalizeItem(updatedItem));
+    }
+    catch (error) {
+        console.error('Error removing item from profile:', error);
+        res.status(500).json({ error: 'Failed to remove item from profile.' });
+    }
+});
 // Update item (unified structure)
 router.patch('/:id', async (req, res) => {
     try {
