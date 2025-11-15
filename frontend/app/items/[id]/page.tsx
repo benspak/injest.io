@@ -315,20 +315,23 @@ export default function ItemDetailPage() {
                 <section className="space-y-3">
                   <h2 className="text-sm font-semibold text-gray-700">Image attachments</h2>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {imageAttachments.map((attachment) => (
-                      <div
-                        key={attachment.filename}
-                        className="overflow-hidden rounded-md border border-gray-200 bg-muted"
-                      >
-                        <img
-                          src={apiClient.getAttachmentPreviewUrl(item.id, attachment, true)}
-                          alt={attachment.originalname}
-                          className="h-auto w-full cursor-zoom-in object-contain"
-                          onError={(event) => {
-                            (event.target as HTMLImageElement).style.display = 'none';
-                          }}
-                          onClick={() => handleImagePreview(attachment)}
-                        />
+                    {imageAttachments.map((attachment) => {
+                      const previewUrl = apiClient.getAttachmentPreviewUrl(item.id, attachment, true);
+                      if (!previewUrl) return null;
+                      return (
+                        <div
+                          key={attachment.filename}
+                          className="overflow-hidden rounded-md border border-gray-200 bg-muted"
+                        >
+                          <img
+                            src={previewUrl}
+                            alt={attachment.originalname}
+                            className="h-auto w-full cursor-zoom-in object-contain"
+                            onError={(event) => {
+                              (event.target as HTMLImageElement).style.display = 'none';
+                            }}
+                            onClick={() => handleImagePreview(attachment)}
+                          />
                         <div className="border-t bg-white px-3 py-2">
                           <p className="text-sm font-medium">{attachment.originalname}</p>
                           {attachment.size && (
@@ -337,8 +340,9 @@ export default function ItemDetailPage() {
                             </p>
                           )}
                         </div>
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               )}

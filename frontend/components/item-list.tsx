@@ -1044,26 +1044,31 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                               >
                                 {isImage ? (
                                   <>
-                                    <img
-                                      src={apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true)}
-                                      alt={file.originalname}
-                                      className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96 cursor-zoom-in"
-                                      onError={(e) => {
-                                        // Fallback to download button if image fails to load
-                                        const target = e.target as HTMLImageElement;
-                                        target.style.display = 'none';
-                                        const parent = target.parentElement;
-                                        if (parent) {
-                                          const fallback = parent.querySelector('.image-fallback');
-                                          if (fallback) {
-                                            (fallback as HTMLElement).style.display = 'flex';
+                                    {(() => {
+                                      const previewUrl = apiClient.getAttachmentPreviewUrl(itemDetails.id, file, true);
+                                      return previewUrl ? (
+                                        <img
+                                          src={previewUrl}
+                                          alt={file.originalname}
+                                          className="w-full max-w-2xl h-auto rounded-md object-contain max-h-96 cursor-zoom-in"
+                                          onError={(e) => {
+                                            // Fallback to download button if image fails to load
+                                            const target = e.target as HTMLImageElement;
+                                            target.style.display = 'none';
+                                            const parent = target.parentElement;
+                                            if (parent) {
+                                              const fallback = parent.querySelector('.image-fallback');
+                                              if (fallback) {
+                                                (fallback as HTMLElement).style.display = 'flex';
+                                              }
+                                            }
+                                          }}
+                                          onClick={(e) =>
+                                            handleImageAttachmentClick(e, file, itemDetails.id, itemDetails.resendEmailId)
                                           }
-                                        }
-                                      }}
-                                      onClick={(e) =>
-                                        handleImageAttachmentClick(e, file, itemDetails.id, itemDetails.resendEmailId)
-                                      }
-                                    />
+                                        />
+                                      ) : null;
+                                    })()}
                                     <div className="image-fallback hidden flex items-center justify-between w-full">
                                       <div className="flex-1">
                                         <p className="text-sm font-medium">{file.originalname}</p>
