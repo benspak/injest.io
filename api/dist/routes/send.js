@@ -365,6 +365,19 @@ router.post('/execute', async (req, res) => {
                 });
             }
         }
+        // Resolve the best From address for outbound email (prefer user's inbound handle)
+        let fromEmailForOutbound;
+        if (platforms.includes('email')) {
+            const fullUser = await UserModel.findById(req.user.id);
+            const inboundHandle = fullUser?.inbound_email_handle;
+            const inboundDomain = (process.env.INBOUND_EMAIL_DOMAIN || 'injest.io').toLowerCase();
+            if (inboundHandle && inboundHandle.trim().length > 0) {
+                fromEmailForOutbound = `${inboundHandle.trim().toLowerCase()}@${inboundDomain}`;
+            }
+            else {
+                fromEmailForOutbound = req.user.email;
+            }
+        }
         // Execute posting to each platform
         const results = {};
         // Post to email if selected
@@ -384,7 +397,7 @@ router.post('/execute', async (req, res) => {
                             mimetype: attachment.mimetype,
                         }))
                         : undefined,
-                    fromEmail: req.user.email,
+                    fromEmail: fromEmailForOutbound,
                 });
                 if (contact) {
                     await ContactModel.update(req.user.id, contact.id, {
