@@ -651,6 +651,10 @@ export default function InboxPage() {
   }
 
   const currentUser = auth.getUser();
+  const inboxAddress =
+    currentUser?.public_username
+      ? `${currentUser.public_username}@injest.io`
+      : currentUser?.email ?? '';
   const filtersApplied = Boolean(sourceFilter || fileTypeFilter);
   const filteredCountDisplay = filteredIndexedCount ?? '—';
 
@@ -659,7 +663,15 @@ export default function InboxPage() {
       <AnnouncementBanner />
       <header className="bg-white border-b">
         <div className="container mx-auto px-3 sm:px-4 md:px-6 py-4 flex justify-between items-center max-w-full">
-          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inbox</h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Inbox</h1>
+            {inboxAddress && (
+              <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-[11px] font-medium text-gray-700 border border-gray-200 max-w-full">
+                <span className="uppercase tracking-wide text-gray-500">Your email inbox</span>
+                <span className="truncate font-semibold text-gray-900">{inboxAddress}</span>
+              </div>
+            )}
+          </div>
           <div className="hidden items-center gap-2 sm:flex sm:gap-4">
             <FeedbackDialog
               userEmail={currentUser?.email}

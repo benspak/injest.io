@@ -107,6 +107,10 @@ export default function DashboardPage() {
   const usagePercentage =
     !hasUnlimitedItems && stats.itemLimit > 0 ? (stats.itemCount || 0) / stats.itemLimit : 0;
   const remainingItems = hasUnlimitedItems ? Infinity : Math.max(0, stats.itemLimit - (stats.itemCount || 0));
+  const inboxAddressExample =
+    currentUser?.public_username && currentUser.public_username.trim().length > 0
+      ? `${currentUser.public_username}@injest.io`
+      : 'your-username@injest.io';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -167,8 +171,11 @@ export default function DashboardPage() {
                   <div>
                     <p className="font-medium text-gray-900">Forward Email</p>
                     <p className="text-sm text-gray-600">
-                      Forward emails to{' '}
-                      <span className="font-mono font-semibold text-blue-700">input@injest.io</span>
+                      Forward emails to your Injest address{' '}
+                      <span className="font-mono font-semibold text-blue-700">
+                        {inboxAddressExample}
+                      </span>
+                      . Choose your username in Profile Settings.
                     </p>
                   </div>
                 </div>

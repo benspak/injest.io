@@ -258,7 +258,7 @@ function ProfileSettingsPageContent() {
                 )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="public-username">Public Username</Label>
+                  <Label htmlFor="public-username">Public Username &amp; Email Address</Label>
                   <Input
                     id="public-username"
                     type="text"
@@ -274,7 +274,7 @@ function ProfileSettingsPageContent() {
                     <p className="text-sm text-red-600">{usernameError}</p>
                   )}
                   <p className="text-xs text-gray-500">
-                    3-30 characters, letters, numbers, hyphens, and underscores only. This will be your public profile URL.
+                    3–30 characters, letters, numbers, hyphens, and underscores only. This will be your public profile URL and your Injest email address (for example, {publicUsername || 'username'}@injest.io).
                   </p>
                 </div>
 

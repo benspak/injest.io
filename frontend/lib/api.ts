@@ -1143,6 +1143,20 @@ class ApiClient {
     });
   }
 
+  async markItemAsSpam(itemId: string): Promise<Item> {
+    return this.request<Item>(`/api/items/${itemId}/mark-spam`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
+  async unmarkItemAsSpam(itemId: string): Promise<Item> {
+    return this.request<Item>(`/api/items/${itemId}/unmark-spam`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    });
+  }
+
   async planSend(prompt: string): Promise<SendPlanResponse> {
     return this.request<SendPlanResponse>('/api/send/plan', {
       method: 'POST',

@@ -2116,6 +2116,88 @@ router.post('/:id/email-summary', async (req: AuthRequest, res: express.Response
   }
 });
 
+// Mark an email item as spam (tag-based)
+router.post('/:id/mark-spam', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const item = await ItemModel.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    if (item.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (item.type !== 'email') {
+      return res.status(400).json({ error: 'Only email items can be marked as spam' });
+    }
+
+    const existingTags = Array.isArray(item.tags) ? item.tags : [];
+    if (existingTags.includes('spam')) {
+      return res.json(normalizeItem(item));
+    }
+
+    const updatedItem = await ItemModel.update(item.id, {
+      tags: [...existingTags, 'spam'],
+    });
+
+    indexingService.indexItem(updatedItem).catch((error: unknown) => {
+      console.error(`[Items] Failed to re-index spam-marked item ${item.id}:`, error);
+    });
+
+    res.json(normalizeItem(updatedItem));
+  } catch (error) {
+    console.error('Error marking item as spam:', error);
+    res.status(500).json({ error: 'Failed to mark item as spam' });
+  }
+});
+
+// Unmark an email item as spam (remove 'spam' tag)
+router.post('/:id/unmark-spam', async (req: AuthRequest, res: express.Response) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const item = await ItemModel.findById(req.params.id);
+
+    if (!item) {
+      return res.status(404).json({ error: 'Item not found' });
+    }
+
+    if (item.owner_id !== req.user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    if (item.type !== 'email') {
+      return res.status(400).json({ error: 'Only email items can be unmarked as spam' });
+    }
+
+    const existingTags = Array.isArray(item.tags) ? item.tags : [];
+    if (!existingTags.includes('spam')) {
+      return res.json(normalizeItem(item));
+    }
+
+    const updatedItem = await ItemModel.update(item.id, {
+      tags: existingTags.filter((tag) => tag !== 'spam'),
+    });
+
+    indexingService.indexItem(updatedItem).catch((error: unknown) => {
+      console.error(`[Items] Failed to re-index spam-unmarked item ${item.id}:`, error);
+    });
+
+    res.json(normalizeItem(updatedItem));
+  } catch (error) {
+    console.error('Error unmarking item as spam:', error);
+    res.status(500).json({ error: 'Failed to unmark item as spam' });
+  }
+});
+
 // Get collections containing an item
 router.get('/:id/collections', async (req: AuthRequest, res: express.Response) => {
   try {

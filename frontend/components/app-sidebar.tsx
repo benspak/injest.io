@@ -23,8 +23,23 @@ const NAV_ITEMS = [
     icon: LayoutDashboard,
   },
   {
+    href: '/collections',
+    label: 'Collections',
+    icon: Folder,
+  },
+  {
     href: '/inbox',
     label: 'Inbox',
+    icon: Inbox,
+  },
+  {
+    href: '/inbox/sent',
+    label: 'Outbox',
+    icon: Inbox,
+  },
+  {
+    href: '/inbox/spam',
+    label: 'Spam',
     icon: Inbox,
   },
   {
@@ -33,19 +48,14 @@ const NAV_ITEMS = [
     icon: Send,
   },
   {
-    href: '/imports',
-    label: 'Imports',
-    icon: UploadCloud,
-  },
-  {
     href: '/contacts',
     label: 'Contacts',
     icon: Users,
   },
   {
-    href: '/collections',
-    label: 'Collections',
-    icon: Folder,
+    href: '/imports',
+    label: 'Imports',
+    icon: UploadCloud,
   },
   {
     href: '/developers',

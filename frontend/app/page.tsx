@@ -99,7 +99,9 @@ export default function Home() {
               Your AI Workspace. Searchable. Shareable. Organized.
             </h1>
             <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
-              Capture everything, organize with collections, and share your knowledge. AI-powered search that understands context, public profiles to showcase your work, and smart organization that keeps your workspace ready when you need it.
+              Capture everything, organize with collections, and share your knowledge. AI-powered search
+              that understands context, public profiles to showcase your work, and a personal{' '}
+              <span className="font-mono">username@injest.io</span> inbox for forwarding email into your workspace.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button asChild size="lg" className="text-lg px-8 py-6">
@@ -468,7 +470,9 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Send to input@injest.io. Attachments and threads are preserved, indexed, and made searchable.
+                  Forward threads to your personal Injest address (for example,{' '}
+                  <span className="font-mono">username@injest.io</span>). Attachments and conversations are preserved,
+                  indexed, and made searchable.
                 </p>
               </CardContent>
             </Card>

@@ -50,3 +50,6 @@
 6.	Build advanced knowledge graph: visualize contacts/entities, relationships, timeline view of items.
 7.	Refine monetization: add team pricing, enterprise features (SSO, data export, compliance), usage-based pricing.
 8.	Add public/shared features: allow content sharing across users/teams, build network effects (collaboration, community).
+
+Public items feed
+WYSIWYG editor

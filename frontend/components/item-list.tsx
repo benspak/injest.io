@@ -56,6 +56,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
   const [bulkMode, setBulkMode] = useState(false);
   const [addToCollectionDialogOpen, setAddToCollectionDialogOpen] = useState(false);
   const [itemCollections, setItemCollections] = useState<Record<string, string[]>>({});
+  const [spamUpdatingItemId, setSpamUpdatingItemId] = useState<string | null>(null);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -402,6 +403,40 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     }
   };
 
+  const handleToggleSpam = async (item: Item) => {
+    if (!item || item.isResendEmail || item.type !== 'email') {
+      return;
+    }
+
+    setSpamUpdatingItemId(item.id);
+    try {
+      const tags = Array.isArray(item.tags) ? item.tags : [];
+      const isSpam = tags.includes('spam');
+      const updated = isSpam
+        ? await apiClient.unmarkItemAsSpam(item.id)
+        : await apiClient.markItemAsSpam(item.id);
+
+      // Update selected item/details state if they match
+      setItemDetails((current: any) => {
+        if (!current || current.id !== updated.id) {
+          return current;
+        }
+        return { ...current, tags: updated.tags };
+      });
+      setSelectedItem((current) => {
+        if (!current || current.id !== updated.id) {
+          return current;
+        }
+        return { ...current, tags: updated.tags };
+      });
+    } catch (error) {
+      console.error('Error toggling spam status:', error);
+      toast.error('Failed to update spam status.');
+    } finally {
+      setSpamUpdatingItemId(null);
+    }
+  };
+
   const handleImageAttachmentClick = (
     event: MouseEvent<HTMLImageElement>,
     file: Attachment,
@@ -744,6 +779,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
             const itemCollectionIds = itemCollections[item.id] || [];
             const isSelected = selectedItems.has(item.id);
             const canAddToCollection = !item.isResendEmail;
+            const isSpam = Array.isArray(item.tags) && item.tags.includes('spam');
 
             return (
               <div
@@ -792,8 +828,13 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                   {/* Right side - main content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2 mb-1">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate flex-1">
-                        {itemTitle}
+                      <h3 className="text-sm font-semibold text-gray-900 truncate flex-1 flex items-center gap-2">
+                        <span className="truncate">{itemTitle}</span>
+                        {isSpam && (
+                          <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-700 border border-red-100">
+                            Spam
+                          </span>
+                        )}
                       </h3>
                       <Button
                         variant="ghost"
@@ -1232,8 +1273,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       </div>
                     )}
 
-                    {/* Email-specific information */}
-                    {itemDetails.isResendEmail && (
+                {/* Email-specific information */}
+                {itemDetails.isResendEmail && (
                       <div className="space-y-2 border-t pt-4">
                         <div>
                           <h4 className="text-sm font-semibold mb-2">Email Details</h4>
@@ -1259,7 +1300,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       </div>
                     )}
 
-                    {/* Email Summary */}
+                {/* Email Summary */}
                     {((itemDetails.isResendEmail || itemDetails.type === 'email') && (emailSummary.length > 0 || loadingSummary)) && (
                       <div className="border-t pt-4">
                         <h4 className="text-sm font-semibold mb-2">Summary</h4>
@@ -1333,7 +1374,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
 
 
-                <div className="flex gap-2 pt-4 border-t">
+                <div className="flex flex-wrap gap-2 pt-4 border-t">
                   <Button
                     variant="outline"
                     onClick={() => openShareDialog(itemDetails)}
@@ -1346,6 +1387,19 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                       onClick={() => setEditingItem(true)}
                     >
                       Edit
+                    </Button>
+                  )}
+                  {!itemDetails.isResendEmail && itemDetails.type === 'email' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => handleToggleSpam(itemDetails)}
+                      disabled={spamUpdatingItemId === itemDetails.id}
+                    >
+                      {spamUpdatingItemId === itemDetails.id
+                        ? 'Updating...'
+                        : Array.isArray(itemDetails.tags) && itemDetails.tags.includes('spam')
+                          ? 'Unmark spam'
+                          : 'Mark as spam'}
                     </Button>
                   )}
                   {onDelete && !itemDetails.isResendEmail && (

@@ -6,7 +6,54 @@ import { indexingService } from '../services/indexing.js';
 import { emailService } from '../services/email.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { openAIService } from '../services/openai.js';
+import { ContactModel } from '../models/Contact.js';
+import { contactStreamService } from '../services/contactStream.js';
 const router = express.Router();
+// Helper function to normalize an email address
+function normalizeEmailAddress(email) {
+    return email.trim().toLowerCase();
+}
+// Helper function to extract local part and domain from an email address
+function parseEmailAddress(address) {
+    if (!address) {
+        return null;
+    }
+    const trimmed = address.trim();
+    const match = trimmed.match(/<?([^<>@\s]+)@([^<>@\s]+)>?$/);
+    if (!match) {
+        return null;
+    }
+    // Support plus-addressing: username+tag@injest.io -> username
+    const rawLocal = match[1] || '';
+    const plusIndex = rawLocal.indexOf('+');
+    const localPart = (plusIndex >= 0 ? rawLocal.slice(0, plusIndex) : rawLocal).toLowerCase();
+    const domain = match[2].toLowerCase();
+    return { localPart, domain };
+}
+// Helper function to resolve the owning user for an inbound address like username@injest.io
+async function resolveInboundUserForAddress(address) {
+    const parsed = parseEmailAddress(address);
+    if (!parsed) {
+        return null;
+    }
+    const { localPart, domain } = parsed;
+    const inboundDomain = (process.env.INBOUND_EMAIL_DOMAIN || 'injest.io').toLowerCase();
+    if (domain !== inboundDomain) {
+        return null;
+    }
+    // 1) Prefer mapping local-part to public_username
+    const byUsername = await UserModel.findByPublicUsername(localPart);
+    if (byUsername) {
+        return byUsername;
+    }
+    // 2) Fallback: if the full address matches a user's login email
+    const fullAddress = `${localPart}@${domain}`;
+    const byEmail = await UserModel.findByEmail(fullAddress);
+    if (byEmail) {
+        return byEmail;
+    }
+    return null;
+}
 // Helper function to save email from Resend format to database
 async function saveEmailFromResend(email, userId) {
     // Extract email address from "from" field
@@ -14,7 +61,7 @@ async function saveEmailFromResend(email, userId) {
     if (fromEmail.includes('<')) {
         fromEmail = fromEmail.match(/<(.+)>/)?.[1] || fromEmail;
     }
-    const normalizedFromEmail = fromEmail.toLowerCase().trim();
+    const normalizedFromEmail = normalizeEmailAddress(fromEmail);
     // Normalize the "to" field
     const toAddresses = Array.isArray(email.to) ? email.to : [email.to];
     // Process attachments
@@ -50,6 +97,32 @@ async function saveEmailFromResend(email, userId) {
     });
     // Trigger indexing in background for auto-tagging and categorization
     indexingService.indexItem(item).catch(console.error);
+    // Upsert contact for the sender (best-effort; failures shouldn't block email ingestion)
+    try {
+        const contact = await ContactModel.upsert({
+            ownerId: userId,
+            email: normalizedFromEmail,
+            sourceItemId: item.id,
+            metadata: {
+                ...(email.headers || {}),
+                source: 'email_inbound',
+                from: fromEmail,
+                to: toAddresses,
+                created_at: email.created_at,
+                resend_email_id: email.id,
+            },
+        });
+        if (contact) {
+            contactStreamService.broadcastContacts([contact]);
+            await indexingService.indexContact(contact);
+        }
+    }
+    catch (error) {
+        console.warn('[Email] Failed to upsert contact from Resend email:', {
+            userId,
+            error,
+        });
+    }
     return item;
 }
 // Resend inbound webhook
@@ -60,44 +133,46 @@ router.post('/inbound', async (req, res) => {
         if (!from || !to || !subject) {
             return res.status(400).json({ error: 'Missing required email fields' });
         }
-        // Get the receiving email address from environment (default to input@injest.io)
-        const receivingEmail = process.env.RECEIVING_EMAIL || 'input@injest.io';
         // Normalize the "to" field - it can be a string or array
-        const toAddresses = Array.isArray(to) ? to : [to];
-        // Extract email addresses from "Name <email>" format and normalize
-        const normalizedToAddresses = toAddresses.map((addr) => {
-            if (addr.includes('<')) {
-                return addr.match(/<(.+)>/)?.[1] || addr.toLowerCase().trim();
+        const toAddressesRaw = Array.isArray(to) ? to : [to];
+        const normalizedToAddresses = toAddressesRaw.map((addr) => normalizeEmailAddress(addr.includes('<') ? (addr.match(/<(.+)>/)?.[1] || addr) : addr));
+        // First, try per-user routing based on username@injest.io
+        let user = null;
+        for (const addr of normalizedToAddresses) {
+            const resolved = await resolveInboundUserForAddress(addr);
+            if (resolved) {
+                user = resolved;
+                break;
             }
-            return addr.toLowerCase().trim();
-        });
-        // Verify that the email was sent to the correct receiving address
-        const isSentToReceivingAddress = normalizedToAddresses.some((addr) => addr === receivingEmail.toLowerCase());
-        if (!isSentToReceivingAddress) {
-            console.log(`Email not sent to receiving address. Received at: ${normalizedToAddresses.join(', ')}, Expected: ${receivingEmail}`);
-            return res.status(403).json({ error: 'Email not sent to receiving address' });
         }
-        // Extract email address from "Name <email>" format
+        // Backwards-compatible fallback: legacy single inbox address that routes by sender email
+        if (!user) {
+            const receivingEmail = (process.env.RECEIVING_EMAIL || 'input@injest.io').toLowerCase();
+            const wasSentToLegacyInbox = normalizedToAddresses.some((addr) => addr === receivingEmail);
+            if (!wasSentToLegacyInbox) {
+                console.log(`[Email] Inbound email not routed: no matching username address or legacy inbox. To: ${normalizedToAddresses.join(', ')}`);
+                return res.status(404).json({ error: 'No matching inbox for recipient addresses' });
+            }
+            // Legacy behaviour: map user by sender email
+            const fromEmailForLookup = from.includes('<')
+                ? from.match(/<(.+)>/)?.[1] || from
+                : from;
+            const normalizedFromForLookup = normalizeEmailAddress(fromEmailForLookup);
+            user = await UserModel.findByEmail(normalizedFromForLookup);
+            if (!user) {
+                console.log(`[Email] Legacy inbound email from unregistered user: ${normalizedFromForLookup}`);
+                return res.status(404).json({ error: 'User not found for legacy inbox' });
+            }
+        }
+        if (!user.verified) {
+            console.log(`[Email] Inbound email for unverified user: ${user.email}`);
+            return res.status(403).json({ error: 'User email not verified' });
+        }
+        // Extract email address from "Name <email>" format for sender
         const fromEmail = from.includes('<')
             ? from.match(/<(.+)>/)?.[1] || from
             : from;
-        const normalizedFromEmail = fromEmail.toLowerCase().trim();
-        // Find user by email
-        const user = await UserModel.findByEmail(normalizedFromEmail);
-        if (!user) {
-            console.log(`Email from unregistered user: ${normalizedFromEmail}`);
-            return res.status(404).json({ error: 'User not found' });
-        }
-        if (!user.verified) {
-            console.log(`Email from unverified user: ${normalizedFromEmail}`);
-            return res.status(403).json({ error: 'User email not verified' });
-        }
-        // Parse email content
-        const emailContent = {
-            subject,
-            body: html || text || '',
-            attachments: attachments || [],
-        };
+        const normalizedFromEmail = normalizeEmailAddress(fromEmail);
         // Store attachments info (files would be handled by Resend)
         const attachmentsData = (attachments || []).map((att) => ({
             filename: att.filename,
@@ -131,6 +206,31 @@ router.post('/inbound', async (req, res) => {
         });
         // Trigger indexing in background
         indexingService.indexItem(item).catch(console.error);
+        // Upsert a simple contact for the sender
+        try {
+            const contact = await ContactModel.upsert({
+                ownerId: user.id,
+                email: normalizedFromEmail,
+                sourceItemId: item.id,
+                metadata: {
+                    source: 'email_inbound',
+                    from: fromEmail,
+                    to: normalizedToAddresses,
+                    subject,
+                    created_at: req.body.created_at || new Date().toISOString(),
+                },
+            });
+            if (contact) {
+                contactStreamService.broadcastContacts([contact]);
+                await indexingService.indexContact(contact);
+            }
+        }
+        catch (error) {
+            console.warn('[Email] Failed to upsert contact from inbound webhook email:', {
+                userId: user.id,
+                error,
+            });
+        }
         res.json({
             message: 'Email processed successfully',
             itemId: item.id,
