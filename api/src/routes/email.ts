@@ -452,6 +452,15 @@ router.get('/received/:id', authMiddleware, async (req: AuthRequest, res: expres
       const sourceMatch = item.source?.match(/email:(.+)/);
       const fromEmail = sourceMatch ? sourceMatch[1] : '';
 
+      // Normalize attachments to Resend-like format so the frontend can render them consistently
+      const attachments = (item.attachments || []).map((att: any) => ({
+        id: att.id || att.filename,
+        filename: att.originalname || att.filename,
+        size: att.size ?? 0,
+        content_type: att.mimetype || 'application/octet-stream',
+        download_url: att.url,
+      }));
+
       const emailResponse = {
         id: rawData.resend_email_id || item.id,
         to: rawData.to || [],
@@ -460,7 +469,7 @@ router.get('/received/:id', authMiddleware, async (req: AuthRequest, res: expres
         subject: item.title || rawData.subject || '',
         html: item.description || rawData.body || '',
         text: rawData.body || item.description || '',
-        attachments: item.attachments || [],
+        attachments,
         headers: rawData.headers,
         message_id: rawData.message_id,
       };
