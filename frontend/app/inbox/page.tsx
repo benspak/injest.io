@@ -11,7 +11,7 @@ import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { CollectionDialog } from '@/components/collection-dialog';
 import { auth } from '@/lib/auth';
-import { apiClient, Item, ReceivedEmail, API_URL, type SearchResult, type SearchFilters } from '@/lib/api';
+import { apiClient, Item, API_URL, type SearchResult, type SearchFilters } from '@/lib/api';
 import { BOOKMARK_IMPORT_EVENT, ITEM_CREATED_EVENT } from '@/lib/events';
 import { FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -237,97 +237,8 @@ export default function InboxPage() {
         .catch((): Item[] => [])
         .then((fetchedItems) => fetchedItems.filter((item) => !isOutboundEmailItem(item)));
 
-      // For emails, we only fetch the first batch to avoid duplicates
-      // Subsequent loads will only fetch database items
-      let emailItems: Item[] = [];
-      // Only fetch email items if no source filter is set, or if filtering for email sources
-      if (currentOffset === 0 && (!sourceFilter || sourceFilter === 'email' || sourceFilter.startsWith('email:'))) {
-        const emailsResponse = await apiClient
-          .getReceivedEmails(BATCH_SIZE)
-          .catch((): { data: ReceivedEmail[]; has_more: boolean } => ({ data: [], has_more: false }));
-
-        // Extract resend_email_id from database items to check for duplicates
-        const existingResendEmailIds = new Set<string>();
-        itemsData.forEach((item) => {
-          if (item.type === 'email' && item.raw) {
-            try {
-              const rawData = JSON.parse(item.raw);
-              if (rawData.resend_email_id) {
-                existingResendEmailIds.add(rawData.resend_email_id);
-              }
-            } catch {
-              // Ignore parsing errors
-            }
-          }
-        });
-
-        // Transform emails into item-like format for unified display
-        // Only include emails that are NOT already in the database
-        emailItems = (emailsResponse.data || [])
-          .filter((email: ReceivedEmail) => !existingResendEmailIds.has(email.id))
-          .map((email: ReceivedEmail) => {
-            // Strip HTML tags for description preview
-            const textPreview = email.text || (email.html ? email.html.replace(/<[^>]*>/g, '').substring(0, 200) : '');
-
-            return {
-              id: `resend-email-${email.id}`,
-              owner_id: '',
-              type: 'email' as const,
-              title: email.subject,
-              description: textPreview,
-              created_at: email.created_at,
-              updated_at: email.created_at,
-              isResendEmail: true,
-              resendEmailId: email.id,
-              attachments: email.attachments?.map((att) => ({
-                filename: att.id,
-                originalname: att.filename,
-                mimetype: att.content_type,
-                size: att.size,
-                attachmentId: att.id,
-              })) || [],
-              source: `email:${email.from}`,
-            };
-          });
-
-        // Apply client-side filtering to email items
-        if (sourceFilter === 'email') {
-          // Keep all email items when filtering by 'email'
-          // No additional filtering needed
-        } else if (sourceFilter && !sourceFilter.startsWith('email:')) {
-          // Filter out email items if source filter is set to something other than email
-          emailItems = [];
-        }
-        if (hasAttachmentsFilter) {
-          emailItems = emailItems.filter(item => item.attachments && item.attachments.length > 0);
-        }
-        if (fileTypeFilter) {
-          emailItems = emailItems.filter(item => {
-            if (!item.attachments || item.attachments.length === 0) return false;
-            return item.attachments.some((attachment) => {
-              const candidate = attachment as { mimetype?: string | null };
-              const mimetype = candidate.mimetype?.toLowerCase() ?? '';
-              if (fileTypeFilter === 'image') {
-                return mimetype.startsWith('image/');
-              } else if (fileTypeFilter === 'spreadsheet') {
-                return mimetype.includes('spreadsheet') ||
-                       mimetype.includes('excel') ||
-                       mimetype === 'text/csv' ||
-                       mimetype === 'application/csv';
-              } else if (fileTypeFilter === 'document') {
-                return mimetype === 'application/pdf' ||
-                       mimetype.includes('word') ||
-                       mimetype === 'text/plain' ||
-                       mimetype === 'text/rtf';
-              }
-              return false;
-            });
-          });
-        }
-      }
-
-      // Combine items
-      const allItems = [...itemsData, ...emailItems];
+      // Combine items (itemsData already includes email items from the database)
+      const allItems = [...itemsData];
 
       // Check if we have more items to load
       const hasMoreItems = itemsData.length === BATCH_SIZE;

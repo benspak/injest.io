@@ -311,30 +311,38 @@ router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Re
     // Convert DB items to Resend-like format and filter out system/outbound emails
     const allEmailItems = allDbItems
       .map((item) => {
-      let rawData: any = {};
-      try {
-        rawData = item.raw ? JSON.parse(item.raw) : {};
-      } catch {
-        // If raw is not JSON, use defaults
-      }
+        let rawData: any = {};
+        try {
+          rawData = item.raw ? JSON.parse(item.raw) : {};
+        } catch {
+          // If raw is not JSON, use defaults
+        }
 
-      // Extract email address from source field
-      const sourceMatch = item.source?.match(/email:(.+)/);
-      const fromEmail = sourceMatch ? sourceMatch[1] : '';
+        // Extract email address from source field
+        const sourceMatch = item.source?.match(/email:(.+)/);
+        const fromEmail = sourceMatch ? sourceMatch[1] : '';
 
-      return {
-        id: rawData.resend_email_id || item.id,
-        to: rawData.to || [],
-        from: fromEmail,
-        created_at: rawData.created_at || item.created_at,
-        subject: item.title || rawData.subject || '',
-        html: item.description || rawData.body || '',
-        text: rawData.body || item.description || '',
-        attachments: item.attachments || [],
-        headers: rawData.headers,
-        message_id: rawData.message_id,
-      };
-    })
+        const attachments = (item.attachments || []).map((att: any) => ({
+          id: att.id || att.filename,
+          filename: att.originalname || att.filename,
+          size: att.size ?? 0,
+          content_type: att.mimetype || 'application/octet-stream',
+          download_url: att.url,
+        }));
+
+        return {
+          id: rawData.resend_email_id || item.id,
+          to: rawData.to || [],
+          from: fromEmail,
+          created_at: rawData.created_at || item.created_at,
+          subject: item.title || rawData.subject || '',
+          html: item.description || rawData.body || '',
+          text: rawData.body || item.description || '',
+          attachments,
+          headers: rawData.headers,
+          message_id: rawData.message_id,
+        };
+      })
       // Exclude obvious system/generic senders and outbound-only records
       .filter((email) => {
         if (!email.from) return false;
