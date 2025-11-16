@@ -42,6 +42,11 @@ export default function InboxPage() {
   const BATCH_SIZE = 50;
   const searchFilters: SearchFilters = { entities: ['item'] };
 
+  const isOutboundEmailItem = (item: Item): boolean => {
+    const source = item.source?.toLowerCase() ?? '';
+    return source.startsWith('send_workflow:') || source === 'send_workflow:outbound';
+  };
+
   const handleSearchResultsChange = useCallback((results: SearchResult[]) => {
     setSearchResults(results);
   }, []);
@@ -58,12 +63,18 @@ export default function InboxPage() {
     if (searchQuery.length >= 2) {
       // Get item IDs from search results
       return searchResults
-        .filter((result) => result.entityType === 'item' && result.item && !result.item.isResendEmail)
+        .filter(
+          (result) =>
+            result.entityType === 'item' &&
+            result.item &&
+            !result.item.isResendEmail &&
+            !isOutboundEmailItem(result.item),
+        )
         .map((result) => result.item!.id);
     } else {
       // Get item IDs from filtered items
       return items
-        .filter((item) => !item.isResendEmail)
+        .filter((item) => !item.isResendEmail && !isOutboundEmailItem(item))
         .map((item) => item.id);
     }
   }, [searchQuery, searchResults, items]);
@@ -100,6 +111,11 @@ export default function InboxPage() {
   };
 
   const itemMatchesFilters = useCallback((item: Item): boolean => {
+    // Always hide outbound workflow emails from the inbox
+    if (isOutboundEmailItem(item)) {
+      return false;
+    }
+
     if (sourceFilter) {
       if (sourceFilter === 'email') {
         const isEmailSource = (item.source?.toLowerCase().startsWith('email:') ?? false) || item.type === 'email';
@@ -218,7 +234,8 @@ export default function InboxPage() {
       // Fetch items with pagination and filters
       const itemsData = await apiClient
         .getItems(BATCH_SIZE, currentOffset, filters)
-        .catch((): Item[] => []);
+        .catch((): Item[] => [])
+        .then((fetchedItems) => fetchedItems.filter((item) => !isOutboundEmailItem(item)));
 
       // For emails, we only fetch the first batch to avoid duplicates
       // Subsequent loads will only fetch database items
@@ -410,7 +427,8 @@ export default function InboxPage() {
       // Fetch items with pagination and filters
       const itemsData = await apiClient
         .getItems(BATCH_SIZE, currentOffset, filters)
-        .catch((): Item[] => []);
+        .catch((): Item[] => [])
+        .then((fetchedItems) => fetchedItems.filter((item) => !isOutboundEmailItem(item)));
 
       // Combine items
       const allItems = [...itemsData];
