@@ -221,13 +221,18 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
       : from;
 
     const normalizedFromEmail = normalizeEmailAddress(fromEmail);
-    // Store attachments info (files would be handled by Resend)
+
+    // Store attachments info (files are hosted remotely by Resend)
+    // Resend's inbound payload uses `download_url` for attachment access.
+    // We normalize this to `url` so the frontend can treat these as remote attachments.
     const attachmentsData = (attachments || []).map((att: any) => ({
       filename: att.filename,
       originalname: att.filename,
       mimetype: att.content_type,
       size: att.size,
-      url: att.url,
+      url: att.download_url || att.url,
+      // Keep the original attachment id when present for debugging/future use
+      id: att.id,
     }));
 
     // Create item from email using unified structure

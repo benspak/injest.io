@@ -133,8 +133,31 @@ async function saveEmailFromResend(email, userId) {
 // Resend inbound webhook
 router.post('/inbound', async (req, res) => {
     try {
-        // Resend webhook format
-        const { from, to, subject, text, html, attachments } = req.body;
+        /**
+         * Resend (via Svix) wraps inbound events as:
+         * {
+         *   type: "email.received",
+         *   created_at: "...",
+         *   data: {
+         *     from: string;
+         *     to: string[];
+         *     subject: string;
+         *     text?: string;
+         *     html?: string;
+         *     attachments?: Array<...>;
+         *     email_id?: string;
+         *     message_id?: string;
+         *     created_at?: string;
+         *     headers?: Record<string, string>;
+         *   }
+         * }
+         *
+         * Older/alternative integrations might POST the email fields at the top level.
+         * To support both, we unwrap `data` when present and fall back to the root.
+         */
+        const event = req.body;
+        const email = event?.data ?? event;
+        const { from, to, subject, text, html, attachments } = email ?? {};
         if (!from || !to || !subject) {
             return res.status(400).json({ error: 'Missing required email fields' });
         }
@@ -174,16 +197,24 @@ router.post('/inbound', async (req, res) => {
         // Create item from email using unified structure
         // Also keep raw for backward compatibility
         // Include any email ID from webhook if available
+        const emailId = email?.id ||
+            email?.email_id ||
+            event?.id ||
+            event?.message_id ||
+            null;
+        const createdAt = email?.created_at || event?.created_at || new Date().toISOString();
+        const headers = email?.headers || event?.headers;
+        const messageId = email?.message_id || event?.message_id || null;
         const rawContent = JSON.stringify({
-            resend_email_id: req.body.id || req.body.message_id || null,
+            resend_email_id: emailId,
             subject,
             body: html || text || '',
             from: fromEmail,
             to,
             attachments: attachmentsData,
-            created_at: req.body.created_at || new Date().toISOString(),
-            headers: req.body.headers,
-            message_id: req.body.message_id,
+            created_at: createdAt,
+            headers,
+            message_id: messageId,
         });
         const item = await ItemModel.create({
             owner_id: user.id,
@@ -271,6 +302,13 @@ router.get('/received', authMiddleware, async (req, res) => {
             // Extract email address from source field
             const sourceMatch = item.source?.match(/email:(.+)/);
             const fromEmail = sourceMatch ? sourceMatch[1] : '';
+            const attachments = (item.attachments || []).map((att) => ({
+                id: att.id || att.filename,
+                filename: att.originalname || att.filename,
+                size: att.size ?? 0,
+                content_type: att.mimetype || 'application/octet-stream',
+                download_url: att.url,
+            }));
             return {
                 id: rawData.resend_email_id || item.id,
                 to: rawData.to || [],
@@ -279,7 +317,7 @@ router.get('/received', authMiddleware, async (req, res) => {
                 subject: item.title || rawData.subject || '',
                 html: item.description || rawData.body || '',
                 text: rawData.body || item.description || '',
-                attachments: item.attachments || [],
+                attachments,
                 headers: rawData.headers,
                 message_id: rawData.message_id,
             };
