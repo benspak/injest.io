@@ -167,14 +167,23 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
   const handleDownloadFile = async (itemId: string, file: Attachment, resendEmailId?: string) => {
     try {
-      const attachmentId = file.attachmentId || file.id;
+      const attachmentId = file.attachmentId || file.id || file.filename;
 
       if (apiClient.isRemoteAttachment(file)) {
+        // For live Resend emails, use the Resend-specific download endpoint
         if (resendEmailId && attachmentId) {
           await apiClient.downloadEmailAttachment(resendEmailId, attachmentId);
           return;
         }
 
+        // For inbound emails stored as items, always go through our attachment proxy
+        const proxyUrl = apiClient.getAttachmentPreviewUrl(itemId, file, false);
+        if (proxyUrl) {
+          window.open(proxyUrl, '_blank', 'noopener,noreferrer');
+          return;
+        }
+
+        // As a very last resort, fall back to the raw URL if present
         if (file.url) {
           window.open(file.url, '_blank', 'noopener,noreferrer');
           return;

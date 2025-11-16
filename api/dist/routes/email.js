@@ -72,18 +72,20 @@ async function saveEmailFromResend(email, userId) {
     const normalizedFromEmail = normalizeEmailAddress(fromEmail);
     // Normalize the "to" field
     const toAddresses = Array.isArray(email.to) ? email.to : [email.to];
-    // Process attachments
+    // Process attachments into a consistent ItemAttachment-compatible shape
     const attachmentsData = (email.attachments || []).map((att) => {
         // Preserve content_id for inline CID images, normalizing by stripping angle brackets
         const rawContentId = att.content_id;
         const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
+        // Normalize ID fields – prefer explicit id, then attachment_id, then filename
+        const id = att.id || att.attachment_id || att.filename;
         return {
             filename: att.filename,
             originalname: att.filename,
             mimetype: att.content_type,
             size: att.size,
             url: att.download_url || att.url,
-            id: att.id,
+            id,
             contentId: normalizedContentId,
         };
     });
@@ -91,6 +93,10 @@ async function saveEmailFromResend(email, userId) {
     const rawContent = JSON.stringify({
         resend_email_id: email.id,
         subject: email.subject,
+        // Preserve both HTML and text where available
+        html: email.html,
+        text: email.text,
+        // Backward-compatible body field (prefer HTML, fall back to text)
         body: email.html || email.text || '',
         from: fromEmail,
         to: toAddresses,
@@ -202,6 +208,8 @@ router.post('/inbound', async (req, res) => {
             // Preserve content_id for inline CID images, normalizing by stripping angle brackets
             const rawContentId = att.content_id;
             const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
+            // Normalize ID fields – prefer explicit id, then attachment_id, then filename
+            const id = att.id || att.attachment_id || att.filename;
             return {
                 filename: att.filename,
                 originalname: att.filename,
@@ -209,7 +217,7 @@ router.post('/inbound', async (req, res) => {
                 size: att.size,
                 url: att.download_url || att.url,
                 // Keep the original attachment id when present for debugging/future use
-                id: att.id,
+                id,
                 contentId: normalizedContentId,
             };
         });
@@ -227,6 +235,10 @@ router.post('/inbound', async (req, res) => {
         const rawContent = JSON.stringify({
             resend_email_id: emailId,
             subject,
+            // Preserve both HTML and text where available
+            html,
+            text,
+            // Backward-compatible body field (prefer HTML, fall back to text)
             body: html || text || '',
             from: fromEmail,
             to,
