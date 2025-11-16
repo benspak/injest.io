@@ -485,29 +485,40 @@ router.get('/attachments/:itemId/:attachmentId', async (req, res) => {
         }
         // Legacy/backup behavior: stream from remote URL if present
         if (attachment.url) {
-            const remoteResponse = await fetch(attachment.url);
-            if (!remoteResponse.ok || !remoteResponse.body) {
-                return res
-                    .status(remoteResponse.status || 502)
-                    .json({ error: 'Failed to fetch attachment from remote source' });
+            try {
+                const remoteResponse = await fetch(attachment.url);
+                if (!remoteResponse.ok || !remoteResponse.body) {
+                    return res
+                        .status(remoteResponse.status || 502)
+                        .json({ error: 'Failed to fetch attachment from remote source' });
+                }
+                // In Node 18+, fetch() returns a web ReadableStream. Convert to Buffer.
+                const arrayBuffer = await remoteResponse.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                // Forward relevant headers
+                const contentType = remoteResponse.headers.get('content-type') || 'application/octet-stream';
+                const isImage = contentType.startsWith('image/');
+                res.setHeader('Content-Type', contentType);
+                res.setHeader('Content-Length', buffer.length.toString());
+                if (isImage && inline) {
+                    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(downloadName)}"`);
+                }
+                else {
+                    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+                }
+                // Send buffer to client
+                res.send(buffer);
+                return;
             }
-            // Forward relevant headers
-            const contentType = remoteResponse.headers.get('content-type') || 'application/octet-stream';
-            const contentLength = remoteResponse.headers.get('content-length');
-            const isImage = contentType.startsWith('image/');
-            res.setHeader('Content-Type', contentType);
-            if (contentLength) {
-                res.setHeader('Content-Length', contentLength);
+            catch (remoteError) {
+                console.error('[Email] Failed to fetch remote attachment URL:', {
+                    error: remoteError,
+                    url: attachment.url,
+                    itemId: normalizedItem.id,
+                    attachmentId,
+                });
+                // Fall through to Resend fallback
             }
-            if (isImage && inline) {
-                res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(downloadName)}"`);
-            }
-            else {
-                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
-            }
-            // Stream remote body to client
-            remoteResponse.body.pipe(res);
-            return;
         }
         /**
          * Final fallback: if we don't have a stored URL and the local file is missing,
