@@ -585,42 +585,101 @@ router.get(
       }
 
       // Legacy/backup behavior: stream from remote URL if present
-      if (!attachment.url) {
-        return res.status(404).json({ error: 'Attachment URL not available' });
+      if (attachment.url) {
+        const remoteResponse = await fetch(attachment.url);
+
+        if (!remoteResponse.ok || !remoteResponse.body) {
+          return res
+            .status(remoteResponse.status || 502)
+            .json({ error: 'Failed to fetch attachment from remote source' });
+        }
+
+        // Forward relevant headers
+        const contentType =
+          remoteResponse.headers.get('content-type') || 'application/octet-stream';
+        const contentLength = remoteResponse.headers.get('content-length');
+        const isImage = contentType.startsWith('image/');
+
+        res.setHeader('Content-Type', contentType);
+        if (contentLength) {
+          res.setHeader('Content-Length', contentLength);
+        }
+
+        if (isImage && inline) {
+          res.setHeader(
+            'Content-Disposition',
+            `inline; filename="${encodeURIComponent(downloadName)}"`
+          );
+        } else {
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${encodeURIComponent(downloadName)}"`
+          );
+        }
+
+        // Stream remote body to client
+        (remoteResponse.body as any).pipe(res);
+        return;
       }
 
-      const remoteResponse = await fetch(attachment.url);
+      /**
+       * Final fallback: if we don't have a stored URL and the local file is missing,
+       * try to fetch the attachment again from the email provider (Resend) using
+       * the stored `resend_email_id` in the item's raw payload.
+       *
+       * This covers cases where:
+       * - The attachment was originally stored via Resend but the local file
+       *   has been GC'd / lost (e.g. ephemeral disk in production).
+       * - We never successfully persisted the file locally but still have a
+       *   stable attachment id we can ask Resend for.
+       */
+      try {
+        let rawData: any = {};
+        if (item.raw) {
+          try {
+            rawData = JSON.parse(item.raw);
+          } catch {
+            rawData = {};
+          }
+        }
 
-      if (!remoteResponse.ok || !remoteResponse.body) {
-        return res
-          .status(remoteResponse.status || 502)
-          .json({ error: 'Failed to fetch attachment from remote source' });
+        const resendEmailId: string | undefined = rawData.resend_email_id;
+        const remoteAttachmentId: string =
+          attachment.id || attachment.attachmentId || attachmentId;
+
+        if (resendEmailId && remoteAttachmentId) {
+          const blob = await emailService.getEmailAttachment(resendEmailId, remoteAttachmentId);
+          const buffer = Buffer.from(await blob.arrayBuffer());
+
+          const contentType = blob.type || attachment.mimetype || 'application/octet-stream';
+          const isImage = contentType.startsWith('image/');
+
+          res.setHeader('Content-Type', contentType);
+          if (isImage && inline) {
+            res.setHeader(
+              'Content-Disposition',
+              `inline; filename="${encodeURIComponent(downloadName)}"`
+            );
+          } else {
+            res.setHeader(
+              'Content-Disposition',
+              `attachment; filename="${encodeURIComponent(downloadName)}"`
+            );
+          }
+
+          res.send(buffer);
+          return;
+        }
+      } catch (fallbackError) {
+        console.error('[Email] Failed Resend fallback for attachment:', {
+          error: fallbackError,
+          itemId: normalizedItem.id,
+          attachmentId,
+        });
       }
 
-      // Forward relevant headers
-      const contentType = remoteResponse.headers.get('content-type') || 'application/octet-stream';
-      const contentLength = remoteResponse.headers.get('content-length');
-      const isImage = contentType.startsWith('image/');
-
-      res.setHeader('Content-Type', contentType);
-      if (contentLength) {
-        res.setHeader('Content-Length', contentLength);
-      }
-
-      if (isImage && inline) {
-        res.setHeader(
-          'Content-Disposition',
-          `inline; filename="${encodeURIComponent(downloadName)}"`
-        );
-      } else {
-        res.setHeader(
-          'Content-Disposition',
-          `attachment; filename="${encodeURIComponent(downloadName)}"`
-        );
-      }
-
-      // Stream remote body to client
-      (remoteResponse.body as any).pipe(res);
+      // If we reach here, we have no way to retrieve the attachment contents
+      return res.status(404).json({ error: 'Attachment URL not available' });
     } catch (error) {
       console.error('[Email] Error proxying attachment:', error);
       res.status(500).json({ error: 'Failed to proxy attachment' });
