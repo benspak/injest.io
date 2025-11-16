@@ -275,7 +275,8 @@ export class EmailService {
             to,
             cc,
             bcc,
-            reply_to: replyTo || undefined,
+            // Use camelCase replyTo as expected by the Resend client typings
+            replyTo: replyTo || undefined,
             subject,
             html: htmlContent,
             text: textContent,
