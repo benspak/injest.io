@@ -1,4 +1,7 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
+import path from 'path';
+import crypto from 'crypto';
 import { UserModel, type User } from '../models/User.js';
 import { ItemModel } from '../models/Item.js';
 import { emailParser } from '../utils/emailParser.js';
@@ -8,10 +11,11 @@ import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { openAIService } from '../services/openai.js';
 import { ContactModel } from '../models/Contact.js';
 import { contactStreamService } from '../services/contactStream.js';
-import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/auth.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
-import { normalizeItem } from '../utils/itemNormalization.js';
+import { normalizeItem, sanitizeOriginalFilename } from '../utils/itemNormalization.js';
+import { fileStorageService } from '../services/storage.js';
+import { computeFileChecksum } from '../utils/checksum.js';
 
 const router = express.Router();
 
@@ -75,6 +79,109 @@ async function resolveInboundUserForAddress(address: string): Promise<User | nul
   return null;
 }
 
+// Helper to generate a unique stored filename for inbound email attachments
+function generateUniqueStoredFilename(originalname: string): string {
+  const decodedOriginalName = sanitizeOriginalFilename(originalname || 'attachment');
+  const ext = path.extname(decodedOriginalName);
+  const baseName = path.basename(decodedOriginalName, ext);
+
+  let uniqueId: string;
+  try {
+    uniqueId = crypto.randomUUID();
+  } catch {
+    uniqueId = crypto.randomBytes(16).toString('hex');
+  }
+
+  const safeBase = sanitizeOriginalFilename(baseName).replace(/[^a-zA-Z0-9-_]/g, '_').substring(0, 50);
+  return `${uniqueId}-${safeBase}${ext}`;
+}
+
+// Helper to download and persist a Resend inbound attachment to local storage
+async function persistEmailAttachment(att: any): Promise<{
+  filename: string;
+  originalname: string;
+  mimetype: string;
+  size: number;
+  checksum?: string;
+  contentId?: string;
+  id?: string;
+}> {
+  // Preserve content_id for inline CID images, normalizing by stripping angle brackets
+  const rawContentId = att.content_id as string | undefined;
+  const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
+
+  // Normalize ID fields – prefer explicit id, then attachment_id, then filename
+  const id = att.id || att.attachment_id || att.filename;
+
+  const originalname: string = att.filename || 'attachment';
+  const mimetype: string = att.content_type || 'application/octet-stream';
+  const downloadUrl: string | undefined = att.download_url || att.url;
+
+  // If we don't have a download URL, we can't fetch the file – fall back to metadata-only
+  if (!downloadUrl) {
+    return {
+      filename: originalname,
+      originalname,
+      mimetype,
+      size: att.size ?? 0,
+      contentId: normalizedContentId,
+      id,
+    };
+  }
+
+  let storedFilename = generateUniqueStoredFilename(originalname);
+  try {
+    const response = await fetch(downloadUrl);
+    if (!response.ok || !response.body) {
+      throw new Error(`Failed to download attachment from Resend: ${response.status} ${response.statusText}`);
+    }
+
+    // Stream response into our uploads directory
+    const filePath = fileStorageService.getFilePath(storedFilename);
+    const fileStream = require('fs').createWriteStream(filePath);
+
+    await new Promise<void>((resolve, reject) => {
+      (response.body as any)
+        .pipe(fileStream)
+        .on('finish', () => resolve())
+        .on('error', reject);
+    });
+
+    const size = att.size ?? require('fs').statSync(filePath).size;
+    let checksum: string | undefined;
+    try {
+      checksum = await computeFileChecksum(filePath);
+    } catch {
+      checksum = undefined;
+    }
+
+    return {
+      filename: storedFilename,
+      originalname,
+      mimetype,
+      size,
+      checksum,
+      contentId: normalizedContentId,
+      id,
+    };
+  } catch (error) {
+    console.error('[Email] Failed to persist inbound attachment, falling back to remote URL only:', {
+      error,
+      filename: originalname,
+      downloadUrl,
+    });
+
+    return {
+      filename: originalname,
+      originalname,
+      mimetype,
+      size: att.size ?? 0,
+      contentId: normalizedContentId,
+      id,
+    };
+  }
+}
+
 // Helper function to save email from Resend format to database
 async function saveEmailFromResend(email: any, userId: string): Promise<any> {
   // Extract email address from "from" field
@@ -87,25 +194,25 @@ async function saveEmailFromResend(email: any, userId: string): Promise<any> {
   // Normalize the "to" field
   const toAddresses = Array.isArray(email.to) ? email.to : [email.to];
 
-  // Process attachments into a consistent ItemAttachment-compatible shape
-  const attachmentsData = (email.attachments || []).map((att: any) => {
-    // Preserve content_id for inline CID images, normalizing by stripping angle brackets
-    const rawContentId = att.content_id as string | undefined;
-    const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
-
-    // Normalize ID fields – prefer explicit id, then attachment_id, then filename
-    const id = att.id || att.attachment_id || att.filename;
-
-    return {
-      filename: att.filename,
-      originalname: att.filename,
-      mimetype: att.content_type,
-      size: att.size,
-      url: att.download_url || att.url,
-      id,
-      contentId: normalizedContentId,
-    };
-  });
+  // Process attachments into a consistent ItemAttachment-compatible shape backed by local storage
+  const attachmentsData = email.attachments
+    ? await Promise.all(
+        (email.attachments as any[]).map(async (att) => {
+          const stored = await persistEmailAttachment(att);
+          return {
+            filename: stored.filename,
+            originalname: stored.originalname,
+            mimetype: stored.mimetype,
+            size: stored.size,
+            checksum: stored.checksum,
+            // No remote URL needed for newly stored attachments
+            url: undefined,
+            id: stored.id,
+            contentId: stored.contentId,
+          };
+        })
+      )
+    : [];
 
   // Create raw content with Resend email ID
   const rawContent = JSON.stringify({
@@ -119,7 +226,15 @@ async function saveEmailFromResend(email: any, userId: string): Promise<any> {
     from: fromEmail,
     to: toAddresses,
     created_at: email.created_at,
-    attachments: attachmentsData,
+    // Store a compact view of attachments for debugging/back-compat (no remote URLs needed)
+    attachments: attachmentsData.map((att) => ({
+      filename: att.originalname,
+      stored_filename: att.filename,
+      mimetype: att.mimetype,
+      size: att.size,
+      content_id: att.contentId,
+      id: att.id,
+    })),
     headers: email.headers,
     message_id: email.message_id,
   });
@@ -239,28 +354,27 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
 
     const normalizedFromEmail = normalizeEmailAddress(fromEmail);
 
-    // Store attachments info (files are hosted remotely by Resend)
-    // Resend's inbound payload uses `download_url` for attachment access.
-    // We normalize this to `url` so the frontend can treat these as remote attachments.
-    const attachmentsData = (attachments || []).map((att: any) => {
-      // Preserve content_id for inline CID images, normalizing by stripping angle brackets
-      const rawContentId = att.content_id as string | undefined;
-      const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
-
-      // Normalize ID fields – prefer explicit id, then attachment_id, then filename
-      const id = att.id || att.attachment_id || att.filename;
-
-      return {
-        filename: att.filename,
-        originalname: att.filename,
-        mimetype: att.content_type,
-        size: att.size,
-        url: att.download_url || att.url,
-        // Keep the original attachment id when present for debugging/future use
-        id,
-        contentId: normalizedContentId,
-      };
-    });
+    // Store attachments by downloading them into local storage where possible.
+    // This makes previews/downloads independent of Resend's URLs.
+    const attachmentsData = attachments
+      ? await Promise.all(
+          (attachments as any[]).map(async (att) => {
+            const stored = await persistEmailAttachment(att);
+            return {
+              filename: stored.filename,
+              originalname: stored.originalname,
+              mimetype: stored.mimetype,
+              size: stored.size,
+              checksum: stored.checksum,
+              // No remote URL needed for newly stored attachments
+              url: undefined,
+              // Keep the original attachment id when present for debugging/future use
+              id: stored.id,
+              contentId: stored.contentId,
+            };
+          })
+        )
+      : [];
 
     // Create item from email using unified structure
     // Also keep raw for backward compatibility
@@ -289,7 +403,14 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
       body: html || text || '',
       from: fromEmail,
       to,
-      attachments: attachmentsData,
+      attachments: attachmentsData.map((att) => ({
+        filename: att.originalname,
+        stored_filename: att.filename,
+        mimetype: att.mimetype,
+        size: att.size,
+        content_id: att.contentId,
+        id: att.id,
+      })),
       created_at: createdAt,
       headers,
       message_id: messageId,
@@ -425,13 +546,49 @@ router.get(
             att.filename === attachmentId
         ) ?? null;
 
-      if (!attachment || !attachment.url) {
+      if (!attachment) {
+        return res.status(404).json({ error: 'Attachment not found' });
+      }
+
+      const downloadName = attachment.originalname || attachment.filename || 'attachment';
+      const inline = req.query.inline === 'true' || req.query.inline === '1';
+
+      // Prefer locally stored files when available (new behavior)
+      if (attachment.filename && !attachment.url) {
+        try {
+          const fileStream = await fileStorageService.getFileStream(attachment.filename);
+          const isImage = attachment.mimetype && attachment.mimetype.startsWith('image/');
+
+          if (isImage && inline) {
+            res.setHeader(
+              'Content-Disposition',
+              `inline; filename="${encodeURIComponent(downloadName)}"`
+            );
+          } else {
+            res.setHeader(
+              'Content-Disposition',
+              `attachment; filename="${encodeURIComponent(downloadName)}"`
+            );
+          }
+
+          res.setHeader('Content-Type', attachment.mimetype || 'application/octet-stream');
+
+          fileStream.pipe(res);
+          return;
+        } catch (error) {
+          console.error('[Email] Failed to stream local attachment, falling back to remote URL if available:', {
+            error,
+            itemId: normalizedItem.id,
+            attachmentId,
+          });
+        }
+      }
+
+      // Legacy/backup behavior: stream from remote URL if present
+      if (!attachment.url) {
         return res.status(404).json({ error: 'Attachment URL not available' });
       }
 
-      // Fetch the remote attachment. We treat it as a simple HTTP GET and stream it back.
-      // If the provider requires auth headers, the email service should be responsible
-      // for providing a URL that is directly accessible (e.g., a signed URL).
       const remoteResponse = await fetch(attachment.url);
 
       if (!remoteResponse.ok || !remoteResponse.body) {
@@ -449,9 +606,6 @@ router.get(
       if (contentLength) {
         res.setHeader('Content-Length', contentLength);
       }
-
-      const downloadName = attachment.originalname || attachment.filename || 'attachment';
-      const inline = req.query.inline === 'true' || req.query.inline === '1';
 
       if (isImage && inline) {
         res.setHeader(
