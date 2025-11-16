@@ -11,7 +11,6 @@ import { contactStreamService } from '../services/contactStream.js';
 import jwt from 'jsonwebtoken';
 import { JWT_SECRET } from '../config/auth.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
-import type { AuthRequest } from '../middleware/auth.js';
 import { normalizeItem } from '../utils/itemNormalization.js';
 
 const router = express.Router();

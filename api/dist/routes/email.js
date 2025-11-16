@@ -1,13 +1,16 @@
 import express from 'express';
 import { UserModel } from '../models/User.js';
 import { ItemModel } from '../models/Item.js';
-import { ItemAccessModel } from '../models/ItemAccess.js';
 import { indexingService } from '../services/indexing.js';
 import { emailService } from '../services/email.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { openAIService } from '../services/openai.js';
 import { ContactModel } from '../models/Contact.js';
 import { contactStreamService } from '../services/contactStream.js';
+import jwt from 'jsonwebtoken';
+import { JWT_SECRET } from '../config/auth.js';
+import { ItemAccessModel } from '../models/ItemAccess.js';
+import { normalizeItem } from '../utils/itemNormalization.js';
 const router = express.Router();
 // Helper function to normalize an email address
 function normalizeEmailAddress(email) {
@@ -266,6 +269,103 @@ router.post('/inbound', async (req, res) => {
         res.status(500).json({ error: 'Failed to process email' });
     }
 });
+/**
+ * Proxy endpoint for remote email attachments.
+ *
+ * Some inbound email providers (like Resend) expose attachment `download_url`s
+ * that are not directly embeddable in the browser (e.g. require auth, have
+ * strict CORS, or enforce `Content-Disposition: attachment`). To ensure that
+ * image attachments render reliably in the UI, we proxy these requests through
+ * our API. The browser only ever talks to our backend, and the backend is
+ * responsible for fetching the remote attachment and streaming it back.
+ *
+ * Route: GET /api/email/attachments/:itemId/:attachmentId
+ *
+ * Security:
+ * - Requires a valid JWT token (via Authorization header or `token` query param).
+ * - Verifies that the user owns the item or has explicit access via ItemAccessModel.
+ * - Only allows proxying for attachments that have a `url` field stored.
+ */
+router.get('/attachments/:itemId/:attachmentId', async (req, res) => {
+    try {
+        // Extract token from Authorization header or query string (for images)
+        let token = null;
+        const authHeader = req.headers.authorization;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            token = authHeader.substring(7);
+        }
+        else if (req.query.token && typeof req.query.token === 'string') {
+            token = req.query.token;
+        }
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+        // Verify token and load user
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await UserModel.findById(decoded.userId);
+        if (!user || !user.verified) {
+            return res.status(401).json({ error: 'User not found or not verified' });
+        }
+        req.user = {
+            id: user.id,
+            email: user.email,
+        };
+        const { itemId, attachmentId } = req.params;
+        const item = await ItemModel.findById(itemId);
+        if (!item) {
+            return res.status(404).json({ error: 'Item not found' });
+        }
+        const normalizedItem = normalizeItem(item);
+        const hasAccess = normalizedItem.owner_id === req.user.id ||
+            (await ItemAccessModel.userHasAccess(normalizedItem.id, req.user.id, req.user.email));
+        if (!hasAccess) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+        if (!normalizedItem.attachments ||
+            !Array.isArray(normalizedItem.attachments) ||
+            normalizedItem.attachments.length === 0) {
+            return res.status(404).json({ error: 'Attachment not found on item' });
+        }
+        // Allow lookup by attachment.id / attachmentId / filename for robustness
+        const attachment = normalizedItem.attachments.find((att) => att.id === attachmentId ||
+            att.attachmentId === attachmentId ||
+            att.filename === attachmentId) ?? null;
+        if (!attachment || !attachment.url) {
+            return res.status(404).json({ error: 'Attachment URL not available' });
+        }
+        // Fetch the remote attachment. We treat it as a simple HTTP GET and stream it back.
+        // If the provider requires auth headers, the email service should be responsible
+        // for providing a URL that is directly accessible (e.g., a signed URL).
+        const remoteResponse = await fetch(attachment.url);
+        if (!remoteResponse.ok || !remoteResponse.body) {
+            return res
+                .status(remoteResponse.status || 502)
+                .json({ error: 'Failed to fetch attachment from remote source' });
+        }
+        // Forward relevant headers
+        const contentType = remoteResponse.headers.get('content-type') || 'application/octet-stream';
+        const contentLength = remoteResponse.headers.get('content-length');
+        const isImage = contentType.startsWith('image/');
+        res.setHeader('Content-Type', contentType);
+        if (contentLength) {
+            res.setHeader('Content-Length', contentLength);
+        }
+        const downloadName = attachment.originalname || attachment.filename || 'attachment';
+        const inline = req.query.inline === 'true' || req.query.inline === '1';
+        if (isImage && inline) {
+            res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(downloadName)}"`);
+        }
+        else {
+            res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(downloadName)}"`);
+        }
+        // Stream remote body to client
+        remoteResponse.body.pipe(res);
+    }
+    catch (error) {
+        console.error('[Email] Error proxying attachment:', error);
+        res.status(500).json({ error: 'Failed to proxy attachment' });
+    }
+});
 // Simple helper to decide if a sender should be treated as a system/non-user sender
 function isSystemSender(email) {
     const lower = email.trim().toLowerCase();
@@ -384,6 +484,14 @@ router.get('/received/:id', authMiddleware, async (req, res) => {
             // Extract email addresses from source field
             const sourceMatch = item.source?.match(/email:(.+)/);
             const fromEmail = sourceMatch ? sourceMatch[1] : '';
+            // Normalize attachments to Resend-like format so the frontend can render them consistently
+            const attachments = (item.attachments || []).map((att) => ({
+                id: att.id || att.filename,
+                filename: att.originalname || att.filename,
+                size: att.size ?? 0,
+                content_type: att.mimetype || 'application/octet-stream',
+                download_url: att.url,
+            }));
             const emailResponse = {
                 id: rawData.resend_email_id || item.id,
                 to: rawData.to || [],
@@ -392,7 +500,7 @@ router.get('/received/:id', authMiddleware, async (req, res) => {
                 subject: item.title || rawData.subject || '',
                 html: item.description || rawData.body || '',
                 text: rawData.body || item.description || '',
-                attachments: item.attachments || [],
+                attachments,
                 headers: rawData.headers,
                 message_id: rawData.message_id,
             };

@@ -297,8 +297,9 @@ export class EmailService {
             to,
             cc,
             bcc,
-            // Use camelCase replyTo as expected by the Resend client typings
-            replyTo: replyTo || undefined,
+            // Use snake_case reply_to to match the current CreateEmailOptions typings
+            // If the SDK is upgraded to support camelCase, this can be revisited.
+            reply_to: replyTo || undefined,
             subject,
             html: htmlContent,
             text: textContent,
