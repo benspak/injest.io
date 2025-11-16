@@ -2,6 +2,7 @@ import express from 'express';
 import jwt from 'jsonwebtoken';
 import path from 'path';
 import crypto from 'crypto';
+import fs from 'fs';
 import { UserModel } from '../models/User.js';
 import { ItemModel } from '../models/Item.js';
 import { indexingService } from '../services/indexing.js';
@@ -102,22 +103,19 @@ async function persistEmailAttachment(att) {
             id,
         };
     }
-    let storedFilename = generateUniqueStoredFilename(originalname);
+    const storedFilename = generateUniqueStoredFilename(originalname);
+    const filePath = fileStorageService.getFilePath(storedFilename);
     try {
         const response = await fetch(downloadUrl);
-        if (!response.ok || !response.body) {
+        if (!response.ok) {
             throw new Error(`Failed to download attachment from Resend: ${response.status} ${response.statusText}`);
         }
-        // Stream response into our uploads directory
-        const filePath = fileStorageService.getFilePath(storedFilename);
-        const fileStream = require('fs').createWriteStream(filePath);
-        await new Promise((resolve, reject) => {
-            response.body
-                .pipe(fileStream)
-                .on('finish', () => resolve())
-                .on('error', reject);
-        });
-        const size = att.size ?? require('fs').statSync(filePath).size;
+        // In Node 18+, fetch() returns a web ReadableStream. Instead of piping, read
+        // the full body into a Buffer and write it to disk.
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        await fs.promises.writeFile(filePath, buffer);
+        const size = att.size ?? buffer.length;
         let checksum;
         try {
             checksum = await computeFileChecksum(filePath);
@@ -136,7 +134,7 @@ async function persistEmailAttachment(att) {
         };
     }
     catch (error) {
-        console.error('[Email] Failed to persist inbound attachment, falling back to remote URL only:', {
+        console.error('[Email] Failed to persist inbound attachment, falling back to metadata only:', {
             error,
             filename: originalname,
             downloadUrl,
