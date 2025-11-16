@@ -160,8 +160,8 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
       normalizeEmailAddress(addr.includes('<') ? (addr.match(/<(.+)>/)?.[1] || addr) : addr)
     );
 
-    // First, try per-user routing based on username@injest.io
-    let user = null;
+    // Route per-user based on username@injest.io
+    let user: User | null = null;
     for (const addr of normalizedToAddresses) {
       const resolved = await resolveInboundUserForAddress(addr);
       if (resolved) {
@@ -170,33 +170,13 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
       }
     }
 
-    // Backwards-compatible fallback: legacy single inbox address that routes by sender email
     if (!user) {
-      const receivingEmail = (process.env.RECEIVING_EMAIL || 'input@injest.io').toLowerCase();
-      const wasSentToLegacyInbox = normalizedToAddresses.some(
-        (addr: string) => addr === receivingEmail
+      console.log(
+        `[Email] Inbound email not routed: no matching username@injest.io address. To: ${normalizedToAddresses.join(
+          ', '
+        )}`
       );
-
-      if (!wasSentToLegacyInbox) {
-        console.log(
-          `[Email] Inbound email not routed: no matching username address or legacy inbox. To: ${normalizedToAddresses.join(
-            ', '
-          )}`
-        );
-        return res.status(404).json({ error: 'No matching inbox for recipient addresses' });
-      }
-
-      // Legacy behaviour: map user by sender email
-      const fromEmailForLookup = from.includes('<')
-        ? from.match(/<(.+)>/)?.[1] || from
-        : from;
-      const normalizedFromForLookup = normalizeEmailAddress(fromEmailForLookup);
-      user = await UserModel.findByEmail(normalizedFromForLookup);
-
-      if (!user) {
-        console.log(`[Email] Legacy inbound email from unregistered user: ${normalizedFromForLookup}`);
-        return res.status(404).json({ error: 'User not found for legacy inbox' });
-      }
+      return res.status(404).json({ error: 'No matching inbox for recipient addresses' });
     }
 
     if (!user.verified) {

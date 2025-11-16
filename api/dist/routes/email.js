@@ -136,7 +136,7 @@ router.post('/inbound', async (req, res) => {
         // Normalize the "to" field - it can be a string or array
         const toAddressesRaw = Array.isArray(to) ? to : [to];
         const normalizedToAddresses = toAddressesRaw.map((addr) => normalizeEmailAddress(addr.includes('<') ? (addr.match(/<(.+)>/)?.[1] || addr) : addr));
-        // First, try per-user routing based on username@injest.io
+        // Route per-user based on username@injest.io
         let user = null;
         for (const addr of normalizedToAddresses) {
             const resolved = await resolveInboundUserForAddress(addr);
@@ -145,24 +145,9 @@ router.post('/inbound', async (req, res) => {
                 break;
             }
         }
-        // Backwards-compatible fallback: legacy single inbox address that routes by sender email
         if (!user) {
-            const receivingEmail = (process.env.RECEIVING_EMAIL || 'input@injest.io').toLowerCase();
-            const wasSentToLegacyInbox = normalizedToAddresses.some((addr) => addr === receivingEmail);
-            if (!wasSentToLegacyInbox) {
-                console.log(`[Email] Inbound email not routed: no matching username address or legacy inbox. To: ${normalizedToAddresses.join(', ')}`);
-                return res.status(404).json({ error: 'No matching inbox for recipient addresses' });
-            }
-            // Legacy behaviour: map user by sender email
-            const fromEmailForLookup = from.includes('<')
-                ? from.match(/<(.+)>/)?.[1] || from
-                : from;
-            const normalizedFromForLookup = normalizeEmailAddress(fromEmailForLookup);
-            user = await UserModel.findByEmail(normalizedFromForLookup);
-            if (!user) {
-                console.log(`[Email] Legacy inbound email from unregistered user: ${normalizedFromForLookup}`);
-                return res.status(404).json({ error: 'User not found for legacy inbox' });
-            }
+            console.log(`[Email] Inbound email not routed: no matching username@injest.io address. To: ${normalizedToAddresses.join(', ')}`);
+            return res.status(404).json({ error: 'No matching inbox for recipient addresses' });
         }
         if (!user.verified) {
             console.log(`[Email] Inbound email for unverified user: ${user.email}`);

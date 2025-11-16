@@ -314,7 +314,7 @@ export default function DeveloperDocsClient() {
       icon: Inbox,
       title: 'Capture files, email, and bookmarks',
       description:
-        'Upload up to 25 MB attachments with checksum dedupe, forward to input@injest.io, and import bookmarks or Chrome captures without hand-tagging.',
+        'Upload up to 25 MB attachments with checksum dedupe, forward to your personal username@injest.io address, and import bookmarks or Chrome captures without hand-tagging.',
     },
     {
       id: 'search',
@@ -348,7 +348,7 @@ export default function DeveloperDocsClient() {
       id: 'email',
       icon: Inbox,
       title: 'Forwarded email',
-      subtitle: 'input@injest.io webhook',
+      subtitle: 'username@injest.io inbox',
       bullets: [
         'Verified users can forward through Resend; inbound mail becomes an indexed item automatically.',
         'Attachments are preserved and searchable alongside the message body.',
@@ -373,7 +373,7 @@ export default function DeveloperDocsClient() {
       step: '1',
       title: 'Capture or forward content',
       description:
-        'Upload attachments, send email to input@injest.io, or capture tabs and bookmarks from the browser.',
+        'Upload attachments, send email to your username@injest.io address, or capture tabs and bookmarks from the browser.',
     },
     {
       step: '2',

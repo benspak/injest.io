@@ -1083,7 +1083,7 @@ Webhook endpoint for receiving emails via Resend. This is called automatically b
 ```json
 {
   "from": "sender@example.com",
-  "to": "input@injest.io",
+  "to": "username@injest.io",
   "subject": "Email Subject",
   "text": "Plain text body",
   "html": "<p>HTML body</p>",
@@ -1103,14 +1103,14 @@ Webhook endpoint for receiving emails via Resend. This is called automatically b
 
 **Error Responses:**
 - `400 Bad Request` - Missing required email fields
-- `403 Forbidden` - Email not sent to receiving address or user not verified
-- `404 Not Found` - User not found
+- `403 Forbidden` - User not verified
+- `404 Not Found` - No matching username inbox
 - `500 Internal Server Error` - Failed to process email
 
 **Notes:**
-- Only processes emails sent to the configured receiving address
-- Only processes emails from verified users
-- Automatically creates items and triggers indexing
+- Routes by the local-part of the `to` address (e.g. `username@injest.io` → user with `public_username = "username"`).
+- Only processes emails for verified users.
+- Automatically creates items and triggers indexing.
 
 ---
 
@@ -1135,7 +1135,7 @@ Get a list of emails received by the authenticated user.
   "data": [
     {
       "id": "resend-email-id",
-      "to": ["input@injest.io"],
+      "to": ["username@injest.io"],
       "from": "user@example.com",
       "created_at": "2024-01-01T00:00:00.000Z",
       "subject": "Email Subject",
@@ -1175,7 +1175,7 @@ Get a specific received email by ID.
 ```json
 {
   "id": "resend-email-id",
-  "to": ["input@injest.io"],
+      "to": ["username@injest.io"],
   "from": "user@example.com",
   "created_at": "2024-01-01T00:00:00.000Z",
   "subject": "Email Subject",

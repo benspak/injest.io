@@ -157,7 +157,7 @@ API key generation, the `/developers` portal, and `/api/external` routes require
 ## 6. Configure Resend Inbound Email
 
 1. Verify your domain in the [Resend Dashboard](https://resend.com/domains).
-2. Create the inbound address (e.g., `input@injest.io`) and copy it into your `.env`.
+2. Configure inbound email for your domain (for example, `username@injest.io` for each user).
 3. Set an inbound webhook:
    - Dashboard → Webhooks → New webhook
    - URL: `https://<your-api-host>/api/email/inbound` (local development requires a tunnel)

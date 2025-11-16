@@ -73,7 +73,7 @@ export class EmailService {
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2>Email Approved</h2>
-          <p>Your email address has been approved. You can now send emails to <strong>input@injest.io</strong> to add items to your knowledge base.</p>
+          <p>Your email address has been approved. You can now send emails to your personal Injest address (for example, <strong>username@injest.io</strong>) to add items to your knowledge base.</p>
           <p>Happy organizing!</p>
         </div>
       `,
