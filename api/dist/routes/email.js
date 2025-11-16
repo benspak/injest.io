@@ -73,14 +73,20 @@ async function saveEmailFromResend(email, userId) {
     // Normalize the "to" field
     const toAddresses = Array.isArray(email.to) ? email.to : [email.to];
     // Process attachments
-    const attachmentsData = (email.attachments || []).map((att) => ({
-        filename: att.filename,
-        originalname: att.filename,
-        mimetype: att.content_type,
-        size: att.size,
-        url: att.download_url || att.url,
-        id: att.id,
-    }));
+    const attachmentsData = (email.attachments || []).map((att) => {
+        // Preserve content_id for inline CID images, normalizing by stripping angle brackets
+        const rawContentId = att.content_id;
+        const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
+        return {
+            filename: att.filename,
+            originalname: att.filename,
+            mimetype: att.content_type,
+            size: att.size,
+            url: att.download_url || att.url,
+            id: att.id,
+            contentId: normalizedContentId,
+        };
+    });
     // Create raw content with Resend email ID
     const rawContent = JSON.stringify({
         resend_email_id: email.id,
@@ -192,15 +198,21 @@ router.post('/inbound', async (req, res) => {
         // Store attachments info (files are hosted remotely by Resend)
         // Resend's inbound payload uses `download_url` for attachment access.
         // We normalize this to `url` so the frontend can treat these as remote attachments.
-        const attachmentsData = (attachments || []).map((att) => ({
-            filename: att.filename,
-            originalname: att.filename,
-            mimetype: att.content_type,
-            size: att.size,
-            url: att.download_url || att.url,
-            // Keep the original attachment id when present for debugging/future use
-            id: att.id,
-        }));
+        const attachmentsData = (attachments || []).map((att) => {
+            // Preserve content_id for inline CID images, normalizing by stripping angle brackets
+            const rawContentId = att.content_id;
+            const normalizedContentId = rawContentId ? rawContentId.replace(/[<>]/g, '') : undefined;
+            return {
+                filename: att.filename,
+                originalname: att.filename,
+                mimetype: att.content_type,
+                size: att.size,
+                url: att.download_url || att.url,
+                // Keep the original attachment id when present for debugging/future use
+                id: att.id,
+                contentId: normalizedContentId,
+            };
+        });
         // Create item from email using unified structure
         // Also keep raw for backward compatibility
         // Include any email ID from webhook if available
@@ -412,6 +424,8 @@ router.get('/received', authMiddleware, async (req, res) => {
                 size: att.size ?? 0,
                 content_type: att.mimetype || 'application/octet-stream',
                 download_url: att.url,
+                // Expose preserved contentId back as content_id for Resend-like API
+                content_id: att.contentId,
             }));
             return {
                 id: rawData.resend_email_id || item.id,
@@ -491,6 +505,8 @@ router.get('/received/:id', authMiddleware, async (req, res) => {
                 size: att.size ?? 0,
                 content_type: att.mimetype || 'application/octet-stream',
                 download_url: att.url,
+                // Expose preserved contentId back as content_id for Resend-like API
+                content_id: att.contentId,
             }));
             const emailResponse = {
                 id: rawData.resend_email_id || item.id,

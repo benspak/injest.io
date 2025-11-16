@@ -226,6 +226,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                 attachmentId: att.id,
                 url: att.download_url,
                 id: att.id,
+                // Preserve content_id from Resend so we can rewrite cid: URLs in HTML
+                contentId: att.content_id ? att.content_id.replace(/[<>]/g, '') : undefined,
               }))
             : undefined,
         };
@@ -1202,13 +1204,56 @@ export function ItemList({ items, onDelete }: ItemListProps) {
 
                           // For emails with HTML
                           if (hasHtml) {
+                            // Rewrite cid: image sources to our attachment proxy URLs when rendering
+                            const rewrittenHtml = (() => {
+                              try {
+                                const attachments = (itemDetails as any).attachments as Attachment[] | undefined;
+                                if (!attachments || attachments.length === 0) {
+                                  return fullHtml;
+                                }
+
+                                const cidToUrl = new Map<string, string>();
+                                for (const att of attachments) {
+                                  const cid = (att as any).contentId as string | undefined;
+                                  if (!cid) continue;
+                                  const previewUrl = apiClient.getAttachmentPreviewUrl(
+                                    (itemDetails as any).id,
+                                    att,
+                                    true
+                                  );
+                                  if (previewUrl) {
+                                    cidToUrl.set(cid, previewUrl);
+                                  }
+                                }
+
+                                if (cidToUrl.size === 0) {
+                                  return fullHtml;
+                                }
+
+                                // Replace src="cid:..."/src='cid:...' with resolved URLs when we have a match
+                                return fullHtml.replace(
+                                  /src=["']cid:([^"']+)["']/gi,
+                                  (match: string, cidValue: string) => {
+                                    const normalizedCid = cidValue.replace(/[<>]/g, '');
+                                    const url = cidToUrl.get(normalizedCid);
+                                    if (!url) {
+                                      return match;
+                                    }
+                                    return `src="${url}" data-original-cid="${normalizedCid}"`;
+                                  }
+                                );
+                              } catch {
+                                return fullHtml;
+                              }
+                            })();
+
                             return (
                               <div>
                                 {emailBodyExpanded ? (
                                   // Show full HTML when expanded
                                   <div
                                     className="text-sm prose prose-sm max-w-none"
-                                    dangerouslySetInnerHTML={{ __html: fullHtml }}
+                                    dangerouslySetInnerHTML={{ __html: rewrittenHtml }}
                                   />
                                 ) : (
                                   // Show truncated plain text when collapsed

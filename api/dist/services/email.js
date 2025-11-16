@@ -292,19 +292,20 @@ export class EmailService {
                 preparedAttachments = undefined;
             }
         }
-        await this.resend.emails.send({
+        // Resend's runtime API supports `replyTo`, but TypeScript typings may lag behind.
+        // We use `replyTo` here and cast the payload to `any` to avoid over-constraining the type.
+        const emailPayload = {
             from: fromAddress,
             to,
             cc,
             bcc,
-            // Use snake_case reply_to to match the current CreateEmailOptions typings
-            // If the SDK is upgraded to support camelCase, this can be revisited.
-            reply_to: replyTo || undefined,
+            replyTo: replyTo || undefined,
             subject,
             html: htmlContent,
             text: textContent,
             attachments: preparedAttachments,
-        });
+        };
+        await this.resend.emails.send(emailPayload);
     }
     async listReceivedEmails(limit, after, before) {
         const params = new URLSearchParams();

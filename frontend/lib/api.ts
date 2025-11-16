@@ -72,6 +72,8 @@ export interface ItemAttachment {
   checksum?: string;
   url?: string;
   id?: string;
+  // Optional content ID preserved from inbound email providers for CID inline images
+  contentId?: string;
 }
 
 export interface Item {
