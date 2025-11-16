@@ -203,7 +203,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
       // If this is a Resend email, fetch full email details
       if (item.isResendEmail && item.resendEmailId) {
         const emailDetails = await apiClient.getReceivedEmail(item.resendEmailId);
-        // Transform email to item-like format
+        // Transform email to item-like format, including attachments so images can render
         const emailAsItem = {
           ...item,
           title: emailDetails.subject,
@@ -217,6 +217,17 @@ export function ItemList({ items, onDelete }: ItemListProps) {
           reply_to: emailDetails.reply_to,
           message_id: emailDetails.message_id,
           headers: emailDetails.headers,
+          attachments: emailDetails.attachments
+            ? emailDetails.attachments.map((att) => ({
+                filename: att.filename,
+                originalname: att.filename,
+                mimetype: att.content_type,
+                size: att.size,
+                attachmentId: att.id,
+                url: att.download_url,
+                id: att.id,
+              }))
+            : undefined,
         };
         setItemDetails(emailAsItem);
         setNotesValue('');

@@ -274,6 +274,17 @@ export function SearchResults({ results }: SearchResultsProps) {
           reply_to: emailDetails.reply_to,
           message_id: emailDetails.message_id,
           headers: emailDetails.headers,
+          attachments: emailDetails.attachments
+            ? emailDetails.attachments.map((att) => ({
+                filename: att.filename,
+                originalname: att.filename,
+                mimetype: att.content_type,
+                size: att.size,
+                attachmentId: att.id,
+                url: att.download_url,
+                id: att.id,
+              }))
+            : undefined,
           isResendEmail: true,
         };
         setItemDetails(emailAsItem);
