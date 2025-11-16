@@ -514,32 +514,36 @@ export function ItemList({ items, onDelete }: ItemListProps) {
               <div className="space-y-2">
                 {item.attachments.map((file: Attachment, idx: number) => {
                   const isImage = apiClient.isImageMimetype(file.mimetype);
+                  const targetItem = itemDetails || item;
+                  const previewUrl =
+                    isImage && targetItem
+                      ? apiClient.getAttachmentPreviewUrl(targetItem.id, file, true)
+                      : null;
+
                   return (
                     <div
                       key={idx}
                       className={`${isImage ? 'space-y-2' : 'flex items-center justify-between'} p-2 bg-gray-50 border rounded-md`}
                     >
-                      {isImage ? (
+                      {isImage && previewUrl ? (
                         <>
-                          {apiClient.getAttachmentPreviewUrl((itemDetails || item).id, file, true) && (
-                            <img
-                              src={apiClient.getAttachmentPreviewUrl((itemDetails || item).id, file, true)!}
-                              alt={file.originalname}
-                              className="w-full max-w-md h-auto rounded-md object-contain max-h-64"
-                              onError={(e) => {
-                                // Fallback to download button if image fails to load
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  const fallback = parent.querySelector('.image-fallback');
-                                  if (fallback) {
-                                    (fallback as HTMLElement).style.display = 'flex';
-                                  }
+                          <img
+                            src={previewUrl}
+                            alt={file.originalname}
+                            className="w-full max-w-md h-auto rounded-md object-contain max-h-64"
+                            onError={(e) => {
+                              // Fallback to download button if image fails to load
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                const fallback = parent.querySelector('.image-fallback');
+                                if (fallback) {
+                                  (fallback as HTMLElement).style.display = 'flex';
                                 }
-                              }}
-                            />
-                          )}
+                              }
+                            }}
+                          />
                           <div className="image-fallback hidden flex items-center justify-between w-full">
                             <div className="flex-1">
                               <p className="text-sm font-medium">{file.originalname}</p>
@@ -554,8 +558,8 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                               variant="outline"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                const targetItem = itemDetails || item;
-                                handleDownloadFile(targetItem.id, file, targetItem.resendEmailId);
+                                const downloadItem = itemDetails || item;
+                                handleDownloadFile(downloadItem.id, file, downloadItem.resendEmailId);
                               }}
                             >
                               Download
@@ -566,22 +570,23 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                         <>
                           <div className="flex-1">
                             <p className="text-sm font-medium">{file.originalname}</p>
-                                    {typeof file.size === 'number' && (
-                                      <p className="text-xs text-muted-foreground">
-                                        {Math.round(file.size / 1024)} KB
-                                      </p>
-                                    )}
+                            {typeof file.size === 'number' && (
+                              <p className="text-xs text-muted-foreground">
+                                {Math.round(file.size / 1024)} KB
+                              </p>
+                            )}
                           </div>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={(e) => {
                               e.stopPropagation();
-                              const targetItem = itemDetails || item;
+                              const downloadItem = itemDetails || item;
                               handleDownloadFile(
-                                targetItem.id,
+                                downloadItem.id,
                                 file,
-                                (targetItem as Item | undefined)?.resendEmailId ?? (targetItem as any)?.resendEmailId
+                                (downloadItem as Item | undefined)?.resendEmailId ??
+                                  (downloadItem as any)?.resendEmailId
                               );
                             }}
                           >

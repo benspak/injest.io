@@ -994,32 +994,51 @@ class ApiClient {
     );
   }
 
-  getAttachmentPreviewUrl(itemId: string, attachment: ItemAttachment, inline: boolean = false): string | null {
-    if (this.isRemoteAttachment(attachment)) {
-      if (attachment.url) {
-        return attachment.url;
-      }
+  /**
+   * Build a preview URL for an attachment.
+   *
+   * - For regular uploaded files (no `url` and no remote id), we use the
+   *   authenticated `/api/items/:id/files/:filename` route.
+   * - For remote email attachments (e.g. Resend), we route through our
+   *   `/api/email/attachments/:itemId/:attachmentId` proxy, which handles
+   *   authentication, access control, and streaming from the remote source.
+   */
+  getAttachmentPreviewUrl(
+    itemId: string,
+    attachment: ItemAttachment,
+    inline: boolean = false
+  ): string | null {
+    const token =
+      this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
 
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(
-          `[API] Remote attachment "${attachment.originalname}" is missing a preview URL; falling back to stored file route.`
-        );
-      }
-    }
-
-    // Check if we have a token before trying to generate file URL
-    // For public profiles, we may not have authentication
-    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+    // If we don't have a token (e.g., public profile view), we cannot build
+    // authenticated URLs. The UI should handle `null` and avoid broken images.
     if (!token) {
-      // Return null if no token is available (e.g., viewing public profile)
-      // The UI should handle null gracefully
       return null;
     }
 
+    // Remote attachments (typically inbound email attachments stored with a `url`)
+    if (this.isRemoteAttachment(attachment)) {
+      const attachmentId = attachment.attachmentId || attachment.id || attachment.filename;
+      if (!attachmentId) {
+        return null;
+      }
+
+      const url = `${this.baseUrl}/api/email/attachments/${encodeURIComponent(
+        itemId
+      )}/${encodeURIComponent(attachmentId)}`;
+      const params = new URLSearchParams();
+      if (inline) {
+        params.append('inline', 'true');
+      }
+      params.append('token', token);
+      return `${url}?${params.toString()}`;
+    }
+
+    // Fallback: locally stored file in our own storage
     try {
       return this.getFileUrl(itemId, attachment.filename, inline);
     } catch (error) {
-      // If getFileUrl throws an error (e.g., no token), return null
       return null;
     }
   }
