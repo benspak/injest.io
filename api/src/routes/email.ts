@@ -154,12 +154,37 @@ async function saveEmailFromResend(email: any, userId: string): Promise<any> {
 // Resend inbound webhook
 router.post('/inbound', async (req: express.Request, res: express.Response) => {
   try {
-    // Resend webhook format
-    const { from, to, subject, text, html, attachments } = req.body;
+    /**
+     * Resend (via Svix) wraps inbound events as:
+     * {
+     *   type: "email.received",
+     *   created_at: "...",
+     *   data: {
+     *     from: string;
+     *     to: string[];
+     *     subject: string;
+     *     text?: string;
+     *     html?: string;
+     *     attachments?: Array<...>;
+     *     email_id?: string;
+     *     message_id?: string;
+     *     created_at?: string;
+     *     headers?: Record<string, string>;
+     *   }
+     * }
+     *
+     * Older/alternative integrations might POST the email fields at the top level.
+     * To support both, we unwrap `data` when present and fall back to the root.
+     */
+    const event = req.body as any;
+    const email = event?.data ?? event;
+
+    const { from, to, subject, text, html, attachments } = email ?? {};
 
     if (!from || !to || !subject) {
       return res.status(400).json({ error: 'Missing required email fields' });
     }
+
     // Normalize the "to" field - it can be a string or array
     const toAddressesRaw = Array.isArray(to) ? to : [to];
     const normalizedToAddresses = toAddressesRaw.map((addr: string) =>
@@ -208,16 +233,30 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
     // Create item from email using unified structure
     // Also keep raw for backward compatibility
     // Include any email ID from webhook if available
+    const emailId =
+      email?.id ||
+      email?.email_id ||
+      event?.id ||
+      event?.message_id ||
+      null;
+
+    const createdAt =
+      email?.created_at || event?.created_at || new Date().toISOString();
+
+    const headers = email?.headers || event?.headers;
+
+    const messageId = email?.message_id || event?.message_id || null;
+
     const rawContent = JSON.stringify({
-      resend_email_id: req.body.id || req.body.message_id || null,
+      resend_email_id: emailId,
       subject,
       body: html || text || '',
       from: fromEmail,
       to,
       attachments: attachmentsData,
-      created_at: req.body.created_at || new Date().toISOString(),
-      headers: req.body.headers,
-      message_id: req.body.message_id,
+      created_at: createdAt,
+      headers,
+      message_id: messageId,
     });
 
     const item = await ItemModel.create({
