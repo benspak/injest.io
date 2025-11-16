@@ -471,6 +471,7 @@ router.post('/execute', async (req: AuthRequest, res: express.Response) => {
                   mimetype: attachment.mimetype,
                 }))
               : undefined,
+          fromEmail: req.user.email,
         });
 
         if (contact) {

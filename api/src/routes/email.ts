@@ -263,7 +263,29 @@ router.post('/inbound', async (req: express.Request, res: express.Response) => {
   }
 });
 
-// Get list of received emails from Resend
+// Simple helper to decide if a sender should be treated as a system/non-user sender
+function isSystemSender(email: string): boolean {
+  const lower = email.trim().toLowerCase();
+
+  // Filter obvious Resend system domains
+  const systemDomains = ['resend.dev', 'resend.com', 'resend.net', 'email.resend.com'];
+  const domain = lower.split('@')[1] || '';
+  if (systemDomains.includes(domain)) {
+    return true;
+  }
+
+  // Filter our own system-level addresses like noreply@injest.io
+  if (domain === (process.env.INBOUND_EMAIL_DOMAIN || 'injest.io').toLowerCase()) {
+    const local = lower.split('@')[0] || '';
+    if (local === 'noreply') {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Get list of received emails for the authenticated user
 router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Response) => {
   try {
     if (!req.user) {
@@ -271,46 +293,18 @@ router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Re
     }
 
     const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-    const after = req.query.after as string | undefined;
-    const before = req.query.before as string | undefined;
 
-    // Always fetch from Resend to sync any new emails (with reasonable limit)
-    const syncLimit = limit || 50; // Sync up to 50 emails at a time
-    const response = await emailService.listReceivedEmails(syncLimit, after, before);
+    // Inbox should be driven from our own stored email items, not Resend's outbound/system traffic.
+    const allDbItems = await ItemModel.findByOwnerAndType(
+      req.user.id,
+      'email',
+      limit || 100,
+      0
+    );
 
-    // Filter emails to only show those sent FROM the authenticated user's email
-    const userEmail = req.user.email.toLowerCase();
-    const filteredEmails = (response.data || []).filter((email: any) => {
-      // Extract email address from "from" field - can be "Name <email>" or just "email"
-      let fromEmail = email.from;
-      if (fromEmail.includes('<')) {
-        fromEmail = fromEmail.match(/<(.+)>/)?.[1] || fromEmail;
-      }
-      const normalizedFromEmail = fromEmail.toLowerCase().trim();
-
-      // Only show emails sent FROM the authenticated user
-      return normalizedFromEmail === userEmail;
-    });
-
-    // Save each email to database and index them (if not already saved)
-    for (const email of filteredEmails) {
-      // Check if email already exists in database (including deleted items)
-      const existingItem = await ItemModel.findByResendEmailId(email.id);
-      if (!existingItem) {
-        // Save new email to database (indexing happens automatically)
-        await saveEmailFromResend(email, req.user.id);
-      } else if (existingItem.deleted_at) {
-        // Email was previously deleted - don't re-index it, just skip
-        console.log(`Skipping previously deleted email: ${email.id}`);
-      }
-      // If item exists and is not deleted, it's already in the database, so skip
-    }
-
-    // Get all emails from database (including newly saved ones)
-    const allDbItems = await ItemModel.findByOwnerAndType(req.user.id, 'email', limit || 100, 0);
-
-    // Convert all DB items to Resend-like format
-    const allEmailItems = allDbItems.map((item) => {
+    // Convert DB items to Resend-like format and filter out system/outbound emails
+    const allEmailItems = allDbItems
+      .map((item) => {
       let rawData: any = {};
       try {
         rawData = item.raw ? JSON.parse(item.raw) : {};
@@ -318,7 +312,7 @@ router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Re
         // If raw is not JSON, use defaults
       }
 
-      // Extract email addresses from source field
+      // Extract email address from source field
       const sourceMatch = item.source?.match(/email:(.+)/);
       const fromEmail = sourceMatch ? sourceMatch[1] : '';
 
@@ -334,7 +328,15 @@ router.get('/received', authMiddleware, async (req: AuthRequest, res: express.Re
         headers: rawData.headers,
         message_id: rawData.message_id,
       };
-    });
+    })
+      // Exclude obvious system/generic senders and outbound-only records
+      .filter((email) => {
+        if (!email.from) return false;
+        if (isSystemSender(email.from)) return false;
+        // Exclude items that we know are outbound send workflow records
+        if (email.headers?.source === 'send_workflow:outbound') return false;
+        return true;
+      });
 
     // Sort by created_at descending (most recent first)
     allEmailItems.sort((a, b) => {

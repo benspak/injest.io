@@ -9,6 +9,18 @@ export class EmailService {
     constructor() {
         this.resend = new Resend(process.env.RESEND_API_KEY);
     }
+    /**
+     * Helper to build a friendly From header while keeping reply routing simple.
+     * If a senderName is provided, we use "Name <email>", otherwise just the email.
+     */
+    buildFromAddress(email, senderName) {
+        const trimmedEmail = email.trim();
+        const safeName = senderName?.trim();
+        if (!safeName) {
+            return trimmedEmail;
+        }
+        return `${safeName} <${trimmedEmail}>`;
+    }
     async sendMagicLink(email, magicLink) {
         await this.resend.emails.send({
             from: 'Injest <noreply@injest.io>',
@@ -87,7 +99,7 @@ export class EmailService {
         });
     }
     async sendItemShareEmail(params) {
-        const { to, item, shareUrl, senderEmail } = params;
+        const { to, item, shareUrl, senderEmail, senderName } = params;
         const escapeHtml = (value) => value
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -209,7 +221,12 @@ export class EmailService {
         }
         textSections.push(`View item: ${shareUrl}`);
         const text = textSections.join('\n\n');
-        const fromAddress = process.env.ITEM_SHARE_FROM_EMAIL || 'Injest <noreply@injest.io>';
+        // Prefer sending from the user's injest.io address when available so replies go back to them.
+        // Fall back to the configured share-from address or noreply for safety.
+        const defaultFrom = process.env.ITEM_SHARE_FROM_EMAIL || 'Injest <noreply@injest.io>';
+        const fromAddress = senderEmail && senderEmail.trim().length > 0
+            ? this.buildFromAddress(senderEmail, senderName ?? null)
+            : defaultFrom;
         await this.resend.emails.send({
             from: fromAddress,
             to,
@@ -227,7 +244,12 @@ export class EmailService {
         if (!subject || !subject.trim()) {
             throw new Error('Subject is required to send composed email');
         }
-        const fromAddress = fromEmail || process.env.OUTBOUND_SEND_EMAIL || 'Injest <noreply@injest.io>';
+        // Use the caller-provided fromEmail when available so replies go back to the user.
+        // Fall back to the configured outbound sender or noreply for system-driven messages.
+        const defaultFrom = process.env.OUTBOUND_SEND_EMAIL || 'Injest <noreply@injest.io>';
+        const fromAddress = fromEmail && fromEmail.trim().length > 0
+            ? this.buildFromAddress(fromEmail, undefined)
+            : defaultFrom;
         const emailSignature = '-- Email generated via Injest.io --';
         const emailSignatureHtml = '<p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">-- Email generated via Injest.io --</p>';
         let htmlContent = bodyHtml ??

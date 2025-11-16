@@ -32,6 +32,11 @@ export interface ReceivedEmailListResponse {
 export declare class EmailService {
     private resend;
     constructor();
+    /**
+     * Helper to build a friendly From header while keeping reply routing simple.
+     * If a senderName is provided, we use "Name <email>", otherwise just the email.
+     */
+    private buildFromAddress;
     sendMagicLink(email: string, magicLink: string): Promise<void>;
     sendApprovalEmail(email: string): Promise<void>;
     sendFeedbackEmail(params: {
@@ -50,6 +55,7 @@ export declare class EmailService {
         item: Item;
         shareUrl: string;
         senderEmail?: string;
+        senderName?: string | null;
     }): Promise<void>;
     sendComposedEmail(params: {
         to: string;

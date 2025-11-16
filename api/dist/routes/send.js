@@ -384,6 +384,7 @@ router.post('/execute', async (req, res) => {
                             mimetype: attachment.mimetype,
                         }))
                         : undefined,
+                    fromEmail: req.user.email,
                 });
                 if (contact) {
                     await ContactModel.update(req.user.id, contact.id, {
