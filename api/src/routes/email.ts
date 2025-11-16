@@ -35,7 +35,7 @@ function parseEmailAddress(address: string): { localPart: string; domain: string
   return { localPart, domain };
 }
 
-// Helper function to resolve the owning user for an inbound address like username@injest.io
+// Helper function to resolve the owning user for an inbound address like handle@injest.io
 async function resolveInboundUserForAddress(address: string): Promise<User | null> {
   const parsed = parseEmailAddress(address);
   if (!parsed) {
@@ -50,13 +50,19 @@ async function resolveInboundUserForAddress(address: string): Promise<User | nul
     return null;
   }
 
-  // 1) Prefer mapping local-part to public_username
+  // 1) Prefer explicit inbound handle mapping
+  const byHandle = await UserModel.findByInboundHandle(localPart);
+  if (byHandle) {
+    return byHandle;
+  }
+
+  // 2) Fallback: public_username for backwards compatibility
   const byUsername = await UserModel.findByPublicUsername(localPart);
   if (byUsername) {
     return byUsername;
   }
 
-  // 2) Fallback: if the full address matches a user's login email
+  // 3) Fallback: if the full address matches a user's login email
   const fullAddress = `${localPart}@${domain}`;
   const byEmail = await UserModel.findByEmail(fullAddress);
   if (byEmail) {

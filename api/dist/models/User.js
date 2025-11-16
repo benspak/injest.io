@@ -137,6 +137,10 @@ export class UserModel {
             fields.push(`linkedin_url = $${paramCount++}`);
             values.push(updates.linkedin_url);
         }
+        if (updates.inbound_email_handle !== undefined) {
+            fields.push(`inbound_email_handle = $${paramCount++}`);
+            values.push(updates.inbound_email_handle);
+        }
         if (updates.profile_private !== undefined) {
             fields.push(`profile_private = $${paramCount++}`);
             values.push(updates.profile_private);
@@ -201,6 +205,10 @@ export class UserModel {
     static async findByPublicUsername(username) {
         // Case-insensitive username lookup
         const result = await pool.query('SELECT * FROM users WHERE LOWER(public_username) = LOWER($1) AND public_username IS NOT NULL', [username]);
+        return result.rows[0] || null;
+    }
+    static async findByInboundHandle(handle) {
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(inbound_email_handle) = LOWER($1) AND inbound_email_handle IS NOT NULL', [handle]);
         return result.rows[0] || null;
     }
     static async isProfilePrivate(userId) {

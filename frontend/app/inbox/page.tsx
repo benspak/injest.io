@@ -651,10 +651,12 @@ export default function InboxPage() {
   }
 
   const currentUser = auth.getUser();
-  const inboxAddress =
-    currentUser?.public_username
-      ? `${currentUser.public_username}@injest.io`
-      : currentUser?.email ?? '';
+  const inboxLocalPart =
+    currentUser?.inbound_email_handle ||
+    currentUser?.public_username ||
+    currentUser?.email?.split('@')[0] ||
+    '';
+  const inboxAddress = inboxLocalPart ? `${inboxLocalPart}@injest.io` : '';
   const filtersApplied = Boolean(sourceFilter || fileTypeFilter);
   const filteredCountDisplay = filteredIndexedCount ?? '—';
 

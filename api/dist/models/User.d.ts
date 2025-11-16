@@ -31,6 +31,7 @@ export interface User {
     github_url?: string | null;
     linkedin_url?: string | null;
     profile_private?: boolean;
+    inbound_email_handle?: string | null;
     created_at: Date;
     updated_at: Date;
 }
@@ -49,6 +50,7 @@ export declare class UserModel {
     static disableTwoFactor(userId: string): Promise<User>;
     static updateRecoveryCodes(userId: string, recoveryCodes: string[] | null): Promise<User>;
     static findByPublicUsername(username: string): Promise<User | null>;
+    static findByInboundHandle(handle: string): Promise<User | null>;
     static isProfilePrivate(userId: string): Promise<boolean>;
     static updateProfile(userId: string, profileData: Partial<User>): Promise<User>;
 }

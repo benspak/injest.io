@@ -199,6 +199,7 @@ export interface User {
   github_url?: string | null;
   linkedin_url?: string | null;
   profile_private?: boolean;
+  inbound_email_handle?: string | null;
 }
 
 export interface PublicProfile {

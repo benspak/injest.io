@@ -33,6 +33,7 @@ export interface User {
   github_url?: string | null;
   linkedin_url?: string | null;
   profile_private?: boolean;
+  inbound_email_handle?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -192,6 +193,10 @@ export class UserModel {
       fields.push(`linkedin_url = $${paramCount++}`);
       values.push(updates.linkedin_url);
     }
+    if (updates.inbound_email_handle !== undefined) {
+      fields.push(`inbound_email_handle = $${paramCount++}`);
+      values.push(updates.inbound_email_handle);
+    }
     if (updates.profile_private !== undefined) {
       fields.push(`profile_private = $${paramCount++}`);
       values.push(updates.profile_private);
@@ -274,6 +279,14 @@ export class UserModel {
     const result = await pool.query(
       'SELECT * FROM users WHERE LOWER(public_username) = LOWER($1) AND public_username IS NOT NULL',
       [username]
+    );
+    return result.rows[0] || null;
+  }
+
+  static async findByInboundHandle(handle: string): Promise<User | null> {
+    const result = await pool.query(
+      'SELECT * FROM users WHERE LOWER(inbound_email_handle) = LOWER($1) AND inbound_email_handle IS NOT NULL',
+      [handle]
     );
     return result.rows[0] || null;
   }

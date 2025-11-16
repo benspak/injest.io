@@ -28,6 +28,7 @@ function buildUserResponse(user) {
         two_factor_confirmed_at: user.two_factor_confirmed_at || null,
         public_username: user.public_username || null,
         profile_private: user.profile_private || false,
+        inbound_email_handle: user.inbound_email_handle || null,
     };
 }
 // Send magic link
@@ -139,6 +140,45 @@ router.get('/2fa', authMiddleware, async (req, res) => {
     catch (error) {
         console.error('Error fetching 2FA status:', error);
         res.status(500).json({ error: 'Failed to fetch 2FA status' });
+    }
+});
+// Update inbound email handle
+router.put('/inbound-handle', authMiddleware, async (req, res) => {
+    try {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+        const { handle } = req.body;
+        if (handle !== null && handle !== undefined) {
+            const trimmed = handle.trim().toLowerCase();
+            if (trimmed.length === 0) {
+                return res.status(400).json({ error: 'Handle cannot be empty' });
+            }
+            // Allow letters, numbers, dots, dashes, and underscores
+            if (!/^[a-z0-9._-]+$/.test(trimmed)) {
+                return res.status(400).json({
+                    error: 'Handle can only contain letters, numbers, dots, dashes, and underscores',
+                });
+            }
+            // Reserve common system/local parts
+            const reserved = new Set(['noreply', 'no-reply', 'admin', 'support', 'info', 'postmaster']);
+            if (reserved.has(trimmed)) {
+                return res.status(400).json({ error: 'This handle is reserved. Please choose another.' });
+            }
+            // Ensure uniqueness by checking if any other user already has this handle
+            const existing = await UserModel.findByInboundHandle(trimmed);
+            if (existing && existing.id !== req.user.id) {
+                return res.status(409).json({ error: 'This handle is already taken. Please choose another.' });
+            }
+        }
+        const user = await UserModel.update(req.user.id, {
+            inbound_email_handle: handle ? handle.trim().toLowerCase() : null,
+        });
+        res.json({ user: buildUserResponse(user) });
+    }
+    catch (error) {
+        console.error('Error updating inbound handle:', error);
+        res.status(500).json({ error: 'Failed to update inbound email handle' });
     }
 });
 router.post('/2fa/setup', authMiddleware, async (req, res) => {
