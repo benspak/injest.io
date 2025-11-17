@@ -288,7 +288,7 @@ export function SubscriptionPaymentDialog({
                   onClick={() => handlePlanSelect(tier)}
                   className={`w-full rounded-lg border p-4 text-left transition ${
                     selected
-                      ? 'border-blue-500 bg-blue-50 shadow-sm'
+                      ? 'border-blue-500 bg-blue-50 shadow-xs'
                       : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                   }`}
                 >

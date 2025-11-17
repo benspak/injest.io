@@ -32,6 +32,9 @@ export interface User {
     linkedin_url?: string | null;
     profile_private?: boolean;
     inbound_email_handle?: string | null;
+    password_hash?: string | null;
+    recovery_email?: string | null;
+    date_of_birth?: Date | null;
     created_at: Date;
     updated_at: Date;
 }
@@ -39,6 +42,22 @@ export declare class UserModel {
     static findByEmail(email: string): Promise<User | null>;
     static findById(id: string): Promise<User | null>;
     static create(email: string): Promise<User>;
+    static createWithPassword(email: string, passwordHash: string, recoveryEmail: string, profileData: {
+        public_username: string;
+        first_name: string;
+        last_name: string;
+        date_of_birth?: Date | null;
+        headline?: string;
+        bio?: string;
+        company?: string;
+        project_title?: string;
+        project_description?: string;
+        zip_code?: string;
+        x_profile_url?: string;
+        youtube_url?: string;
+        github_url?: string;
+        linkedin_url?: string;
+    }): Promise<User>;
     static verifyEmail(id: string): Promise<User>;
     static update(id: string, updates: Partial<User>): Promise<User>;
     static setApiKey(userId: string, apiKeyHash: string): Promise<User>;
@@ -51,6 +70,8 @@ export declare class UserModel {
     static updateRecoveryCodes(userId: string, recoveryCodes: string[] | null): Promise<User>;
     static findByPublicUsername(username: string): Promise<User | null>;
     static findByInboundHandle(handle: string): Promise<User | null>;
+    static findByUsernameOrEmail(usernameOrEmail: string): Promise<User | null>;
+    static setPassword(userId: string, passwordHash: string): Promise<User>;
     static isProfilePrivate(userId: string): Promise<boolean>;
     static updateProfile(userId: string, profileData: Partial<User>): Promise<User>;
 }

@@ -71,7 +71,7 @@ export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         aria-haspopup="menu"
         aria-expanded={open}
       >

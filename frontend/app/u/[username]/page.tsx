@@ -317,8 +317,8 @@ function PublicProfilePageContent() {
           <Card className="border-2 border-blue-200 bg-blue-50/30">
             <CardContent className="pt-8 pb-8 px-6">
               <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shadow-sm">
+                <div className="shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center shadow-xs">
                     <svg
                       className="w-6 h-6 text-blue-600"
                       fill="none"
@@ -348,8 +348,8 @@ function PublicProfilePageContent() {
           <Card className="border-2 border-purple-200 bg-purple-50/30">
             <CardContent className="pt-8 pb-8 px-6">
               <div className="flex items-start gap-6">
-                <div className="flex-shrink-0">
-                  <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center shadow-sm">
+                <div className="shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center shadow-xs">
                     <svg
                       className="w-6 h-6 text-purple-600"
                       fill="none"
@@ -503,7 +503,7 @@ function PublicProfilePageContent() {
                       <div className="flex items-start gap-3">
                         {/* Left side - image preview */}
                         {previewImage && (
-                          <div className="flex-shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
+                          <div className="shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
                             <img
                               src={previewImage}
                               alt={previewImageAlt}

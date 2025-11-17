@@ -19,6 +19,8 @@ export default function Home() {
         "Advanced search filters",
         "Email forwarding & automation",
         "Collections & organization",
+        "API keys",
+        "Public profiles & sharing",
       ],
     },
     {
@@ -31,9 +33,8 @@ export default function Home() {
       features: [
         "Everything in Free",
         "Unlimited storage & automation",
-        "Priority tagging & API keys",
+        "Priority tagging",
         "Priority support",
-        "Public profiles & sharing",
       ],
     },
     {
@@ -54,58 +55,60 @@ export default function Home() {
   const interfaceScreens = [
     {
       src: "/inbox-screenshot.png",
-      title: "Unified AI inbox",
-      description: "Watch new captures land in the inbox with instant OCR, tagging, and enrichment.",
+      title: "Your inbox",
+      description: "View all your stored emails and files in one place.",
     },
     {
       src: "/contacts-screenshot.png",
-      title: "Relationship aware contacts",
-      description: "Every file, email, and note rolls up under the right contact with AI summaries.",
+      title: "Contacts",
+      description: "Organize your emails and files by contact.",
     },
     {
       src: "/imports-screenshot.png",
-      title: "One-click imports",
-      description: "Bring in bookmarks, uploads, and forwarded threads without breaking your flow.",
+      title: "Upload files",
+      description: "Upload files directly or import from other sources.",
     },
     {
       src: "/send-screenshot.png",
-      title: "Send from context",
-      description: "Draft follow-ups with attachments already linked back to the source item.",
+      title: "Send emails",
+      description: "Send emails with attachments from your stored files.",
     },
     {
       src: "/email-summary-screenshot.png",
-      title: "AI email recaps",
-      description: "Let Injest condense multi-step conversations into summaries you can act on.",
+      title: "Email summaries",
+      description: "View summaries of your stored email conversations.",
     },
     {
       src: "/item-detail-screenshot.png",
-      title: "Deep item detail",
-      description: "Dive into extracted text, metadata, and related actions for every capture.",
+      title: "File details",
+      description: "View details and extracted text from your stored files.",
     },
     {
       src: "/collections-screenshot.png",
       title: "Organize with collections",
-      description: "Group related items into custom collections with colors, icons, and descriptions. Share them publicly or keep them private.",
+      description: "Group related emails and files into collections.",
     },
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
       {/* Hero Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="grid gap-12 lg:grid-cols-2 items-center">
           <div className="text-center lg:text-left">
+            <div className="inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold mb-6">
+              Beta
+            </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-              Your AI Workspace. Searchable. Shareable. Organized.
+              Simple email and file storage
             </h1>
             <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
-              Capture everything, organize with collections, and share your knowledge. AI-powered search
-              that understands context, public profiles to showcase your work, and a personal{' '}
-              <span className="font-mono">username@injest.io</span> inbox for forwarding email into your workspace.
+              Store your emails and files in one place. Forward emails to your personal{' '}
+              <span className="font-mono">username@injest.io</span> address or upload files directly. Everything is searchable and organized.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button asChild size="lg" className="text-lg px-8 py-6">
-                <Link href="/login">Start Free</Link>
+                <Link href="/login">Get Started</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6">
                 <Link href="/inbox">Explore the Inbox</Link>
@@ -113,8 +116,8 @@ export default function Home() {
             </div>
           </div>
           <div className="relative">
-            <div className="absolute inset-0 rounded-[40px] bg-gradient-to-r from-blue-200 via-indigo-200 to-purple-200 blur-3xl opacity-70" />
-            <div className="relative rounded-[32px] border border-white/60 shadow-2xl overflow-hidden bg-white/80 backdrop-blur">
+            <div className="absolute inset-0 rounded-[40px] bg-linear-to-r from-blue-200 via-indigo-200 to-purple-200 blur-3xl opacity-70" />
+            <div className="relative rounded-[32px] border border-white/60 shadow-2xl overflow-hidden bg-white/80 backdrop-blur-sm">
               <Image
                 src="/dashboard-screenshot.png"
                 alt="Injest dashboard with unified workspace overview"
@@ -132,14 +135,11 @@ export default function Home() {
       {/* Product Screens Section */}
       <section className="container mx-auto px-4 sm:px-6 pb-10 max-w-7xl">
         <div className="max-w-3xl mx-auto text-center mb-12">
-          <p className="text-sm font-semibold tracking-wide uppercase text-blue-600">
-            See the workspace in action
-          </p>
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mt-3 mb-4">
-            Purpose-built surfaces for every capture
+            See how it works
           </h2>
           <p className="text-lg text-gray-600">
-            Real screenshots from Injest that show how emails, contacts, and knowledge stay in lockstep.
+            Store and organize your emails and files in one simple place.
           </p>
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
@@ -157,7 +157,7 @@ export default function Home() {
                   className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-[1.02]"
                   sizes="(max-width: 1024px) 100vw, 48vw"
                 />
-                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-white to-transparent pointer-events-none" />
               </div>
               <div className="p-8 space-y-3">
                 <h3 className="text-2xl font-semibold text-gray-900">{screen.title}</h3>
@@ -168,226 +168,43 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Value Proposition Section */}
-      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
-            Everything you capture, instantly searchable
-          </h2>
-          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed">
-            Capture images, documents, emails, and links — they all flow into your AI workspace. Search by meaning, not just keywords. Find what you need the moment you need it, powered by AI that understands context and content.
-          </p>
-        </div>
-      </section>
-
-      {/* AI Workspace Features Section */}
+      {/* Simple Features Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-            Your AI workspace, powered by intelligent search
+            Simple and organized
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-            Everything you capture becomes part of your searchable workspace. AI extracts text, understands context, and organizes content so you can find anything instantly.
+            Store your emails and files, then find them quickly with search.
           </p>
           <div className="grid md:grid-cols-3 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>AI-powered search</CardTitle>
+                <CardTitle>Search everything</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Search by meaning, not just keywords. Find content even when you don't remember exact words.
+                  Find your emails and files quickly with powerful search.
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Instant text extraction</CardTitle>
+                <CardTitle>Text extraction</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  AI reads text from images, PDFs, and screenshots automatically — making everything searchable.
+                  Text is automatically extracted from images and PDFs, making everything searchable.
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Smart organization</CardTitle>
+                <CardTitle>Stay organized</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  AI tags, categorizes, and structures your content so it's always ready when you need it.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Collections & Sharing Section */}
-      <section className="bg-white py-20">
-        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-              Organize and Share Your Knowledge
-            </h2>
-            <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-              Create collections to organize your items, share them publicly, and discover what others are working on.
-            </p>
-            <div className="grid md:grid-cols-2 gap-8">
-              <Card className="border-2 border-blue-200 bg-blue-50/30">
-                <CardHeader>
-                  <CardTitle className="text-xl">Collections</CardTitle>
-                  <CardDescription className="text-base">
-                    Organize your items into custom collections
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">
-                    Group related items together with custom collections. Add titles, descriptions, colors, and icons to make your workspace truly yours. Create collections from search results or filtered items with one click.
-                  </p>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Create unlimited collections with custom names and descriptions</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Add items to multiple collections for flexible organization</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Quickly create collections from filtered search results</span>
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-              <Card className="border-2 border-purple-200 bg-purple-50/30">
-                <CardHeader>
-                  <CardTitle className="text-xl">Public Sharing</CardTitle>
-                  <CardDescription className="text-base">
-                    Share your work with the world
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600 mb-4">
-                    Showcase your collections and items on your public profile. Generate shareable links for collections or post items to your profile. Connect with others and discover what they're working on.
-                  </p>
-                  <ul className="space-y-2 text-sm text-gray-600">
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Create public profiles to showcase your work</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Share collections via unique links — no account required</span>
-                    </li>
-                    <li className="flex items-start">
-                      <span className="mr-2">•</span>
-                      <span>Post items and collections to your public profile</span>
-                    </li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Profile Privacy & Social Features Section */}
-      <section className="bg-white py-20">
-        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-              Privacy First, Sharing Optional
-            </h2>
-            <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-              Your privacy is our priority. All you need is an email address to get started, and your profile is private by default. Choose what to share and when.
-            </p>
-            <div className="grid md:grid-cols-2 gap-8">
-              <Card className="border-2 border-gray-200">
-                <CardHeader>
-                  <CardTitle className="text-xl">Private by Default</CardTitle>
-                  <CardDescription className="text-base">
-                    Your profile stays private unless you choose to make it public
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    All you need is an email address to create an account. Your profile information remains private by default, giving you full control over your visibility. Share only what you want, when you want.
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className="border-2 border-blue-200 bg-blue-50/30">
-                <CardHeader>
-                  <CardTitle className="text-xl">Public Profiles & Sharing</CardTitle>
-                  <CardDescription className="text-base">
-                    Showcase your work and connect with others
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Create a public profile to showcase your collections and posted items. Share collections via unique links that anyone can access. Discover what others are working on and enrich your contacts with public profile information.
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
-            <div className="mt-8 p-6 rounded-2xl bg-gray-50 border border-gray-200">
-              <p className="text-center text-gray-700">
-                <span className="font-semibold">How it works:</span> When you create a contact, Injest automatically matches it to public user profiles based on name. If a match is found, your contact is enriched with social media links (LinkedIn, X.com, GitHub) and a link to their public profile — all while respecting privacy settings. You can also share individual collections via unique links or post them to your public profile.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Action Section */}
-      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-            Act on what you find
-          </h2>
-          <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-            Injest isn't just storage — it's where actions happen.
-          </p>
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Organize with collections</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Group related items into custom collections. Create collections from search results or filtered items with one click.
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Share publicly or privately</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Share collections via unique links or post them to your public profile. Showcase your work and discover what others are building.
-                </p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Generate send plans or follow-up drafts</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Email contacts with tracked attachments</CardTitle>
-              </CardHeader>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Export your data</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Download your organized information in spreadsheets or structured formats
+                  Keep your emails and files organized and easy to find.
                 </p>
               </CardContent>
             </Card>
@@ -400,45 +217,45 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-4xl mx-auto">
             <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-              Your AI workspace in three steps
+              How it works
             </h2>
             <div className="space-y-8">
               <div className="flex gap-6">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
                   1
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Capture everything
+                    Store your emails and files
                   </h3>
                   <p className="text-gray-600">
-                    Upload files, forward emails, or save links — everything flows into your workspace.
+                    Forward emails to your personal inbox address or upload files directly.
                   </p>
                 </div>
               </div>
               <div className="flex gap-6">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
                   2
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    AI makes it searchable
+                    Everything is searchable
                   </h3>
                   <p className="text-gray-600">
-                    AI extracts text, understands context, and organizes content automatically — making everything instantly searchable.
+                    Text is extracted automatically, so you can search through all your content.
                   </p>
                 </div>
               </div>
               <div className="flex gap-6">
-                <div className="flex-shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
                   3
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Search and find instantly
+                    Find what you need
                   </h3>
                   <p className="text-gray-600">
-                    Search your workspace by meaning, find what you need, and take action — all in one place.
+                    Search and find your emails and files instantly.
                   </p>
                 </div>
               </div>
@@ -447,88 +264,34 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Ingestion Methods Section */}
+      {/* Storage Methods Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-            Capture everything into your workspace
+            Store emails and files
           </h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>File Uploads</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-600">
-                  Upload files up to 25 MB each. AI extracts text automatically, making everything searchable in your workspace.
-                </p>
-              </CardContent>
-            </Card>
+          <div className="grid md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Forwarded Email</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Forward threads to your personal Injest address (for example,{' '}
-                  <span className="font-mono">username@injest.io</span>). Attachments and conversations are preserved,
-                  indexed, and made searchable.
+                  Forward emails to your personal Injest address (for example,{' '}
+                  <span className="font-mono">username@injest.io</span>). Attachments and conversations are preserved and made searchable.
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader>
-                <CardTitle>Bookmarks Extension</CardTitle>
+                <CardTitle>File Uploads</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Save tabs from Chrome with one click. Everything flows into your searchable AI workspace.
+                  Upload files directly. Text is extracted automatically, making everything searchable.
                 </p>
               </CardContent>
             </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Automation Section */}
-      <section className="bg-white py-20">
-        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-              Automation Tools Built In
-            </h2>
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Draft follow-up emails</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Generate email drafts from your saved items
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Send tracked emails</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Email contacts directly with tracked attachments
-                  </p>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Share and export</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-600">
-                    Share items with others or export your collections
-                  </p>
-                </CardContent>
-              </Card>
-            </div>
           </div>
         </div>
       </section>
@@ -538,71 +301,13 @@ export default function Home() {
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-6xl mx-auto">
             <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-              Pricing That Scales With Your Library
+              Pricing
             </h2>
             <HomepagePricingPlans plans={pricingPlans} />
           </div>
         </div>
       </section>
 
-      {/* Advantage Section */}
-      <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
-        <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-            The Injest Advantage
-          </h2>
-          <div className="space-y-8">
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  You're drowning in screenshots and files.
-                </h3>
-              </div>
-              <div className="flex-1">
-                <p className="text-gray-600 text-lg">
-                  Injest captures and organizes them automatically.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  You can't remember where that one quote, receipt, or contact was.
-                </h3>
-              </div>
-              <div className="flex-1">
-                <p className="text-gray-600 text-lg">
-                  Injest makes it searchable by text, label, or date.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  You're switching between tools to take action.
-                </h3>
-              </div>
-              <div className="flex-1">
-                <p className="text-gray-600 text-lg">
-                  Injest keeps search, sharing, and sending in one place.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col md:flex-row gap-6 items-start">
-              <div className="flex-1">
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                  You waste time switching between apps.
-                </h3>
-              </div>
-              <div className="flex-1">
-                <p className="text-gray-600 text-lg">
-                  Injest keeps everything in one place — search, organize, share, and take action without leaving your workspace.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
       {/* Founder Section */}
       <section className="bg-white py-20">
@@ -648,7 +353,7 @@ export default function Home() {
             </div>
             <div className="order-1 lg:order-2 flex justify-center">
               <div className="w-full max-w-sm">
-                <div className="relative rounded-3xl bg-gradient-to-br from-blue-600 via-indigo-500 to-purple-500 p-1 shadow-xl">
+                <div className="relative rounded-3xl bg-linear-to-br from-blue-600 via-indigo-500 to-purple-500 p-1 shadow-xl">
                   <div className="rounded-3xl bg-white p-8 h-full flex flex-col items-center text-center gap-4">
                     <div className="w-32 h-32 rounded-full overflow-hidden">
                       <Image
@@ -687,18 +392,18 @@ export default function Home() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="bg-gradient-to-r from-blue-600 to-indigo-600 py-20">
+      <section className="bg-linear-to-r from-blue-600 to-indigo-600 py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-3xl mx-auto text-center text-white">
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-              Start building your AI workspace today
+              Get started today
             </h2>
             <p className="text-xl mb-10 text-blue-100">
-              Capture everything, organize with collections, and share your knowledge. Join knowledge workers, researchers, and teams who use Injest to search, organize, and share what matters most.
+              Start storing your emails and files in one simple, searchable place.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
-                <Link href="/login">Start Free</Link>
+                <Link href="/login">Get Started</Link>
               </Button>
               <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6 bg-transparent border-white text-white hover:bg-white hover:text-blue-600">
                 <Link href="/inbox">Explore the Inbox</Link>

@@ -824,7 +824,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
               >
                 <div className="flex items-start gap-3">
                   {bulkMode && (
-                    <div className="flex-shrink-0 pt-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="shrink-0 pt-1" onClick={(e) => e.stopPropagation()}>
                       {canAddToCollection ? (
                         <Checkbox
                           checked={isSelected}
@@ -839,7 +839,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                   )}
                   {/* Left side - image preview */}
                   {previewImage && (
-                    <div className="flex-shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
+                    <div className="shrink-0 w-32 h-32 rounded-md overflow-hidden bg-gray-100 border border-gray-200">
                       <img
                         src={previewImage}
                         alt={previewImageAlt}
@@ -870,7 +870,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                           event.stopPropagation();
                           openShareDialog(item, itemMetadata?.title);
                         }}
-                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                         title="Share item"
                         aria-label="Share item"
                       >
@@ -950,14 +950,14 @@ export function ItemList({ items, onDelete }: ItemListProps) {
         <DialogContent className="max-w-2xl max-h-[90vh] sm:max-h-[80vh] overflow-y-auto overflow-x-hidden w-[calc(100vw-2rem)] sm:w-full max-w-[calc(100vw-2rem)] sm:max-w-2xl left-4 right-4 sm:left-[50%] sm:right-auto translate-x-0 sm:translate-x-[-50%] top-4 sm:top-[50%] translate-y-0 sm:translate-y-[-50%] p-4 sm:p-6">
           <DialogHeader>
             <div className="overflow-hidden">
-              <DialogTitle className="pr-8 break-words">
+              <DialogTitle className="pr-8 wrap-break-word">
                 {loadingDetails
                   ? 'Loading...'
                   : selectedItem && itemDetails
                     ? getItemDisplay(itemDetails).title || itemDetails.title || 'Item Details'
                     : 'Item Details'}
               </DialogTitle>
-              <DialogDescription className="break-words">
+              <DialogDescription className="wrap-break-word">
                 {loadingDetails
                   ? 'Please wait while we load the item details.'
                   : selectedItem && itemDetails
@@ -974,7 +974,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
               <div className="space-y-4 mt-4 overflow-x-hidden">
                 {/* Show URL metadata in dialog if available */}
                 {itemDetails.url && (itemDetails.link_metadata || linkMetadata[itemDetails.id]) && (
-                  <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                  <div className="border rounded-lg overflow-hidden bg-white shadow-xs">
                     {(() => {
                       const metadata = itemDetails.link_metadata || linkMetadata[itemDetails.id];
                       const display = getItemDisplay(itemDetails);
@@ -1016,10 +1016,10 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                               href={metadata?.url || itemDetails.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline break-words overflow-wrap-anywhere flex items-center gap-2 group"
+                              className="text-sm text-blue-600 hover:underline wrap-break-word overflow-wrap-anywhere flex items-center gap-2 group"
                             >
                               <svg
-                                className="w-4 h-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform"
+                                className="w-4 h-4 shrink-0 group-hover:translate-x-0.5 transition-transform"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"
@@ -1336,7 +1336,7 @@ export function ItemList({ items, onDelete }: ItemListProps) {
                           href={itemDetails.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline break-words overflow-wrap-anywhere"
+                          className="text-sm text-blue-600 hover:underline wrap-break-word overflow-wrap-anywhere"
                         >
                           {itemDetails.url}
                         </a>

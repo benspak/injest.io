@@ -4,12 +4,12 @@ import { Card, CardContent } from '@/components/ui/card';
 
 export const metadata = {
   title: 'Terms of Service - Injest.io',
-  description: 'Terms of Service for Injest.io - Knowledge Recall System',
+  description: 'Terms of Service for Injest.io - Email and File Sharing Service',
 };
 
 export default function TermsOfServicePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
         <div className="mb-8">
           <Link href="/">
@@ -40,15 +40,20 @@ export default function TermsOfServicePage() {
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">2. Description of Service</h2>
               <p className="mb-4">
-                Injest.io is a knowledge recall system that enables users to:
+                Injest.io is an email and file sharing service that enables users to:
               </p>
               <ul className="list-disc list-inside space-y-2 mb-4">
+                <li>Send and receive emails through personalized @injest.io email addresses</li>
+                <li>Upload, store, and share files securely</li>
                 <li>Capture and store content, including links, bookmarks, emails, and files</li>
                 <li>Enrich content with metadata and AI-generated summaries</li>
                 <li>Search and organize information using AI-powered semantic search</li>
                 <li>Import bookmarks</li>
                 <li>Access premium features through subscription plans</li>
               </ul>
+              <p className="mb-4">
+                We do not sell your personal information, nor do we use it for marketing purposes.
+              </p>
               <p>
                 We reserve the right to modify, suspend, or discontinue any part of the Service at any time, with or without notice.
               </p>
@@ -63,9 +68,9 @@ export default function TermsOfServicePage() {
 
               <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-6">3.2 Account Responsibilities</h3>
               <ul className="list-disc list-inside space-y-2 mb-4">
-                <li>You must be at least 18 years old to create an account</li>
+                <li>You must be at least 18 years old to create an account. By creating an account, you represent and warrant that you are 18 years of age or older</li>
                 <li>You are responsible for all activities that occur under your account</li>
-                <li>You must provide accurate, current, and complete information</li>
+                <li>You must provide accurate, current, and complete information, including your date of birth</li>
                 <li>You must notify us immediately of any unauthorized use of your account</li>
                 <li>You may not share your account credentials with third parties</li>
               </ul>
@@ -82,6 +87,7 @@ export default function TermsOfServicePage() {
               <ul className="list-disc list-inside space-y-2 mb-4">
                 <li>Violate any applicable laws, regulations, or third-party rights</li>
                 <li>Upload, post, or transmit any content that is illegal, harmful, threatening, abusive, harassing, defamatory, or otherwise objectionable</li>
+                <li>Upload, share, or transmit any adult content or depictions of illegal activities</li>
                 <li>Upload content that infringes on intellectual property rights, including copyrights, trademarks, or patents</li>
                 <li>Transmit viruses, malware, or any other harmful code</li>
                 <li>Attempt to gain unauthorized access to the Service or related systems</li>

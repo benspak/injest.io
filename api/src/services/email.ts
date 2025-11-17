@@ -96,6 +96,51 @@ export class EmailService {
     });
   }
 
+  async sendPasswordResetEmail(to: string, resetLink: string, accountEmail: string): Promise<void> {
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2>Reset Your Password</h2>
+        <p>Hello,</p>
+        <p>We received a request to reset the password for your Injest.io account (${accountEmail}).</p>
+        <p>Click the button below to reset your password:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600;">Reset Password</a>
+        </div>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #6b7280; font-size: 14px;">${resetLink}</p>
+        <p style="color: #6b7280; font-size: 14px;">This link will expire in 1 hour.</p>
+        <p>If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.</p>
+        <p>Best regards,<br>The Injest.io Team</p>
+      </div>
+    `;
+
+    const text = `
+Reset Your Password
+
+Hello,
+
+We received a request to reset the password for your Injest.io account (${accountEmail}).
+
+Click the link below to reset your password:
+${resetLink}
+
+This link will expire in 1 hour.
+
+If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.
+
+Best regards,
+The Injest.io Team
+    `;
+
+    await this.resend.emails.send({
+      from: 'Injest <noreply@injest.io>',
+      to,
+      subject: 'Reset Your Injest.io Password',
+      html,
+      text,
+    });
+  }
+
   async sendFeedbackEmail(params: {
     title: string;
     message: string;

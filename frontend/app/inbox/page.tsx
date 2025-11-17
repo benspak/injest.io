@@ -627,7 +627,7 @@ export default function InboxPage() {
 
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="space-y-6">
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-semibold text-gray-900 sm:text-xl">
                 Your Items
@@ -649,7 +649,7 @@ export default function InboxPage() {
                       id="source-filter"
                       value={sourceFilter}
                       onChange={(e) => setSourceFilter(e.target.value)}
-                      className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">All Sources</option>
                       <option value="web">Web</option>
@@ -665,7 +665,7 @@ export default function InboxPage() {
                       id="file-type-filter"
                       value={fileTypeFilter}
                       onChange={(e) => setFileTypeFilter(e.target.value)}
-                      className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="rounded-md border border-gray-300 px-2 py-1.5 text-xs sm:px-3 sm:py-2 sm:text-sm focus:border-blue-500 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">All Types</option>
                       <option value="image">Image</option>
@@ -702,7 +702,7 @@ export default function InboxPage() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 min-h-[200px]">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs sm:p-6 min-h-[200px]">
             {searchQuery.length >= 2 ? (
               <div className="relative">
                 {searchLoading && (

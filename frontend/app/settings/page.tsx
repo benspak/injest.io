@@ -40,10 +40,6 @@ function SettingsPageContent() {
   const [itemLimit, setItemLimit] = useState<number | null>(null);
   const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const [requestedTier, setRequestedTier] = useState<SubscriptionTier | null>(null);
-  const [xcomConnected, setXcomConnected] = useState(false);
-  const [xcomUsername, setXcomUsername] = useState<string | null>(null);
-  const [xcomLoading, setXcomLoading] = useState(false);
-  const [checkingXcomStatus, setCheckingXcomStatus] = useState(false);
   const [loginSessions, setLoginSessions] = useState<
     Array<{
       id: string;
@@ -180,25 +176,6 @@ function SettingsPageContent() {
     void init();
   }, [router]);
 
-  const loadXcomStatus = useCallback(async () => {
-    if (!authReady) {
-      return;
-    }
-
-    try {
-      setCheckingXcomStatus(true);
-      const status = await apiClient.getXcomStatus();
-      setXcomConnected(status.connected);
-      setXcomUsername(status.username);
-    } catch (error) {
-      console.error('Failed to check X.com status:', error);
-      setXcomConnected(false);
-      setXcomUsername(null);
-    } finally {
-      setCheckingXcomStatus(false);
-    }
-  }, [authReady]);
-
   const loadLoginSessions = useCallback(async () => {
     if (!authReady) {
       return;
@@ -216,33 +193,6 @@ function SettingsPageContent() {
     }
   }, [authReady]);
 
-  const handleConnectXcom = useCallback(async () => {
-    try {
-      setXcomLoading(true);
-      await apiClient.initiateXcomOAuth();
-      // Redirect will happen, so we don't need to do anything else
-    } catch (error) {
-      console.error('Failed to initiate X.com OAuth:', error);
-      toast.error('Failed to connect X.com account. Please try again.');
-      setXcomLoading(false);
-    }
-  }, []);
-
-  const handleDisconnectXcom = useCallback(async () => {
-    try {
-      setXcomLoading(true);
-      await apiClient.disconnectXcom();
-      setXcomConnected(false);
-      setXcomUsername(null);
-      toast.success('X.com account disconnected successfully');
-    } catch (error) {
-      console.error('Failed to disconnect X.com:', error);
-      toast.error('Failed to disconnect X.com account. Please try again.');
-    } finally {
-      setXcomLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (!authReady) {
       return;
@@ -250,9 +200,8 @@ function SettingsPageContent() {
 
     void loadTwoFactorStatus();
     void loadIndexedCount();
-    void loadXcomStatus();
     void loadLoginSessions();
-  }, [authReady, loadIndexedCount, loadTwoFactorStatus, loadXcomStatus, loadLoginSessions]);
+  }, [authReady, loadIndexedCount, loadTwoFactorStatus, loadLoginSessions]);
 
   useEffect(() => {
     if (!authReady) {
@@ -267,19 +216,12 @@ function SettingsPageContent() {
       setSubscriptionDialogOpen(true);
     }
 
-    const xcomConnectedParam = searchParams?.get('xcom_connected');
-    if (xcomConnectedParam === 'true') {
-      toast.success('X.com account connected successfully');
-      void loadXcomStatus();
-    }
-
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.delete('upgrade');
-      url.searchParams.delete('xcom_connected');
       window.history.replaceState(null, '', url.toString());
     }
-  }, [authReady, searchParams, loadXcomStatus]);
+  }, [authReady, searchParams]);
 
   const resetSetupState = () => {
     setTwoFactorSetup(null);
@@ -489,7 +431,7 @@ function SettingsPageContent() {
                         <img
                           src={qrCodeDataUrl}
                           alt="Two-factor authentication QR code"
-                          className="h-40 w-40 rounded-lg border border-gray-200 bg-white p-2 shadow-sm"
+                          className="h-40 w-40 rounded-lg border border-gray-200 bg-white p-2 shadow-xs"
                         />
                       </div>
                     ) : (
@@ -507,7 +449,7 @@ function SettingsPageContent() {
 
                     <div className="space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">OTP URL</p>
-                      <div className="rounded bg-gray-100 px-3 py-2 text-xs text-gray-700 break-words">
+                      <div className="rounded bg-gray-100 px-3 py-2 text-xs text-gray-700 wrap-break-word">
                         {twoFactorSetup.otpauthUrl}
                       </div>
                     </div>
@@ -656,7 +598,7 @@ function SettingsPageContent() {
                           {recoveryCodes.map((code) => (
                             <code
                               key={code}
-                              className="rounded bg-white px-3 py-2 text-sm font-semibold tracking-wide text-blue-900 shadow-sm"
+                              className="rounded bg-white px-3 py-2 text-sm font-semibold tracking-wide text-blue-900 shadow-xs"
                             >
                               {code}
                             </code>
@@ -678,60 +620,6 @@ function SettingsPageContent() {
                       </div>
                     )}
                   </>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>X.com Integration</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {checkingXcomStatus ? (
-              <div className="flex items-center justify-center py-6">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {xcomConnected ? (
-                  <div className="space-y-3">
-                    <div className="space-y-2 text-sm text-gray-600">
-                      <p>
-                        X.com account is currently <span className="font-semibold text-green-600">connected</span>.
-                      </p>
-                      {xcomUsername && (
-                        <p>
-                          Connected as: <span className="font-semibold">@{xcomUsername}</span>
-                        </p>
-                      )}
-                      <p className="text-xs text-gray-500">
-                        You can post to X.com from the Send page when creating content.
-                      </p>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={handleDisconnectXcom}
-                      disabled={xcomLoading}
-                      className="w-full sm:w-auto"
-                    >
-                      {xcomLoading ? 'Disconnecting...' : 'Disconnect X.com'}
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm text-gray-600">
-                      Connect your X.com account to post directly from the Send page.
-                    </p>
-                    <Button
-                      onClick={handleConnectXcom}
-                      disabled={xcomLoading}
-                      className="w-full sm:w-auto"
-                    >
-                      {xcomLoading ? 'Connecting...' : 'Connect X.com Account'}
-                    </Button>
-                  </div>
                 )}
               </div>
             )}

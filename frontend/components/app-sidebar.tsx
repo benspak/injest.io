@@ -192,7 +192,7 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
       {isMobileOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-30 bg-gray-900/50 backdrop-blur-sm transition-opacity lg:hidden"
+          className="fixed inset-0 z-30 bg-gray-900/50 backdrop-blur-xs transition-opacity lg:hidden"
           onClick={() => onMobileToggle(false)}
           aria-label="Close sidebar overlay"
         />
@@ -237,7 +237,7 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
 
       <button
         type="button"
-        className={`fixed bottom-6 right-6 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 lg:hidden ${
+        className={`fixed bottom-6 right-6 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 lg:hidden ${
           isMobileOpen ? 'pointer-events-none opacity-0' : 'opacity-100'
         }`}
         onClick={() => onMobileToggle(true)}

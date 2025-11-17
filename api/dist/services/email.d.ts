@@ -39,6 +39,7 @@ export declare class EmailService {
     private buildFromAddress;
     sendMagicLink(email: string, magicLink: string): Promise<void>;
     sendApprovalEmail(email: string): Promise<void>;
+    sendPasswordResetEmail(to: string, resetLink: string, accountEmail: string): Promise<void>;
     sendFeedbackEmail(params: {
         title: string;
         message: string;

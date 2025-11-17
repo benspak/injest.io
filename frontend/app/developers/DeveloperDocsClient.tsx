@@ -178,7 +178,7 @@ export default function DeveloperDocsClient() {
   }, [isAuthenticated, authLoading, loadApiKeyInfo]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50 overflow-x-hidden">
       <div className="container mx-auto px-4 sm:px-6 py-16 max-w-7xl">
         {/* Developer Docs Section */}
         <div className="max-w-5xl mx-auto">

@@ -13,6 +13,36 @@ export class UserModel {
         const result = await pool.query('INSERT INTO users (email, verified) VALUES ($1, $2) RETURNING *', [email, false]);
         return result.rows[0];
     }
+    static async createWithPassword(email, passwordHash, recoveryEmail, profileData) {
+        const result = await pool.query(`INSERT INTO users (
+        email, verified, password_hash, recovery_email,
+        public_username, inbound_email_handle,
+        first_name, last_name, date_of_birth, headline, bio, company,
+        project_title, project_description, zip_code,
+        x_profile_url, youtube_url, github_url, linkedin_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`, [
+            email,
+            true, // Auto-verify users created with password
+            passwordHash,
+            recoveryEmail,
+            profileData.public_username,
+            profileData.public_username, // inbound_email_handle = public_username
+            profileData.first_name,
+            profileData.last_name,
+            profileData.date_of_birth || null,
+            profileData.headline || null,
+            profileData.bio || null,
+            profileData.company || null,
+            profileData.project_title || null,
+            profileData.project_description || null,
+            profileData.zip_code || null,
+            profileData.x_profile_url || null,
+            profileData.youtube_url || null,
+            profileData.github_url || null,
+            profileData.linkedin_url || null,
+        ]);
+        return result.rows[0];
+    }
     static async verifyEmail(id) {
         const result = await pool.query('UPDATE users SET verified = TRUE WHERE id = $1 RETURNING *', [id]);
         return result.rows[0];
@@ -145,6 +175,18 @@ export class UserModel {
             fields.push(`profile_private = $${paramCount++}`);
             values.push(updates.profile_private);
         }
+        if (updates.password_hash !== undefined) {
+            fields.push(`password_hash = $${paramCount++}`);
+            values.push(updates.password_hash);
+        }
+        if (updates.recovery_email !== undefined) {
+            fields.push(`recovery_email = $${paramCount++}`);
+            values.push(updates.recovery_email);
+        }
+        if (updates.date_of_birth !== undefined) {
+            fields.push(`date_of_birth = $${paramCount++}`);
+            values.push(updates.date_of_birth);
+        }
         if (fields.length === 0) {
             return await this.findById(id);
         }
@@ -210,6 +252,32 @@ export class UserModel {
     static async findByInboundHandle(handle) {
         const result = await pool.query('SELECT * FROM users WHERE LOWER(inbound_email_handle) = LOWER($1) AND inbound_email_handle IS NOT NULL', [handle]);
         return result.rows[0] || null;
+    }
+    static async findByUsernameOrEmail(usernameOrEmail) {
+        // Try username first (case-insensitive)
+        const byUsername = await this.findByPublicUsername(usernameOrEmail);
+        if (byUsername) {
+            return byUsername;
+        }
+        // Try email (case-insensitive)
+        const byEmail = await this.findByEmail(usernameOrEmail);
+        if (byEmail) {
+            return byEmail;
+        }
+        // Try as @injest.io email format
+        if (usernameOrEmail.includes('@injest.io')) {
+            const handle = usernameOrEmail.split('@')[0];
+            const byHandle = await this.findByInboundHandle(handle);
+            if (byHandle) {
+                return byHandle;
+            }
+        }
+        return null;
+    }
+    static async setPassword(userId, passwordHash) {
+        return await this.update(userId, {
+            password_hash: passwordHash,
+        });
     }
     static async isProfilePrivate(userId) {
         const result = await pool.query('SELECT profile_private FROM users WHERE id = $1', [userId]);

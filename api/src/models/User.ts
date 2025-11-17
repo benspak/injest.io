@@ -34,6 +34,9 @@ export interface User {
   linkedin_url?: string | null;
   profile_private?: boolean;
   inbound_email_handle?: string | null;
+  password_hash?: string | null;
+  recovery_email?: string | null;
+  date_of_birth?: Date | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -60,6 +63,60 @@ export class UserModel {
     const result = await pool.query(
       'INSERT INTO users (email, verified) VALUES ($1, $2) RETURNING *',
       [email, false]
+    );
+    return result.rows[0];
+  }
+
+  static async createWithPassword(
+    email: string,
+    passwordHash: string,
+    recoveryEmail: string,
+    profileData: {
+      public_username: string;
+      first_name: string;
+      last_name: string;
+      date_of_birth?: Date | null;
+      headline?: string;
+      bio?: string;
+      company?: string;
+      project_title?: string;
+      project_description?: string;
+      zip_code?: string;
+      x_profile_url?: string;
+      youtube_url?: string;
+      github_url?: string;
+      linkedin_url?: string;
+    }
+  ): Promise<User> {
+    const result = await pool.query(
+      `INSERT INTO users (
+        email, verified, password_hash, recovery_email,
+        public_username, inbound_email_handle,
+        first_name, last_name, date_of_birth, headline, bio, company,
+        project_title, project_description, zip_code,
+        x_profile_url, youtube_url, github_url, linkedin_url
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`,
+      [
+        email,
+        true, // Auto-verify users created with password
+        passwordHash,
+        recoveryEmail,
+        profileData.public_username,
+        profileData.public_username, // inbound_email_handle = public_username
+        profileData.first_name,
+        profileData.last_name,
+        profileData.date_of_birth || null,
+        profileData.headline || null,
+        profileData.bio || null,
+        profileData.company || null,
+        profileData.project_title || null,
+        profileData.project_description || null,
+        profileData.zip_code || null,
+        profileData.x_profile_url || null,
+        profileData.youtube_url || null,
+        profileData.github_url || null,
+        profileData.linkedin_url || null,
+      ]
     );
     return result.rows[0];
   }
@@ -201,6 +258,18 @@ export class UserModel {
       fields.push(`profile_private = $${paramCount++}`);
       values.push(updates.profile_private);
     }
+    if (updates.password_hash !== undefined) {
+      fields.push(`password_hash = $${paramCount++}`);
+      values.push(updates.password_hash);
+    }
+    if (updates.recovery_email !== undefined) {
+      fields.push(`recovery_email = $${paramCount++}`);
+      values.push(updates.recovery_email);
+    }
+    if (updates.date_of_birth !== undefined) {
+      fields.push(`date_of_birth = $${paramCount++}`);
+      values.push(updates.date_of_birth);
+    }
     if (fields.length === 0) {
       return await this.findById(id) as User;
     }
@@ -290,6 +359,38 @@ export class UserModel {
     );
     return result.rows[0] || null;
   }
+
+  static async findByUsernameOrEmail(usernameOrEmail: string): Promise<User | null> {
+    // Try username first (case-insensitive)
+    const byUsername = await this.findByPublicUsername(usernameOrEmail);
+    if (byUsername) {
+      return byUsername;
+    }
+
+    // Try email (case-insensitive)
+    const byEmail = await this.findByEmail(usernameOrEmail);
+    if (byEmail) {
+      return byEmail;
+    }
+
+    // Try as @injest.io email format
+    if (usernameOrEmail.includes('@injest.io')) {
+      const handle = usernameOrEmail.split('@')[0];
+      const byHandle = await this.findByInboundHandle(handle);
+      if (byHandle) {
+        return byHandle;
+      }
+    }
+
+    return null;
+  }
+
+  static async setPassword(userId: string, passwordHash: string): Promise<User> {
+    return await this.update(userId, {
+      password_hash: passwordHash,
+    });
+  }
+
 
   static async isProfilePrivate(userId: string): Promise<boolean> {
     const result = await pool.query(

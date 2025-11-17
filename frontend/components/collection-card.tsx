@@ -25,7 +25,7 @@ export function CollectionCard({ collection, onDelete, href }: CollectionCardPro
       <CardContent className="p-4">
         <div className="flex items-start gap-3">
           <div
-            className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xl font-semibold flex-shrink-0"
+            className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-xl font-semibold shrink-0"
             style={{ backgroundColor: collectionColor }}
           >
             {collectionIcon}

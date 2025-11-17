@@ -552,7 +552,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                       )}
                     </div>
                     {similarityLabel && (
-                      <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                         {similarityLabel}
                       </span>
                     )}
@@ -656,7 +656,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                     </div>
                   </div>
                   {overallScoreLabel && (
-                    <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
                       {overallScoreLabel} match
                     </span>
                   )}
@@ -863,14 +863,14 @@ export function SearchResults({ results }: SearchResultsProps) {
           >
           <DialogHeader>
             <div className="overflow-hidden">
-              <DialogTitle className="pr-8 break-words">
+              <DialogTitle className="pr-8 wrap-break-word">
                 {loadingDetails
                   ? 'Loading...'
                   : selectedItem && itemDetails
                     ? getItemDisplay(itemDetails).title || itemDetails.title || 'Item Details'
                     : 'Item Details'}
               </DialogTitle>
-              <DialogDescription className="break-words">
+              <DialogDescription className="wrap-break-word">
                 {loadingDetails
                   ? 'Please wait while we load the item details.'
                   : selectedItem && itemDetails
@@ -887,7 +887,7 @@ export function SearchResults({ results }: SearchResultsProps) {
               <div className="space-y-4 mt-4 overflow-x-hidden">
                 {/* Show URL metadata in dialog if available */}
                 {itemDetails.url && (itemDetails.link_metadata || linkMetadata[itemDetails.id]) && (
-                  <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                  <div className="border rounded-lg overflow-hidden bg-white shadow-xs">
                     {(() => {
                       const metadata = itemDetails.link_metadata || linkMetadata[itemDetails.id];
                       const display = getItemDisplay(itemDetails);
@@ -930,7 +930,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                               className="text-sm text-blue-600 hover:underline break-all flex items-center gap-2 group"
                             >
                               <svg
-                                className="w-4 h-4 flex-shrink-0 group-hover:translate-x-0.5 transition-transform"
+                                className="w-4 h-4 shrink-0 group-hover:translate-x-0.5 transition-transform"
                                 fill="none"
                                 stroke="currentColor"
                                 viewBox="0 0 24 24"

@@ -10,12 +10,33 @@ let pendingTwoFactor: {
 } | null = null;
 
 export const auth = {
-  async login(email: string): Promise<void> {
-    await apiClient.sendMagicLink(email);
+  async signup(signupData: {
+    username: string;
+    password: string;
+    recovery_email: string;
+    first_name: string;
+    last_name: string;
+    date_of_birth?: string;
+    headline?: string;
+    bio?: string;
+    company?: string;
+    project_title?: string;
+    project_description?: string;
+    zip_code?: string;
+    x_profile_url?: string;
+    youtube_url?: string;
+    github_url?: string;
+    linkedin_url?: string;
+  }): Promise<{ user: User; twoFactorRequired: boolean }> {
+    const response = await apiClient.signup(signupData);
+
+    pendingTwoFactor = null;
+    currentUser = response.user;
+    return { user: response.user, twoFactorRequired: false };
   },
 
-  async verify(token: string): Promise<{ user: User; twoFactorRequired: boolean }> {
-    const response = await apiClient.verifyToken(token);
+  async loginWithPassword(usernameOrEmail: string, password: string): Promise<{ user: User; twoFactorRequired: boolean }> {
+    const response = await apiClient.loginWithPassword(usernameOrEmail, password);
 
     if ('twoFactorRequired' in response && response.twoFactorRequired) {
       pendingTwoFactor = {
@@ -45,6 +66,10 @@ export const auth = {
 
   getPendingTwoFactorUser(): User | null {
     return pendingTwoFactor?.user ?? null;
+  },
+
+  getPendingTwoFactorToken(): string | null {
+    return pendingTwoFactor?.pendingToken ?? null;
   },
 
   clearPendingTwoFactor() {

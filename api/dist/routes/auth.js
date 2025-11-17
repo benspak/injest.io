@@ -8,9 +8,11 @@ import { generateApiKey, hashApiKey } from '../utils/apiKeys.js';
 import { coerceSubscriptionTier } from '../utils/subscriptionPlans.js';
 import { ItemAccessModel } from '../models/ItemAccess.js';
 import { LoginSessionModel } from '../models/LoginSession.js';
+import { hashPassword, verifyPassword } from '../utils/passwords.js';
 import { generateTwoFactorSecret, verifyTwoFactorToken, generateRecoveryCodes, hashRecoveryCode, verifyRecoveryCode, } from '../services/twoFactor.js';
 const router = express.Router();
 const TWO_FACTOR_PENDING_EXPIRATION = '10m';
+const PASSWORD_RESET_EXPIRATION = '1h'; // Password reset tokens expire in 1 hour
 function createSessionToken(user) {
     return jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
@@ -29,50 +31,173 @@ function buildUserResponse(user) {
         public_username: user.public_username || null,
         profile_private: user.profile_private || false,
         inbound_email_handle: user.inbound_email_handle || null,
+        recovery_email: user.recovery_email || null,
     };
 }
-// Send magic link
-router.post('/magic-link', async (req, res) => {
+// Reserved usernames that cannot be used
+const RESERVED_USERNAMES = ['admin', 'api', 'settings', 'profile', 'profiles', 'auth', 'login', 'logout', 'signup', 'signin', 'noreply', 'no-reply', 'support', 'info', 'postmaster'];
+// Validate username format
+function validateUsername(username) {
+    if (!username || username.trim().length === 0) {
+        return { valid: false, error: 'Username is required' };
+    }
+    const trimmed = username.trim().toLowerCase();
+    if (trimmed.length < 3) {
+        return { valid: false, error: 'Username must be at least 3 characters' };
+    }
+    if (trimmed.length > 30) {
+        return { valid: false, error: 'Username must be at most 30 characters' };
+    }
+    if (!/^[a-z0-9._-]+$/.test(trimmed)) {
+        return { valid: false, error: 'Username can only contain letters, numbers, dots, hyphens, and underscores' };
+    }
+    if (RESERVED_USERNAMES.includes(trimmed)) {
+        return { valid: false, error: 'This username is reserved and cannot be used' };
+    }
+    return { valid: true };
+}
+// Validate password
+function validatePassword(password) {
+    if (!password || password.length === 0) {
+        return { valid: false, error: 'Password is required' };
+    }
+    if (password.length < 8) {
+        return { valid: false, error: 'Password must be at least 8 characters' };
+    }
+    return { valid: true };
+}
+// Validate email format
+function validateEmail(email) {
+    if (!email || email.trim().length === 0) {
+        return { valid: false, error: 'Email is required' };
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+        return { valid: false, error: 'Invalid email format' };
+    }
+    return { valid: true };
+}
+// Signup endpoint
+router.post('/signup', async (req, res) => {
     try {
-        const { email } = req.body;
-        if (!email) {
-            return res.status(400).json({ error: 'Email is required' });
+        const { username, password, recovery_email, first_name, last_name, date_of_birth, headline, bio, company, project_title, project_description, zip_code, x_profile_url, youtube_url, github_url, linkedin_url, } = req.body;
+        // Validate required fields
+        const usernameValidation = validateUsername(username);
+        if (!usernameValidation.valid) {
+            return res.status(400).json({ error: usernameValidation.error });
         }
-        // Find or create user
-        let user = await UserModel.findByEmail(email);
-        if (!user) {
-            user = await UserModel.create(email);
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({ error: passwordValidation.error });
         }
+        const recoveryEmailValidation = validateEmail(recovery_email);
+        if (!recoveryEmailValidation.valid) {
+            return res.status(400).json({ error: recoveryEmailValidation.error });
+        }
+        if (!first_name || first_name.trim().length === 0) {
+            return res.status(400).json({ error: 'First name is required' });
+        }
+        if (!last_name || last_name.trim().length === 0) {
+            return res.status(400).json({ error: 'Last name is required' });
+        }
+        // Validate date of birth and age requirement
+        if (!date_of_birth) {
+            return res.status(400).json({ error: 'Date of birth is required' });
+        }
+        const dob = new Date(date_of_birth);
+        if (isNaN(dob.getTime())) {
+            return res.status(400).json({ error: 'Invalid date of birth format' });
+        }
+        // Calculate age
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+            age--;
+        }
+        if (age < 18) {
+            return res.status(400).json({ error: 'You must be at least 18 years old to use this service' });
+        }
+        // Check if username is already taken
+        const trimmedUsername = username.trim().toLowerCase();
+        const existingUser = await UserModel.findByPublicUsername(trimmedUsername);
+        if (existingUser) {
+            return res.status(409).json({ error: 'Username is already taken' });
+        }
+        // Check if recovery email is different from primary email
+        const primaryEmail = `${trimmedUsername}@injest.io`;
+        if (recovery_email.trim().toLowerCase() === primaryEmail.toLowerCase()) {
+            return res.status(400).json({ error: 'Recovery email must be different from your primary email' });
+        }
+        // Hash password
+        const passwordHash = await hashPassword(password);
+        // Create user
+        const user = await UserModel.createWithPassword(primaryEmail, passwordHash, recovery_email.trim().toLowerCase(), {
+            public_username: trimmedUsername,
+            first_name: first_name.trim(),
+            last_name: last_name.trim(),
+            date_of_birth: dob,
+            headline: headline?.trim(),
+            bio: bio?.trim(),
+            company: company?.trim(),
+            project_title: project_title?.trim(),
+            project_description: project_description?.trim(),
+            zip_code: zip_code?.trim(),
+            x_profile_url: x_profile_url?.trim(),
+            youtube_url: youtube_url?.trim(),
+            github_url: github_url?.trim(),
+            linkedin_url: linkedin_url?.trim(),
+        });
         await ItemAccessModel.linkUserToEmail(user.id, user.email);
-        // Generate JWT token
-        const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
-        // Send magic link email
-        const magicLink = `${FRONTEND_URL}/auth/verify?token=${token}`;
-        await emailService.sendMagicLink(email, magicLink);
-        res.json({ message: 'Magic link sent to your email' });
-    }
-    catch (error) {
-        console.error('Error sending magic link:', error);
-        res.status(500).json({ error: 'Failed to send magic link' });
-    }
-});
-// Verify magic link token
-router.get('/verify', async (req, res) => {
-    try {
-        const { token } = req.query;
-        if (!token || typeof token !== 'string') {
-            return res.status(400).json({ error: 'Token is required' });
+        // Create session token
+        const sessionToken = createSessionToken(user);
+        // Record login session
+        try {
+            await LoginSessionModel.create(user.id);
         }
-        const decoded = jwt.verify(token, JWT_SECRET);
-        // Get user before verification
-        const userBefore = await UserModel.findById(decoded.userId);
-        // Verify user email
-        const user = await UserModel.verifyEmail(decoded.userId);
-        // Send approval email if this is the first verification
-        if (userBefore && !userBefore.verified && user.verified) {
+        catch (error) {
+            console.error('Error recording login session:', error);
+        }
+        // Send welcome email
+        try {
             await emailService.sendApprovalEmail(user.email);
         }
+        catch (error) {
+            console.error('Error sending welcome email:', error);
+        }
+        res.status(201).json({
+            token: sessionToken,
+            user: buildUserResponse(user),
+        });
+    }
+    catch (error) {
+        console.error('Error during signup:', error);
+        res.status(500).json({ error: 'Failed to create account' });
+    }
+});
+// Login endpoint
+router.post('/login', async (req, res) => {
+    try {
+        const { usernameOrEmail, password } = req.body;
+        if (!usernameOrEmail || !password) {
+            return res.status(400).json({ error: 'Username/email and password are required' });
+        }
+        // Find user by username or email
+        const user = await UserModel.findByUsernameOrEmail(usernameOrEmail.trim());
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid username/email or password' });
+        }
+        // Check if user has a password (migrated users might not have one yet)
+        if (!user.password_hash) {
+            return res.status(401).json({ error: 'Account not set up. Please contact support.' });
+        }
+        // Verify password
+        const isValid = await verifyPassword(password, user.password_hash);
+        if (!isValid) {
+            return res.status(401).json({ error: 'Invalid username/email or password' });
+        }
         const responseUser = buildUserResponse(user);
+        // Check for 2FA
         if (user.two_factor_enabled && user.two_factor_secret) {
             const pendingToken = createPendingTwoFactorToken(user);
             return res.json({
@@ -87,7 +212,6 @@ router.get('/verify', async (req, res) => {
             await LoginSessionModel.create(user.id);
         }
         catch (error) {
-            // Log error but don't fail the login
             console.error('Error recording login session:', error);
         }
         res.json({
@@ -96,11 +220,83 @@ router.get('/verify', async (req, res) => {
         });
     }
     catch (error) {
-        if (error instanceof jwt.JsonWebTokenError) {
-            return res.status(401).json({ error: 'Invalid or expired token' });
+        console.error('Error during login:', error);
+        res.status(500).json({ error: 'Failed to login' });
+    }
+});
+// Forgot password endpoint
+router.post('/forgot-password', async (req, res) => {
+    try {
+        const { usernameOrEmail } = req.body;
+        if (!usernameOrEmail) {
+            return res.status(400).json({ error: 'Username or email is required' });
         }
-        console.error('Error verifying token:', error);
-        res.status(500).json({ error: 'Failed to verify token' });
+        // Find user by username or email
+        const user = await UserModel.findByUsernameOrEmail(usernameOrEmail.trim());
+        if (!user) {
+            // Don't reveal if user exists - return success anyway for security
+            return res.json({ message: 'If an account exists with that username/email, a password reset link has been sent.' });
+        }
+        // Generate password reset token
+        const resetToken = jwt.sign({ userId: user.id, email: user.email, passwordReset: true }, JWT_SECRET, { expiresIn: PASSWORD_RESET_EXPIRATION });
+        // Send password reset email
+        const resetLink = `${FRONTEND_URL}/reset-password?token=${encodeURIComponent(resetToken)}`;
+        // Use recovery email if available, otherwise use primary email
+        const emailToSend = user.recovery_email || user.email;
+        try {
+            await emailService.sendPasswordResetEmail(emailToSend, resetLink, user.email);
+        }
+        catch (error) {
+            console.error('Error sending password reset email:', error);
+            // Still return success to avoid revealing if user exists
+        }
+        res.json({ message: 'If an account exists with that username/email, a password reset link has been sent.' });
+    }
+    catch (error) {
+        console.error('Error processing forgot password request:', error);
+        res.status(500).json({ error: 'Failed to process request' });
+    }
+});
+// Reset password endpoint
+router.post('/reset-password', async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ error: 'Token and password are required' });
+        }
+        // Validate password
+        const passwordValidation = validatePassword(password);
+        if (!passwordValidation.valid) {
+            return res.status(400).json({ error: passwordValidation.error });
+        }
+        // Verify token
+        let decoded;
+        try {
+            decoded = jwt.verify(token, JWT_SECRET);
+        }
+        catch (error) {
+            if (error instanceof jwt.JsonWebTokenError) {
+                return res.status(401).json({ error: 'Invalid or expired reset token' });
+            }
+            throw error;
+        }
+        if (!decoded.passwordReset) {
+            return res.status(400).json({ error: 'Invalid reset token' });
+        }
+        // Find user
+        const user = await UserModel.findById(decoded.userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        // Hash new password
+        const passwordHash = await hashPassword(password);
+        // Update user password
+        await UserModel.setPassword(user.id, passwordHash);
+        res.json({ message: 'Password has been reset successfully' });
+    }
+    catch (error) {
+        console.error('Error resetting password:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
     }
 });
 // Get current user (requires auth middleware)

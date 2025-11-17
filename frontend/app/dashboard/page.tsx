@@ -132,7 +132,7 @@ export default function DashboardPage() {
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <div className="space-y-6">
           {/* Get Started Section */}
-          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <Card className="bg-linear-to-r from-blue-50 to-indigo-50 border-blue-200">
             <CardHeader>
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-100 rounded-lg">
@@ -147,7 +147,7 @@ export default function DashboardPage() {
             <CardContent>
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <div className="p-2 bg-white rounded-lg shadow-xs">
                     <Upload className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
@@ -156,7 +156,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <div className="p-2 bg-white rounded-lg shadow-xs">
                     <Bookmark className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>
@@ -165,7 +165,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <div className="p-2 bg-white rounded-lg shadow-xs">
                     <Mail className="h-5 w-5 text-blue-600" />
                   </div>
                   <div>

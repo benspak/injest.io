@@ -4,12 +4,12 @@ import { Card, CardContent } from '@/components/ui/card';
 
 export const metadata = {
   title: 'Privacy Policy - Injest.io',
-  description: 'Privacy Policy for Injest.io - Knowledge Recall System',
+  description: 'Privacy Policy for Injest.io - Email and File Sharing Service',
 };
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+    <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50">
       <div className="container mx-auto px-4 py-16 max-w-4xl">
         <div className="mb-8">
           <Link href="/">
@@ -30,7 +30,7 @@ export default function PrivacyPolicyPage() {
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
               <p className="mb-4">
-                Welcome to Injest.io (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to protecting your privacy and ensuring you have a positive experience while using our knowledge recall system. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services.
+                Welcome to Injest.io (&ldquo;we,&rdquo; &ldquo;our,&rdquo; or &ldquo;us&rdquo;). We are committed to protecting your privacy and ensuring you have a positive experience while using our email and file sharing service. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our website and services.
               </p>
               <p>
                 By accessing or using Injest.io, you agree to the collection and use of information in accordance with this Privacy Policy. If you do not agree with our policies and practices, please do not use our services.
@@ -67,7 +67,7 @@ export default function PrivacyPolicyPage() {
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">3. How We Use Your Information</h2>
               <p className="mb-4">We use the information we collect for the following purposes:</p>
               <ul className="list-disc list-inside space-y-2">
-                <li><strong>Service Delivery:</strong> To provide, maintain, and improve our knowledge recall system</li>
+                <li><strong>Service Delivery:</strong> To provide, maintain, and improve our email and file sharing service</li>
                 <li><strong>Content Processing:</strong> To enrich bookmarks and links with metadata, summarize emails, generate document previews, and create searchable embeddings</li>
                 <li><strong>Authentication:</strong> To verify your identity and manage your account access</li>
                 <li><strong>Search and Organization:</strong> To enable AI-powered semantic search, categorization, and content organization</li>
@@ -106,7 +106,7 @@ export default function PrivacyPolicyPage() {
 
             <section>
               <h2 className="text-2xl font-semibold text-gray-900 mb-4">6. Information Sharing and Disclosure</h2>
-              <p className="mb-4">We do not sell your personal information. We may share your information in the following circumstances:</p>
+              <p className="mb-4">We do not sell your personal information, nor do we use it for marketing purposes. We may share your information in the following circumstances:</p>
 
               <h3 className="text-xl font-semibold text-gray-900 mb-3 mt-6">6.1 Service Providers</h3>
               <ul className="list-disc list-inside space-y-2 mb-4">
@@ -147,9 +147,12 @@ export default function PrivacyPolicyPage() {
             </section>
 
             <section>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. Children's Privacy</h2>
-              <p>
-                Our services are not intended for individuals under the age of 18. We do not knowingly collect personal information from children under 18. If you believe we have collected information from a child under 18, please contact us immediately.
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">9. Age Requirement and Content Restrictions</h2>
+              <p className="mb-4">
+                Our services are restricted to users who are at least 18 years of age. You must be 18 years or older to use Injest.io. We do not knowingly collect personal information from individuals under 18. If you believe we have collected information from someone under 18, please contact us immediately.
+              </p>
+              <p className="mb-4">
+                <strong>Prohibited Content:</strong> Users are strictly prohibited from uploading, sharing, or transmitting any adult content or depictions of illegal activities through our service. We reserve the right to remove such content and terminate accounts that violate this policy.
               </p>
             </section>
 

@@ -663,7 +663,7 @@ export default function ContactsPage() {
               onChange={(event) => setSearchQuery(event.target.value)}
               autoComplete="off"
               spellCheck={false}
-              className="h-12 w-full rounded-full border-2 border-gray-300 px-5 text-base font-medium shadow-sm transition-all focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-14 sm:px-6 sm:text-lg"
+              className="h-12 w-full rounded-full border-2 border-gray-300 px-5 text-base font-medium shadow-xs transition-all focus-visible:border-blue-500 focus-visible:ring-blue-500 sm:h-14 sm:px-6 sm:text-lg"
             />
             <p className="mt-2 text-xs text-muted-foreground">
               Shortcut: ⌘K (Ctrl+K) to focus search
@@ -736,7 +736,7 @@ export default function ContactsPage() {
                           {contact.email ? (
                             <a
                               href={`mailto:${contact.email}`}
-                              className="text-blue-600 break-words hover:underline"
+                              className="text-blue-600 wrap-break-word hover:underline"
                               title={contact.email}
                               onClick={(e) => e.stopPropagation()}
                             >
@@ -746,7 +746,7 @@ export default function ContactsPage() {
                             <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-gray-700 align-middle break-words">
+                        <td className="px-4 py-3 text-gray-700 align-middle wrap-break-word">
                           {updatedAt ? (
                             <span>{updatedAt}</span>
                           ) : (
@@ -818,7 +818,7 @@ export default function ContactsPage() {
                     {viewingContact.email ? (
                       <a
                         href={`mailto:${viewingContact.email}`}
-                        className="text-blue-600 hover:underline break-words"
+                        className="text-blue-600 hover:underline wrap-break-word"
                       >
                         {viewingContact.email}
                       </a>

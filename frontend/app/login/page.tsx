@@ -4,127 +4,512 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import Link from 'next/link';
 import { auth } from '@/lib/auth';
-import { SUBSCRIPTION_PLANS, type SubscriptionTier } from '@/lib/subscriptionPlans';
-import { API_URL } from '@/lib/api';
+
+type Tab = 'signin' | 'signup';
 
 function LoginForm() {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
+  const [activeTab, setActiveTab] = useState<Tab>('signin');
   const router = useRouter();
   const searchParams = useSearchParams();
-  const token = searchParams.get('token');
-  const error = searchParams.get('error');
-  const planParam = searchParams.get('plan');
-  const normalizedPlanParam = planParam === 'plus' ? 'pro' : planParam;
-  const plan: SubscriptionTier | null =
-    normalizedPlanParam && ['free', 'pro', 'pro_annual'].includes(normalizedPlanParam)
-      ? (normalizedPlanParam as SubscriptionTier)
-      : null;
 
-  // Handle token verification
-  useEffect(() => {
-    if (token) {
-      setLoading(true);
-      setMessage('Redirecting to verification...');
-      router.replace(`/auth/verify?token=${encodeURIComponent(token)}`);
-    }
-  }, [token, router]);
+  // Sign in form state
+  const [signInUsernameOrEmail, setSignInUsernameOrEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [signInLoading, setSignInLoading] = useState(false);
+  const [signInMessage, setSignInMessage] = useState('');
 
-  // Handle error from OAuth callback
-  useEffect(() => {
-    if (error) {
-      setMessage(`Login failed: ${decodeURIComponent(error)}`);
-    }
-  }, [error]);
+  // Sign up form state
+  const [signUpUsername, setSignUpUsername] = useState('');
+  const [signUpPassword, setSignUpPassword] = useState('');
+  const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
+  const [signUpRecoveryEmail, setSignUpRecoveryEmail] = useState('');
+  const [signUpFirstName, setSignUpFirstName] = useState('');
+  const [signUpLastName, setSignUpLastName] = useState('');
+  const [signUpDateOfBirth, setSignUpDateOfBirth] = useState('');
+  const [signUpAgreedToTerms, setSignUpAgreedToTerms] = useState(false);
+  const [signUpHeadline, setSignUpHeadline] = useState('');
+  const [signUpBio, setSignUpBio] = useState('');
+  const [signUpCompany, setSignUpCompany] = useState('');
+  const [signUpProjectTitle, setSignUpProjectTitle] = useState('');
+  const [signUpProjectDescription, setSignUpProjectDescription] = useState('');
+  const [signUpZipCode, setSignUpZipCode] = useState('');
+  const [signUpXProfileUrl, setSignUpXProfileUrl] = useState('');
+  const [signUpYoutubeUrl, setSignUpYoutubeUrl] = useState('');
+  const [signUpGithubUrl, setSignUpGithubUrl] = useState('');
+  const [signUpLinkedinUrl, setSignUpLinkedinUrl] = useState('');
+  const [signUpLoading, setSignUpLoading] = useState(false);
+  const [signUpMessage, setSignUpMessage] = useState('');
 
-  useEffect(() => {
-    if (plan) {
-      sessionStorage.setItem('checkoutPlan', plan);
-    }
-  }, [plan]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage('');
+    setSignInLoading(true);
+    setSignInMessage('');
+
     try {
-      await auth.login(email);
-      setMessage('Magic link sent! Check your email.');
+      const result = await auth.loginWithPassword(signInUsernameOrEmail, signInPassword);
+
+      if (result.twoFactorRequired) {
+        // Redirect to 2FA page
+        router.push('/auth/verify?twoFactor=true');
+        return;
+      }
+
+      // Success - redirect to dashboard
+      router.push('/dashboard');
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to send magic link';
-      setMessage(message);
+      const message = error instanceof Error ? error.message : 'Failed to sign in';
+      setSignInMessage(message);
     } finally {
-      setLoading(false);
+      setSignInLoading(false);
+    }
+  };
+
+  const calculateAge = (dateOfBirth: string): number | null => {
+    if (!dateOfBirth) return null;
+    const dob = new Date(dateOfBirth);
+    if (isNaN(dob.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignUpLoading(true);
+    setSignUpMessage('');
+
+    // Validate passwords match
+    if (signUpPassword !== signUpConfirmPassword) {
+      setSignUpMessage('Passwords do not match');
+      setSignUpLoading(false);
+      return;
+    }
+
+    // Validate date of birth
+    if (!signUpDateOfBirth) {
+      setSignUpMessage('Date of birth is required');
+      setSignUpLoading(false);
+      return;
+    }
+
+    const age = calculateAge(signUpDateOfBirth);
+    if (age === null) {
+      setSignUpMessage('Invalid date of birth');
+      setSignUpLoading(false);
+      return;
+    }
+
+    if (age < 18) {
+      setSignUpMessage('You must be at least 18 years old to use this service');
+      setSignUpLoading(false);
+      return;
+    }
+
+    // Validate terms agreement
+    if (!signUpAgreedToTerms) {
+      setSignUpMessage('You must agree to the Terms of Service and Privacy Policy');
+      setSignUpLoading(false);
+      return;
+    }
+
+    try {
+      const result = await auth.signup({
+        username: signUpUsername,
+        password: signUpPassword,
+        recovery_email: signUpRecoveryEmail,
+        first_name: signUpFirstName,
+        last_name: signUpLastName,
+        date_of_birth: signUpDateOfBirth,
+        headline: signUpHeadline || undefined,
+        bio: signUpBio || undefined,
+        company: signUpCompany || undefined,
+        project_title: signUpProjectTitle || undefined,
+        project_description: signUpProjectDescription || undefined,
+        zip_code: signUpZipCode || undefined,
+        x_profile_url: signUpXProfileUrl || undefined,
+        youtube_url: signUpYoutubeUrl || undefined,
+        github_url: signUpGithubUrl || undefined,
+        linkedin_url: signUpLinkedinUrl || undefined,
+      });
+
+      // Success - redirect to dashboard
+      router.push('/dashboard');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to create account';
+      setSignUpMessage(message);
+    } finally {
+      setSignUpLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 overflow-x-hidden px-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 overflow-x-hidden px-4 py-8">
+      <Card className="w-full max-w-2xl">
         <CardHeader>
-          <CardTitle>Sign in to Injest.io</CardTitle>
-          <CardDescription>
-            Enter your email to receive a magic link
+          <CardTitle className="text-center">Welcome to Injest.io</CardTitle>
+          <CardDescription className="text-center">
+            Create your account or sign in to continue
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              type="email"
-              placeholder="your@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? 'Sending...' : 'Send Magic Link'}
-            </Button>
-
-            {message && (
-              <p className={`text-sm ${message.includes('sent') || message.includes('success') ? 'text-green-600' : 'text-red-600'}`}>
-                {message}
-              </p>
-            )}
-
-            {plan && (
-              <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
-                You selected the <span className="font-semibold">{SUBSCRIPTION_PLANS[plan].name}</span>{' '}
-                plan. After verifying your email, we&apos;ll reopen checkout to finish upgrading.
-              </div>
-            )}
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-white px-2 text-gray-500">Or continue with</span>
-              </div>
-            </div>
-
-            <Button
+          {/* Tab buttons */}
+          <div className="flex border-b mb-6">
+            <button
               type="button"
-              variant="outline"
-              className="w-full"
-              onClick={() => {
-                window.location.href = `${API_URL}/api/auth/xcom/login`;
-              }}
-              disabled={loading}
+              onClick={() => setActiveTab('signin')}
+              className={`flex-1 py-2 px-4 text-center font-medium transition-colors ${
+                activeTab === 'signin'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
             >
-              <svg
-                className="mr-2 h-4 w-4"
-                fill="currentColor"
-                viewBox="0 0 24 24"
-                aria-hidden="true"
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('signup')}
+              className={`flex-1 py-2 px-4 text-center font-medium transition-colors ${
+                activeTab === 'signup'
+                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Sign Up
+            </button>
+          </div>
+
+          {/* Sign In Form */}
+          {activeTab === 'signin' && (
+            <form onSubmit={handleSignIn} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signin-username">Username or Email</Label>
+                <Input
+                  id="signin-username"
+                  type="text"
+                  placeholder="username or username@injest.io"
+                  value={signInUsernameOrEmail}
+                  onChange={(e) => setSignInUsernameOrEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signin-password">Password</Label>
+                <Input
+                  id="signin-password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={signInPassword}
+                  onChange={(e) => setSignInPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <Button type="submit" className="w-full" disabled={signInLoading}>
+                  {signInLoading ? 'Signing in...' : 'Sign In'}
+                </Button>
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => router.push('/forgot-password')}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {signInMessage && (
+                <p className={`text-sm text-center ${signInMessage.includes('Failed') ? 'text-red-600' : 'text-green-600'}`}>
+                  {signInMessage}
+                </p>
+              )}
+            </form>
+          )}
+
+          {/* Sign Up Form */}
+          {activeTab === 'signup' && (
+            <form onSubmit={handleSignUp} className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+              {/* Required fields */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-username">Username *</Label>
+                  <Input
+                    id="signup-username"
+                    type="text"
+                    placeholder="johndoe"
+                    value={signUpUsername}
+                    onChange={(e) => setSignUpUsername(e.target.value)}
+                    maxLength={30}
+                    required
+                  />
+                  <p className="text-xs text-gray-500">
+                    This will be your @injest.io email address (e.g., {signUpUsername || 'username'}@injest.io)
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password *</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    placeholder="At least 8 characters"
+                    value={signUpPassword}
+                    onChange={(e) => setSignUpPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-confirm-password">Confirm Password *</Label>
+                  <Input
+                    id="signup-confirm-password"
+                    type="password"
+                    placeholder="Confirm your password"
+                    value={signUpConfirmPassword}
+                    onChange={(e) => setSignUpConfirmPassword(e.target.value)}
+                    required
+                    minLength={8}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-recovery-email">Recovery Email *</Label>
+                  <Input
+                    id="signup-recovery-email"
+                    type="email"
+                    placeholder="your@email.com"
+                    value={signUpRecoveryEmail}
+                    onChange={(e) => setSignUpRecoveryEmail(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-gray-500">
+                    Used for account recovery. Must be different from your @injest.io email.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-first-name">First Name *</Label>
+                    <Input
+                      id="signup-first-name"
+                      type="text"
+                      placeholder="John"
+                      value={signUpFirstName}
+                      onChange={(e) => setSignUpFirstName(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-last-name">Last Name *</Label>
+                    <Input
+                      id="signup-last-name"
+                      type="text"
+                      placeholder="Doe"
+                      value={signUpLastName}
+                      onChange={(e) => setSignUpLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-date-of-birth">Date of Birth *</Label>
+                  <Input
+                    id="signup-date-of-birth"
+                    type="date"
+                    value={signUpDateOfBirth}
+                    onChange={(e) => setSignUpDateOfBirth(e.target.value)}
+                    required
+                    max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                  />
+                  <p className="text-xs text-gray-500">
+                    You must be at least 18 years old to use this service
+                  </p>
+                  {signUpDateOfBirth && calculateAge(signUpDateOfBirth) !== null && (
+                    <p className={`text-xs ${calculateAge(signUpDateOfBirth)! < 18 ? 'text-red-600' : 'text-green-600'}`}>
+                      Age: {calculateAge(signUpDateOfBirth)} years old
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Optional fields */}
+              <div className="space-y-4 pt-4 border-t">
+                <p className="text-sm font-medium text-gray-700">Optional Profile Information</p>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-headline">Headline</Label>
+                  <Input
+                    id="signup-headline"
+                    type="text"
+                    placeholder="e.g., Software Engineer at Company"
+                    value={signUpHeadline}
+                    onChange={(e) => setSignUpHeadline(e.target.value)}
+                    maxLength={100}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-bio">Bio</Label>
+                  <Textarea
+                    id="signup-bio"
+                    placeholder="Tell us about yourself..."
+                    value={signUpBio}
+                    onChange={(e) => setSignUpBio(e.target.value)}
+                    rows={3}
+                    maxLength={250}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-company">Company</Label>
+                  <Input
+                    id="signup-company"
+                    type="text"
+                    placeholder="e.g., Acme Inc."
+                    value={signUpCompany}
+                    onChange={(e) => setSignUpCompany(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-project-title">Project Title</Label>
+                  <Input
+                    id="signup-project-title"
+                    type="text"
+                    placeholder="e.g., Building a new mobile app"
+                    value={signUpProjectTitle}
+                    onChange={(e) => setSignUpProjectTitle(e.target.value)}
+                    maxLength={200}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-project-description">Project Description</Label>
+                  <Textarea
+                    id="signup-project-description"
+                    placeholder="Tell us about your project..."
+                    value={signUpProjectDescription}
+                    onChange={(e) => setSignUpProjectDescription(e.target.value)}
+                    rows={3}
+                    maxLength={500}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-zip-code">Zip Code</Label>
+                  <Input
+                    id="signup-zip-code"
+                    type="text"
+                    placeholder="12345"
+                    value={signUpZipCode}
+                    onChange={(e) => setSignUpZipCode(e.target.value)}
+                    maxLength={20}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-x-profile">X (Twitter) Profile</Label>
+                  <Input
+                    id="signup-x-profile"
+                    type="url"
+                    placeholder="https://x.com/username"
+                    value={signUpXProfileUrl}
+                    onChange={(e) => setSignUpXProfileUrl(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-youtube">YouTube Channel</Label>
+                  <Input
+                    id="signup-youtube"
+                    type="url"
+                    placeholder="https://youtube.com/@username"
+                    value={signUpYoutubeUrl}
+                    onChange={(e) => setSignUpYoutubeUrl(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-github">GitHub Profile</Label>
+                  <Input
+                    id="signup-github"
+                    type="url"
+                    placeholder="https://github.com/username"
+                    value={signUpGithubUrl}
+                    onChange={(e) => setSignUpGithubUrl(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-linkedin">LinkedIn Profile</Label>
+                  <Input
+                    id="signup-linkedin"
+                    type="url"
+                    placeholder="https://linkedin.com/in/username"
+                    value={signUpLinkedinUrl}
+                    onChange={(e) => setSignUpLinkedinUrl(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-4 border-t">
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="signup-agree-terms"
+                    checked={signUpAgreedToTerms}
+                    onCheckedChange={(checked) => setSignUpAgreedToTerms(checked === true)}
+                    required
+                  />
+                  <Label htmlFor="signup-agree-terms" className="text-sm font-normal cursor-pointer">
+                    I agree to the{' '}
+                    <Link href="/terms" className="text-blue-600 hover:underline" target="_blank">
+                      Terms of Service
+                    </Link>
+                    {' '}and{' '}
+                    <Link href="/privacy" className="text-blue-600 hover:underline" target="_blank">
+                      Privacy Policy
+                    </Link>
+                    {' '}*
+                  </Label>
+                </div>
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={
+                  signUpLoading ||
+                  !signUpAgreedToTerms ||
+                  !!(signUpDateOfBirth && calculateAge(signUpDateOfBirth) !== null && calculateAge(signUpDateOfBirth)! < 18)
+                }
               >
-                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-              </svg>
-              Sign in with X.com
-            </Button>
-          </form>
+                {signUpLoading ? 'Creating account...' : 'Create Account'}
+              </Button>
+
+              {signUpMessage && (
+                <p className={`text-sm text-center ${signUpMessage.includes('Failed') || signUpMessage.includes('not match') ? 'text-red-600' : 'text-green-600'}`}>
+                  {signUpMessage}
+                </p>
+              )}
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

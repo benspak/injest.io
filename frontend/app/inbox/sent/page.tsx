@@ -192,7 +192,7 @@ export default function SentInboxPage() {
       </div>
 
       <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6 min-h-[200px]">
+        <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-xs sm:p-6 min-h-[200px]">
           {searchQuery.length >= 2 ? (
             <div className="relative">
               {searchLoading && (

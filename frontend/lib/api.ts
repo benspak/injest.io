@@ -202,6 +202,7 @@ export interface User {
   linkedin_url?: string | null;
   profile_private?: boolean;
   inbound_email_handle?: string | null;
+  recovery_email?: string | null;
 }
 
 export interface PublicProfile {
@@ -543,21 +544,42 @@ class ApiClient {
   }
 
   // Auth
-  async sendMagicLink(email: string) {
-    return this.request('/api/auth/magic-link', {
+  async signup(data: {
+    username: string;
+    password: string;
+    recovery_email: string;
+    first_name: string;
+    last_name: string;
+    date_of_birth?: string;
+    headline?: string;
+    bio?: string;
+    company?: string;
+    project_title?: string;
+    project_description?: string;
+    zip_code?: string;
+    x_profile_url?: string;
+    youtube_url?: string;
+    github_url?: string;
+    linkedin_url?: string;
+  }) {
+    const response = await this.request<{ token: string; user: User }>('/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ email }),
+      body: JSON.stringify(data),
     });
+    if (response.token) {
+      this.setToken(response.token);
+    }
+    return response;
   }
 
-  async verifyToken(token: string) {
+  async loginWithPassword(usernameOrEmail: string, password: string) {
     const response = await this.request<
       | { token: string; user: User }
       | { twoFactorRequired: true; pendingToken: string; user: User }
-    >(
-      `/api/auth/verify?token=${token}`,
-      { method: 'GET' }
-    );
+    >('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ usernameOrEmail, password }),
+    });
     if ('token' in response && response.token) {
       this.setToken(response.token);
     }
@@ -566,10 +588,6 @@ class ApiClient {
 
   async getCurrentUser() {
     return this.request<{ user: User }>('/api/auth/me', { method: 'GET' });
-  }
-
-  async getOpenApiSpec(): Promise<Record<string, unknown>> {
-    return this.request<Record<string, unknown>>('/api/openapi.json', { method: 'GET' });
   }
 
   async getApiKeyInfo(): Promise<{ hasKey: boolean; createdAt: string | null; lastUsedAt: string | null }> {
@@ -1194,34 +1212,7 @@ class ApiClient {
   }
 
   // X.com OAuth
-  async initiateXcomLoginOAuth(): Promise<void> {
-    // Redirect to OAuth login endpoint (public, no auth required)
-    window.location.href = `${API_URL}/api/auth/xcom/login`;
-  }
 
-  async initiateXcomOAuth(): Promise<void> {
-    // Get token from storage
-    const token = this.token || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
-    if (!token) {
-      throw new Error('No authentication token available');
-    }
-    // Redirect to OAuth initiation endpoint with token as query parameter
-    // This is necessary because redirects can't include Authorization headers
-    window.location.href = `${API_URL}/api/auth/xcom/initiate?token=${encodeURIComponent(token)}`;
-  }
-
-  async getXcomStatus(): Promise<{ connected: boolean; username: string | null; xUserId: string | null }> {
-    return this.request<{ connected: boolean; username: string | null; xUserId: string | null }>(
-      '/api/auth/xcom/status',
-      { method: 'GET' }
-    );
-  }
-
-  async disconnectXcom(): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>('/api/auth/xcom/disconnect', {
-      method: 'POST',
-    });
-  }
 
   // Feedback
   async submitFeedback(data: { title: string; message: string; image?: File }): Promise<{ success: boolean; message: string }> {
