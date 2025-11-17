@@ -1,11 +1,10 @@
 'use client';
 
-import { Fragment, useCallback, useMemo } from 'react';
+import { Fragment, useCallback, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Code, FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder } from 'lucide-react';
+import { FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
-import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
 import type { User } from '@/lib/api';
 
@@ -28,21 +27,6 @@ const NAV_ITEMS = [
     icon: Folder,
   },
   {
-    href: '/inbox',
-    label: 'Inbox',
-    icon: Inbox,
-  },
-  {
-    href: '/inbox/sent',
-    label: 'Outbox',
-    icon: Inbox,
-  },
-  {
-    href: '/inbox/spam',
-    label: 'Spam',
-    icon: Inbox,
-  },
-  {
     href: '/send',
     label: 'Send',
     icon: Send,
@@ -57,10 +41,16 @@ const NAV_ITEMS = [
     label: 'Imports',
     icon: UploadCloud,
   },
+];
+
+const INBOX_SUB_ITEMS = [
   {
-    href: '/developers',
-    label: 'API Docs',
-    icon: Code,
+    href: '/inbox/sent',
+    label: 'Outbox',
+  },
+  {
+    href: '/inbox/spam',
+    label: 'Spam',
   },
 ];
 
@@ -70,6 +60,17 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
 
   const isAuthenticated = Boolean(currentUser);
 
+  // Determine if inbox section should be expanded by default
+  const isInboxRoute = pathname.startsWith('/inbox');
+  const [isInboxExpanded, setIsInboxExpanded] = useState(isInboxRoute);
+
+  // Update expanded state when pathname changes to inbox routes
+  useEffect(() => {
+    if (isInboxRoute) {
+      setIsInboxExpanded(true);
+    }
+  }, [isInboxRoute]);
+
   const handleNavigate = useCallback(
     (href: string) => {
       onMobileToggle(false);
@@ -78,12 +79,95 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
     [onMobileToggle, router]
   );
 
+  const toggleInbox = useCallback(() => {
+    setIsInboxExpanded((prev) => !prev);
+  }, []);
+
   const navigation = useMemo(() => {
-    return NAV_ITEMS.map((item) => {
+    const items: JSX.Element[] = [];
+
+    NAV_ITEMS.forEach((item) => {
+      // Insert Inbox section after Collections
+      if (item.href === '/collections') {
+        const Icon = item.icon;
+        const isActive = pathname.startsWith(item.href);
+
+        items.push(
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              isActive
+                ? 'bg-blue-50 text-blue-600'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            }`}
+            onClick={() => handleNavigate(item.href)}
+          >
+            <Icon className="h-4 w-4" />
+            <span>{item.label}</span>
+          </Link>
+        );
+
+        // Insert Inbox section after Collections
+        const isInboxActive = pathname.startsWith('/inbox');
+        const ChevronIcon = isInboxExpanded ? ChevronDown : ChevronRight;
+
+        items.push(
+          <div key="inbox-section">
+            <div
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                isInboxActive
+                  ? 'bg-blue-50 text-blue-600'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+              }`}
+            >
+              <Link
+                href="/inbox"
+                className="flex flex-1 items-center gap-3"
+                onClick={() => handleNavigate('/inbox')}
+              >
+                <Inbox className="h-4 w-4" />
+                <span>Inbox</span>
+              </Link>
+              <button
+                type="button"
+                onClick={toggleInbox}
+                className="p-1 -mr-1 transition hover:opacity-80"
+                aria-label={isInboxExpanded ? 'Collapse inbox' : 'Expand inbox'}
+              >
+                <ChevronIcon className="h-4 w-4" />
+              </button>
+            </div>
+            {isInboxExpanded && (
+              <div className="mt-1 space-y-1">
+                {INBOX_SUB_ITEMS.map((subItem) => {
+                  const isActive = pathname.startsWith(subItem.href);
+                  return (
+                    <Link
+                      key={subItem.href}
+                      href={subItem.href}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2 pl-8 text-sm font-medium transition ${
+                        isActive
+                          ? 'bg-blue-50 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                      onClick={() => handleNavigate(subItem.href)}
+                    >
+                      <span>{subItem.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+        return;
+      }
+
       const Icon = item.icon;
       const isActive = pathname.startsWith(item.href);
 
-      return (
+      items.push(
         <Link
           key={item.href}
           href={item.href}
@@ -99,7 +183,9 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
         </Link>
       );
     });
-  }, [handleNavigate, pathname]);
+
+    return items;
+  }, [handleNavigate, pathname, isInboxExpanded, toggleInbox]);
 
   return (
     <Fragment>
@@ -132,16 +218,6 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
         </div>
 
         <div className="mt-6 space-y-1">{navigation}</div>
-
-        <div className="mt-2">
-          <FeedbackDialog
-            userEmail={currentUser?.email}
-            buttonVariant="ghost"
-            buttonSize="sm"
-            triggerClassName="w-full justify-start gap-3 px-3 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-            buttonText="Feedback"
-          />
-        </div>
 
         {isAuthenticated ? (
           <div className="mt-6 space-y-4 overflow-y-auto pb-6">
