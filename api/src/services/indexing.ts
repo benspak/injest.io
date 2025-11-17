@@ -7,6 +7,7 @@ import { itemStreamService } from './itemStream.js';
 import { searchService } from './search.js';
 import { SearchDocumentModel, type SearchEntityType } from '../models/SearchDocument.js';
 import { EmbeddingModel } from '../models/Embedding.js';
+import { fileParserService } from './fileParser.js';
 
 interface IndexingOptions {
   retries?: number;
@@ -190,9 +191,45 @@ export class IndexingService {
       textParts.push(metadata.title || '', metadata.description || '', metadata.url || '');
     }
 
+    // Extract content from attachments and include in searchable text
     if (item.attachments && Array.isArray(item.attachments)) {
+      // First, add attachment filenames (for backward compatibility)
       item.attachments.forEach((attachment: any) => {
         if (attachment.originalname) textParts.push(attachment.originalname);
+      });
+
+      // Then, extract and include attachment content
+      const attachmentTextPromises = item.attachments.map(async (attachment: any) => {
+        // Only attempt to parse if we have a filename (stored file)
+        if (!attachment.filename) {
+          return '';
+        }
+
+        try {
+          const parsed = await fileParserService.parseFile(attachment.filename, attachment.mimetype);
+          if (parsed.text && parsed.text.trim().length > 0) {
+            return parsed.text.trim();
+          }
+        } catch (error: any) {
+          // Log warning but don't fail the entire indexing operation
+          console.warn(`[Indexing] Failed to parse attachment "${attachment.filename}" for item ${item.id}:`, {
+            error: error.message || error,
+            attachmentFilename: attachment.filename,
+            attachmentOriginalName: attachment.originalname,
+          });
+        }
+
+        return '';
+      });
+
+      // Wait for all attachment parsing to complete
+      const attachmentTexts = await Promise.all(attachmentTextPromises);
+
+      // Add extracted text to textParts
+      attachmentTexts.forEach((text) => {
+        if (text) {
+          textParts.push(text);
+        }
       });
     }
 
