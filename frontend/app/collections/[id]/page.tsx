@@ -174,6 +174,28 @@ export default function CollectionDetailPage() {
     }
   };
 
+  const handleRemoveItemsFromCollection = async (itemIds: string[]) => {
+    if (!collection) return;
+
+    try {
+      // Remove items in parallel
+      await Promise.all(
+        itemIds.map((itemId) => apiClient.removeItemFromCollection(collection.id, itemId))
+      );
+      setItems((prev) => prev.filter((item) => !itemIds.includes(item.id)));
+      // Update item count
+      if (collection.item_count !== undefined) {
+        setCollection({
+          ...collection,
+          item_count: Math.max(0, (collection.item_count || 0) - itemIds.length),
+        });
+      }
+    } catch (error) {
+      console.error('Error removing items from collection:', error);
+      throw error; // Re-throw so ItemList can show error toast
+    }
+  };
+
   const loadMoreItems = useCallback(() => {
     if (!loadingMore && hasMore && !loading) {
       loadItems(offset, false);
@@ -339,6 +361,8 @@ export default function CollectionDetailPage() {
                 <ItemList
                   items={items}
                   onDelete={(itemId) => handleRemoveItem(itemId)}
+                  collectionId={collection.id}
+                  onRemoveFromCollection={handleRemoveItemsFromCollection}
                 />
                 {hasMore && (
                   <div ref={loadMoreSentinelRef} className="py-4 text-center">

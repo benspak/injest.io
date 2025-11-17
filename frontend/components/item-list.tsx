@@ -13,7 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { apiClient, Item, LinkMetadata } from '@/lib/api';
-import { Share2, FolderPlus } from 'lucide-react';
+import { Share2, FolderPlus, FolderMinus } from 'lucide-react';
 import { ShareItemDialog } from '@/components/share-item-dialog';
 import { AddToCollectionDialog } from '@/components/add-to-collection-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -21,11 +21,13 @@ import { Checkbox } from '@/components/ui/checkbox';
 interface ItemListProps {
   items: Item[];
   onDelete?: (itemId: string) => void;
+  collectionId?: string;
+  onRemoveFromCollection?: (itemIds: string[]) => Promise<void>;
 }
 
 type Attachment = NonNullable<Item['attachments']>[number];
 
-export function ItemList({ items, onDelete }: ItemListProps) {
+export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection }: ItemListProps) {
   const [selectedItem, setSelectedItem] = useState<Item | null>(null);
   const [itemDetails, setItemDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -680,6 +682,22 @@ export function ItemList({ items, onDelete }: ItemListProps) {
     setAddToCollectionDialogOpen(true);
   };
 
+  const handleRemoveFromCollection = async () => {
+    if (!collectionId || !onRemoveFromCollection || selectedItems.size === 0) {
+      return;
+    }
+
+    const itemIds = Array.from(selectedItems);
+    try {
+      await onRemoveFromCollection(itemIds);
+      setSelectedItems(new Set());
+      toast.success(`Removed ${itemIds.length} item${itemIds.length !== 1 ? 's' : ''} from collection`);
+    } catch (error) {
+      console.error('Error removing items from collection:', error);
+      toast.error('Failed to remove items from collection');
+    }
+  };
+
   const handleCollectionSuccess = () => {
     // Refresh item collections
     items.forEach((item) => {
@@ -733,15 +751,27 @@ export function ItemList({ items, onDelete }: ItemListProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              onClick={handleAddToCollection}
-              disabled={selectedItems.size === 0}
-              size="sm"
-              variant="outline"
-            >
-              <FolderPlus className="mr-2 h-4 w-4" />
-              Add to Collection
-            </Button>
+            {collectionId ? (
+              <Button
+                onClick={handleRemoveFromCollection}
+                disabled={selectedItems.size === 0}
+                size="sm"
+                variant="outline"
+              >
+                <FolderMinus className="mr-2 h-4 w-4" />
+                Remove from Collection
+              </Button>
+            ) : (
+              <Button
+                onClick={handleAddToCollection}
+                disabled={selectedItems.size === 0}
+                size="sm"
+                variant="outline"
+              >
+                <FolderPlus className="mr-2 h-4 w-4" />
+                Add to Collection
+              </Button>
+            )}
             <Button onClick={handleToggleBulkMode} size="sm" variant="outline">
               Cancel
             </Button>

@@ -23,6 +23,9 @@ export function SearchBar({
   const [loading, setLoading] = useState(false);
   const clearedResultsRef = useRef(true);
   const lastReportedLoadingRef = useRef(false);
+  const lastSearchedQueryRef = useRef<string>('');
+  const lastSearchedFiltersRef = useRef<string>('');
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const updateLoadingState = (next: boolean) => {
     setLoading((prev) => {
@@ -52,36 +55,90 @@ export function SearchBar({
   }, []);
 
   useEffect(() => {
+    // Clear any pending search
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = null;
+    }
+
     if (!query || query.length < minQueryLength) {
       updateLoadingState(false);
 
       if (!clearedResultsRef.current) {
         onResultsChange?.([]);
         clearedResultsRef.current = true;
+        lastSearchedQueryRef.current = '';
+        lastSearchedFiltersRef.current = '';
       }
 
       return;
     }
 
+    // Create a search key from query + filters to detect actual changes
+    const normalizedQuery = query.trim().toLowerCase();
+    const filtersKey = JSON.stringify(filters || {});
+    const searchKey = `${normalizedQuery}::${filtersKey}`;
+    const lastSearchKey = `${lastSearchedQueryRef.current}::${lastSearchedFiltersRef.current}`;
+
+    // Only search if the query or filters actually changed
+    if (searchKey === lastSearchKey) {
+      return;
+    }
+
     clearedResultsRef.current = false;
 
-    const timeoutId = setTimeout(async () => {
-      updateLoadingState(true);
-      try {
-        const response = await apiClient.search(query, {
-          filters,
-        });
-        const newResults = response.results ?? [];
-        onResultsChange?.(newResults);
-      } catch (error) {
-        console.error('Search error:', error);
-        onResultsChange?.([]);
-      } finally {
-        updateLoadingState(false);
+    searchTimeoutRef.current = setTimeout(async () => {
+      const currentQuery = query.trim();
+      const normalizedCurrentQuery = currentQuery.toLowerCase();
+      const currentFiltersKey = JSON.stringify(filters || {});
+      const currentSearchKey = `${normalizedCurrentQuery}::${currentFiltersKey}`;
+
+      // Only proceed if search key is different from last search and query is valid
+      if (currentSearchKey !== lastSearchKey && currentQuery.length >= minQueryLength) {
+        // Store the search key we're about to execute
+        const executingSearchKey = currentSearchKey;
+        lastSearchedQueryRef.current = normalizedCurrentQuery;
+        lastSearchedFiltersRef.current = currentFiltersKey;
+
+        updateLoadingState(true);
+        try {
+          const response = await apiClient.search(currentQuery, {
+            limit: 10,
+            filters,
+          });
+          const newResults = response.results ?? [];
+
+          // Only update if search key hasn't changed during the async operation
+          const finalQuery = query.trim().toLowerCase();
+          const finalFiltersKey = JSON.stringify(filters || {});
+          const finalSearchKey = `${finalQuery}::${finalFiltersKey}`;
+
+          if (finalSearchKey === executingSearchKey) {
+            onResultsChange?.(newResults);
+          }
+        } catch (error) {
+          console.error('Search error:', error);
+          // Only clear if search key still matches
+          const finalQuery = query.trim().toLowerCase();
+          const finalFiltersKey = JSON.stringify(filters || {});
+          const finalSearchKey = `${finalQuery}::${finalFiltersKey}`;
+
+          if (finalSearchKey === executingSearchKey) {
+            onResultsChange?.([]);
+          }
+        } finally {
+          updateLoadingState(false);
+        }
       }
+      searchTimeoutRef.current = null;
     }, 300);
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+        searchTimeoutRef.current = null;
+      }
+    };
   }, [filters, minQueryLength, onLoadingChange, onResultsChange, query]);
 
   return (

@@ -9,11 +9,9 @@ import { ItemList } from '@/components/item-list';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { FeedbackDialog } from '@/components/feedback-dialog';
 import { AvatarMenu } from '@/components/avatar-menu';
-import { CollectionDialog } from '@/components/collection-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item, API_URL, type SearchResult, type SearchFilters } from '@/lib/api';
 import { BOOKMARK_IMPORT_EVENT, ITEM_CREATED_EVENT } from '@/lib/events';
-import { FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function InboxPage() {
@@ -38,8 +36,12 @@ export default function InboxPage() {
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [createCollectionDialogOpen, setCreateCollectionDialogOpen] = useState(false);
+  const [searchOffset, setSearchOffset] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(true);
+  const [searchLoadingMore, setSearchLoadingMore] = useState(false);
+  const searchSentinelRef = useRef<HTMLDivElement>(null);
   const BATCH_SIZE = 50;
+  const SEARCH_BATCH_SIZE = 10;
   const searchFilters: SearchFilters = { entities: ['item'] };
 
   const isOutboundEmailItem = (item: Item): boolean => {
@@ -47,8 +49,22 @@ export default function InboxPage() {
     return source.startsWith('send_workflow:') || source === 'send_workflow:outbound';
   };
 
-  const handleSearchResultsChange = useCallback((results: SearchResult[]) => {
-    setSearchResults(results);
+  const handleSearchResultsChange = useCallback((results: SearchResult[], append: boolean = false) => {
+    if (append) {
+      setSearchResults((prev) => {
+        // Create a map to track existing results by entityType:entityId
+        const existingKeys = new Set(prev.map((r) => `${r.entityType}:${r.entityId}`));
+        // Filter out duplicates from new results
+        const uniqueNewResults = results.filter(
+          (r) => !existingKeys.has(`${r.entityType}:${r.entityId}`)
+        );
+        return [...prev, ...uniqueNewResults];
+      });
+    } else {
+      setSearchResults(results);
+      setSearchOffset(0);
+      setSearchHasMore(results.length === SEARCH_BATCH_SIZE && results.length > 0);
+    }
   }, []);
 
   const handleSearchLoadingChange = useCallback((isLoading: boolean) => {
@@ -57,58 +73,63 @@ export default function InboxPage() {
 
   const handleSearchQueryChange = useCallback((value: string) => {
     setSearchQuery(value);
+    // Reset search state when query changes
+    if (value.length < 2) {
+      setSearchResults([]);
+      setSearchOffset(0);
+      setSearchHasMore(true);
+    }
   }, []);
 
-  const getCurrentItemIds = useCallback((): string[] => {
-    if (searchQuery.length >= 2) {
-      // Get item IDs from search results
-      return searchResults
-        .filter(
-          (result) =>
-            result.entityType === 'item' &&
-            result.item &&
-            !result.item.isResendEmail &&
-            !isOutboundEmailItem(result.item),
-        )
-        .map((result) => result.item!.id);
-    } else {
-      // Get item IDs from filtered items
-      return items
-        .filter((item) => !item.isResendEmail && !isOutboundEmailItem(item))
-        .map((item) => item.id);
+  const loadMoreSearchResults = useCallback(async () => {
+    if (!searchQuery || searchQuery.length < 2 || searchLoadingMore || !searchHasMore) {
+      return;
     }
-  }, [searchQuery, searchResults, items]);
 
-  const handleCreateCollectionFromResults = async (data: {
-    title: string;
-    description?: string;
-    color?: string;
-    icon?: string;
-  }) => {
-    try {
-      const itemIds = getCurrentItemIds();
-
-      if (itemIds.length === 0) {
-        toast.error('No items to add to collection');
-        return;
+    // Don't load more if we already have 50 results (max limit)
+    setSearchResults((prev) => {
+      if (prev.length >= 50) {
+        setSearchHasMore(false);
+        return prev;
       }
+      return prev;
+    });
 
-      // Create the collection
-      const collection = await apiClient.createCollection(data);
+    setSearchLoadingMore(true);
+    try {
+      const nextOffset = searchOffset + SEARCH_BATCH_SIZE;
+      const response = await apiClient.search(searchQuery, {
+        limit: SEARCH_BATCH_SIZE,
+        offset: nextOffset,
+        filters: searchFilters,
+      });
+      const newResults = response.results ?? [];
 
-      // Add all items to the collection
-      await apiClient.addItemsToCollection(collection.id, itemIds);
-
-      toast.success(`Created collection "${data.title}" with ${itemIds.length} item${itemIds.length !== 1 ? 's' : ''}`);
-      setCreateCollectionDialogOpen(false);
-
-      // Optionally navigate to the collection
-      router.push(`/collections/${collection.id}`);
+      if (newResults.length > 0) {
+        // Use functional update to get current length and deduplicate
+        setSearchResults((prev) => {
+          // Create a map to track existing results by entityType:entityId
+          const existingKeys = new Set(prev.map((r) => `${r.entityType}:${r.entityId}`));
+          // Filter out duplicates from new results
+          const uniqueNewResults = newResults.filter(
+            (r) => !existingKeys.has(`${r.entityType}:${r.entityId}`)
+          );
+          const updated = [...prev, ...uniqueNewResults];
+          // Don't load more if we've reached 50 results or got fewer than batch size
+          const totalResults = updated.length;
+          setSearchHasMore(totalResults < 50 && newResults.length === SEARCH_BATCH_SIZE);
+          return updated;
+        });
+        setSearchOffset(nextOffset);
+      } else {
+        setSearchHasMore(false);
+      }
     } catch (error) {
-      console.error('Error creating collection from results:', error);
-      toast.error('Failed to create collection');
+      console.error('Error loading more search results:', error);
+    } finally {
+      setSearchLoadingMore(false);
     }
-  };
+  }, [searchQuery, searchOffset, searchLoadingMore, searchHasMore, searchFilters]);
 
   const itemMatchesFilters = useCallback((item: Item): boolean => {
     // Always hide outbound workflow emails from the inbox
@@ -410,6 +431,34 @@ export default function InboxPage() {
     };
   }, [hasMore, loadMoreItems, loading, loadingMore]);
 
+  // Intersection Observer for search infinite scroll
+  useEffect(() => {
+    // Only set up observer when we have search results and query is valid
+    if (searchQuery.length < 2) return;
+
+    const sentinel = searchSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && searchHasMore && !searchLoadingMore && !searchLoading) {
+          loadMoreSearchResults();
+        }
+      },
+      {
+        root: null,
+        rootMargin: '200px', // Start loading 200px before reaching the sentinel
+        threshold: 0.1,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [searchHasMore, searchLoading, searchLoadingMore, searchQuery, loadMoreSearchResults]);
+
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
@@ -674,30 +723,6 @@ export default function InboxPage() {
                     </select>
                   </div>
                 </div>
-                {(() => {
-                  const hasActiveFilters = sourceFilter || fileTypeFilter;
-                  const hasSearchResults = searchQuery.length >= 2 && searchResults.length > 0;
-                  const hasFilteredItems = !searchQuery && items.length > 0;
-                  const itemCount = getCurrentItemIds().length;
-
-                  return (hasActiveFilters || hasSearchResults || hasFilteredItems) && (
-                    <Button
-                      onClick={() => setCreateCollectionDialogOpen(true)}
-                      size="sm"
-                      variant="outline"
-                      className="whitespace-nowrap"
-                      title={itemCount > 0 ? `Create collection with ${itemCount} item${itemCount !== 1 ? 's' : ''}` : 'Create collection from current results'}
-                    >
-                      <FolderPlus className="mr-2 h-4 w-4" />
-                      Create Collection from Results
-                      {itemCount > 0 && (
-                        <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">
-                          {itemCount}
-                        </span>
-                      )}
-                    </Button>
-                  );
-                })()}
               </div>
             </div>
           </div>
@@ -720,7 +745,14 @@ export default function InboxPage() {
                       No results match your search.
                     </div>
                   ) : (
-                    <SearchResults results={searchResults} />
+                    <>
+                      <SearchResults results={searchResults} />
+                      <div ref={searchSentinelRef} className="py-4 text-center min-h-[50px]">
+                        {searchLoadingMore && (
+                          <div className="text-sm text-muted-foreground">Loading more results...</div>
+                        )}
+                      </div>
+                    </>
                   )}
                 </div>
               </div>
@@ -746,12 +778,6 @@ export default function InboxPage() {
           </div>
         </div>
       </main>
-
-      <CollectionDialog
-        open={createCollectionDialogOpen}
-        onOpenChange={setCreateCollectionDialogOpen}
-        onSave={handleCreateCollectionFromResults}
-      />
     </div>
   );
 }

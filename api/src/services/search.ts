@@ -247,35 +247,45 @@ export class SearchService {
     user: { id: string; email?: string | null },
     query: string,
     limit: number = 10,
-    filters?: SearchFilters
+    filters?: SearchFilters,
+    offset: number = 0
   ): Promise<SearchResult[]> {
     const startedAt = Date.now();
     const userId = user?.id ?? null;
     const queryPreview = query.length > 120 ? `${query.slice(0, 117)}...` : query;
     const filterSignature = this.serializeFilters(filters);
+    // For caching, we fetch all results up to max limit (50) without offset
+    // Cache key doesn't include offset since we cache the full result set
+    const maxLimit = 50;
     const cacheKey =
-      user?.id && query ? this.buildCacheKey(user.id, query, limit, filters) : null;
+      user?.id && query ? this.buildCacheKey(user.id, query, maxLimit, filters) : null;
 
-    if (cacheKey) {
+    if (cacheKey && offset === 0) {
       const cached = this.getFromCache(cacheKey);
       if (cached) {
-        return cached;
+        // Return cached results with offset applied
+        return cached.slice(offset, offset + limit);
       }
     }
 
     const escapedQuery = query.replace(/%/g, '\\%').replace(/_/g, '\\_');
     const searchTerms = query.toLowerCase().split(/\s+/).filter((term) => term.length > 0);
 
-    const semanticResults = await this.semanticSearch(user, query, searchTerms, limit * 2, filters);
-    const textResults = await this.textSearch(user, escapedQuery, searchTerms, limit * 2, filters);
+    // Fetch more results to support pagination (up to maxLimit)
+    const fetchLimit = Math.min(maxLimit, limit + offset);
+    const semanticResults = await this.semanticSearch(user, query, searchTerms, fetchLimit * 2, filters);
+    const textResults = await this.textSearch(user, escapedQuery, searchTerms, fetchLimit * 2, filters);
 
-    const combinedResults = this.combineResults(semanticResults, textResults, limit);
+    // Combine and sort all results, then apply offset and limit
+    const combinedResults = this.combineResults(semanticResults, textResults, fetchLimit);
+    const paginatedResults = combinedResults.slice(offset, offset + limit);
 
-    if (cacheKey && user?.id) {
+    // Only cache if offset is 0 (first page)
+    if (cacheKey && user?.id && offset === 0) {
       this.storeInCache(user.id, cacheKey, combinedResults);
     }
 
-    return combinedResults;
+    return paginatedResults;
   }
 
   private async semanticSearch(
@@ -658,6 +668,7 @@ export class SearchService {
     const combined = Array.from(resultMap.values());
     combined.sort((a, b) => b.similarity - a.similarity);
 
+    // Return all results up to limit (pagination will be applied in search method)
     return combined.slice(0, limit);
   }
 }

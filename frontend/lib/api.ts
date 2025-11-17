@@ -1068,6 +1068,7 @@ class ApiClient {
     query: string,
     options?: {
       limit?: number;
+      offset?: number;
       filters?: SearchFilters;
     }
   ): Promise<SearchResponse> {
@@ -1076,6 +1077,10 @@ class ApiClient {
 
     if (options?.limit && Number.isFinite(options.limit)) {
       params.set('limit', Math.max(1, Math.min(options.limit, 50)).toString());
+    }
+
+    if (options?.offset !== undefined && Number.isFinite(options.offset)) {
+      params.set('offset', Math.max(0, options.offset).toString());
     }
 
     const filters = options?.filters;

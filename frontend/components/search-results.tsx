@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, MouseEvent } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Dialog,
@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   apiClient,
   type Item,
@@ -19,6 +20,8 @@ import {
   type SearchResult,
   type Contact,
 } from '@/lib/api';
+import { AddToCollectionDialog } from '@/components/add-to-collection-dialog';
+import { FolderPlus } from 'lucide-react';
 
 interface SearchResultsProps {
   results: SearchResult[];
@@ -43,8 +46,16 @@ export function SearchResults({ results }: SearchResultsProps) {
   const [emailBodyExpanded, setEmailBodyExpanded] = useState(false);
   const dialogContentRef = useRef<HTMLDivElement>(null);
   const isClickInsideRef = useRef(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [bulkMode, setBulkMode] = useState(false);
+  const [addToCollectionDialogOpen, setAddToCollectionDialogOpen] = useState(false);
 
   type Attachment = NonNullable<Item['attachments']>[number];
+
+  const isOutboundEmailItem = (item: Item): boolean => {
+    const source = item.source?.toLowerCase() ?? '';
+    return source.startsWith('send_workflow:') || source === 'send_workflow:outbound';
+  };
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item?: SearchResult['item'] | Item | null) => {
@@ -514,8 +525,120 @@ export function SearchResults({ results }: SearchResultsProps) {
     }
   };
 
+  const handleToggleBulkMode = () => {
+    setBulkMode(!bulkMode);
+    setSelectedItems(new Set());
+  };
+
+  const handleToggleItemSelection = (itemId: string, event?: MouseEvent) => {
+    if (event) {
+      event.stopPropagation();
+    }
+    setSelectedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAll = () => {
+    // Only select items that can be added to collections (exclude Resend emails and outbound emails)
+    const selectableItems = results
+      .filter((result) => {
+        if (result.entityType !== 'item') return false;
+        const item = buildItemFromResult(result);
+        return item && !item.isResendEmail && !isOutboundEmailItem(item);
+      })
+      .map((result) => {
+        const item = buildItemFromResult(result);
+        return item?.id;
+      })
+      .filter((id): id is string => !!id);
+
+    const allSelected = selectableItems.every((id) => selectedItems.has(id));
+
+    if (allSelected) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(selectableItems));
+    }
+  };
+
+  const handleAddToCollection = () => {
+    setAddToCollectionDialogOpen(true);
+  };
+
+  const handleCollectionSuccess = () => {
+    setSelectedItems(new Set());
+  };
+
+  const getSelectableItemIds = (): string[] => {
+    return Array.from(selectedItems);
+  };
+
   return (
     <>
+      {bulkMode && results.length > 0 && (
+        <div className="sticky top-0 z-10 bg-white border-b px-4 py-2 flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={
+                (() => {
+                  const selectableItems = results
+                    .filter((result) => {
+                      if (result.entityType !== 'item') return false;
+                      const item = buildItemFromResult(result);
+                      return item && !item.isResendEmail && !isOutboundEmailItem(item);
+                    })
+                    .map((result) => {
+                      const item = buildItemFromResult(result);
+                      return item?.id;
+                    })
+                    .filter((id): id is string => !!id);
+                  return selectableItems.length > 0 && selectableItems.every((id) => selectedItems.has(id));
+                })()
+              }
+              onCheckedChange={handleSelectAll}
+            />
+            <span className="text-sm text-gray-700">
+              {selectedItems.size} of{' '}
+              {results.filter((result) => {
+                if (result.entityType !== 'item') return false;
+                const item = buildItemFromResult(result);
+                return item && !item.isResendEmail && !isOutboundEmailItem(item);
+              }).length}{' '}
+              selected
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={handleAddToCollection}
+              disabled={selectedItems.size === 0}
+              size="sm"
+              variant="outline"
+            >
+              <FolderPlus className="mr-2 h-4 w-4" />
+              Add to Collection
+            </Button>
+            <Button onClick={handleToggleBulkMode} size="sm" variant="outline">
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!bulkMode && results.length > 0 && (
+        <div className="px-4 py-2 flex justify-end border-b mb-4">
+          <Button onClick={handleToggleBulkMode} size="sm" variant="outline">
+            Select Items
+          </Button>
+        </div>
+      )}
+
       <div className="space-y-2 sm:space-y-3">
         {results.map((result) => {
           if (result.entityType === 'contact') {
@@ -540,7 +663,7 @@ export function SearchResults({ results }: SearchResultsProps) {
             const tags = result.document?.tags ?? [];
 
             return (
-              <Card key={`contact-${contact.id}`} className="bg-white">
+              <Card key={`${result.entityType}-${result.entityId}`} className="bg-white">
                 <CardHeader className="p-3 sm:p-6">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex flex-col gap-1 pr-2">
@@ -622,16 +745,37 @@ export function SearchResults({ results }: SearchResultsProps) {
           const recencyScore = result.scores?.recency ?? undefined;
           const relativeTime = item.created_at ? formatRelativeTime(item.created_at) : '';
           const overallScoreLabel = formatScore(overallScore);
+          const isSelected = selectedItems.has(item.id);
+          const canAddToCollection = !item.isResendEmail && !isOutboundEmailItem(item);
 
           return (
             <Card
-              key={item.id}
-              className="cursor-pointer hover:bg-accent"
-              onClick={() => handleItemClick(item)}
+              key={`${result.entityType}-${result.entityId}`}
+              className={`${bulkMode && !canAddToCollection ? 'opacity-50' : ''} ${bulkMode ? '' : 'cursor-pointer'} hover:bg-accent ${isSelected ? 'bg-blue-50' : ''}`}
+              onClick={(e) => {
+                if (bulkMode && canAddToCollection) {
+                  handleToggleItemSelection(item.id, e);
+                } else if (!bulkMode) {
+                  handleItemClick(item);
+                }
+              }}
             >
               <CardHeader className="p-3 sm:p-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
-                  <div className="flex flex-col gap-1 pr-2">
+                  <div className="flex items-start gap-2 flex-1">
+                    {bulkMode && (
+                      <div className="shrink-0 pt-1" onClick={(e) => e.stopPropagation()}>
+                        {canAddToCollection ? (
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => handleToggleItemSelection(item.id)}
+                          />
+                        ) : (
+                          <div className="w-4 h-4" />
+                        )}
+                      </div>
+                    )}
+                    <div className="flex flex-col gap-1 pr-2 flex-1">
                     <CardTitle className="text-sm sm:text-base leading-tight">{displayTitle}</CardTitle>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       {item.type && (
@@ -653,6 +797,7 @@ export function SearchResults({ results }: SearchResultsProps) {
                           Recency {formatScore(recencyScore)}
                         </span>
                       )}
+                    </div>
                     </div>
                   </div>
                   {overallScoreLabel && (
@@ -1354,6 +1499,13 @@ export function SearchResults({ results }: SearchResultsProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <AddToCollectionDialog
+        open={addToCollectionDialogOpen}
+        onOpenChange={setAddToCollectionDialogOpen}
+        itemIds={getSelectableItemIds()}
+        onSuccess={handleCollectionSuccess}
+      />
     </>
   );
 }

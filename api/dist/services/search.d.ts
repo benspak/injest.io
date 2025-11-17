@@ -38,7 +38,7 @@ export declare class SearchService {
     search(user: {
         id: string;
         email?: string | null;
-    }, query: string, limit?: number, filters?: SearchFilters): Promise<SearchResult[]>;
+    }, query: string, limit?: number, filters?: SearchFilters, offset?: number): Promise<SearchResult[]>;
     private semanticSearch;
     private textSearch;
     private combineResults;

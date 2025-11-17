@@ -92,6 +92,11 @@ router.get('/search', async (req, res) => {
             return res.status(400).json({ error: 'Invalid limit parameter' });
         }
         const limit = limitParam ? Math.min(Math.max(limitParam, 1), 50) : 10;
+        const offsetParam = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : undefined;
+        if (offsetParam !== undefined && Number.isNaN(offsetParam)) {
+            return res.status(400).json({ error: 'Invalid offset parameter' });
+        }
+        const offset = offsetParam ? Math.max(offsetParam, 0) : 0;
         const uploadedByParam = typeof req.query.uploadedBy === 'string' ? req.query.uploadedBy.trim().toLowerCase() : undefined;
         if (uploadedByParam && !['me', 'shared', 'all'].includes(uploadedByParam)) {
             return res.status(400).json({ error: 'uploadedBy must be one of: me, shared, all' });
@@ -145,7 +150,7 @@ router.get('/search', async (req, res) => {
         if (dateTo) {
             filters.dateTo = dateTo;
         }
-        const results = await searchService.search({ id: req.apiUser.id, email: req.apiUser.email }, query, limit, filters);
+        const results = await searchService.search({ id: req.apiUser.id, email: req.apiUser.email }, query, limit, filters, offset);
         res.json({
             query,
             results: results.map((result) => ({
