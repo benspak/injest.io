@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import dotenv from 'dotenv';
 import { promises as fs } from 'fs';
+import crypto from 'crypto';
 import type { Item } from '../models/Item.js';
 import { fileStorageService } from './storage.js';
 
@@ -399,9 +400,6 @@ export class EmailService {
             .join('\n')
         : '<p></p>');
 
-    // Append signature to HTML content
-    htmlContent = `${htmlContent}${emailSignatureHtml}`;
-
     let textContent =
       bodyText ??
       (bodyHtml
@@ -416,8 +414,9 @@ export class EmailService {
     textContent = textContent ? `${textContent}\n\n${emailSignature}` : emailSignature;
 
     let preparedAttachments:
-      | Array<{ filename: string; content: string; contentType: string }>
+      | Array<{ filename: string; content: string; contentType: string; contentId?: string }>
       | undefined;
+    const imageContentIds: Array<{ contentId: string; filename: string }> = [];
 
     if (attachments && attachments.length > 0) {
       preparedAttachments = [];
@@ -427,16 +426,59 @@ export class EmailService {
         }
         const filePath = fileStorageService.getFilePath(attachment.storedFilename);
         const fileBuffer = await fs.readFile(filePath);
-        preparedAttachments.push({
+        const mimetype = attachment.mimetype || 'application/octet-stream';
+        const isImage = mimetype.startsWith('image/');
+
+        // Generate contentId for image attachments to enable inline previews
+        let contentId: string | undefined;
+        if (isImage) {
+          try {
+            contentId = crypto.randomUUID();
+          } catch {
+            // Fallback for older Node versions
+            contentId = crypto.randomBytes(16).toString('hex');
+          }
+          imageContentIds.push({
+            contentId,
+            filename: attachment.displayName || attachment.storedFilename,
+          });
+        }
+
+        const attachmentPayload: {
+          filename: string;
+          content: string;
+          contentType: string;
+          contentId?: string;
+        } = {
           filename: attachment.displayName || attachment.storedFilename,
           content: fileBuffer.toString('base64'),
-          contentType: attachment.mimetype || 'application/octet-stream',
-        });
+          contentType: mimetype,
+        };
+
+        if (contentId) {
+          attachmentPayload.contentId = contentId;
+        }
+
+        preparedAttachments.push(attachmentPayload);
       }
       if (preparedAttachments.length === 0) {
         preparedAttachments = undefined;
       }
     }
+
+    // Embed image attachments in HTML as inline previews using cid: references
+    if (imageContentIds.length > 0) {
+      const imageHtml = imageContentIds
+        .map(
+          ({ contentId, filename }) =>
+            `<div style="margin: 10px 0;"><img src="cid:${contentId}" alt="${filename.replace(/"/g, '&quot;')}" style="max-width: 100%; height: auto;" /></div>`
+        )
+        .join('\n');
+      htmlContent = `${htmlContent}\n${imageHtml}`;
+    }
+
+    // Append signature to HTML content
+    htmlContent = `${htmlContent}${emailSignatureHtml}`;
 
     // Resend's runtime API supports `replyTo`, but TypeScript typings may lag behind.
     // We use `replyTo` here and cast the payload to `any` to avoid over-constraining the type.
