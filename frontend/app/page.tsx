@@ -21,6 +21,8 @@ export default function Home() {
         "Collections & organization",
         "API keys",
         "Public profiles & sharing",
+        "Slack integration",
+        "Chrome extension",
       ],
     },
     {
@@ -289,6 +291,26 @@ export default function Home() {
               <CardContent>
                 <p className="text-gray-600">
                   Upload files directly. Text is extracted automatically, making everything searchable.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Slack Integration</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Connect your Slack workspace to save messages, files, and conversations directly to your inbox. Everything from Slack becomes searchable in Injest.
+                </p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Chrome Extension</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Capture links, files, and screenshots straight from your browser with our Chrome extension. Quickly save content without leaving the page you're on.
                 </p>
               </CardContent>
             </Card>
