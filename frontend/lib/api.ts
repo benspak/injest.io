@@ -508,10 +508,22 @@ class ApiClient {
       console.log(`[API] ${options.method || 'GET'} ${url}`);
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+      });
+    } catch (error) {
+      // Network error (e.g., server not reachable, CORS, network failure)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown network error';
+      console.error(`[API] Network error for ${options.method || 'GET'} ${url}:`, errorMessage);
+      throw new ApiError(
+        `Failed to connect to API server. Please ensure the API server is running at ${this.baseUrl}. ${errorMessage}`,
+        0,
+        { originalError: errorMessage }
+      );
+    }
 
     if (!response.ok) {
       const errorText = await response.text();
