@@ -92,6 +92,12 @@ export default function SlackPage() {
         currentOffset
       );
 
+      console.log('[SlackPage] Loaded messages:', {
+        count: response.messages?.length || 0,
+        total: response.total,
+        offset: currentOffset,
+      });
+
       if (reset) {
         setMessages(response.messages || []);
       } else {
@@ -102,7 +108,7 @@ export default function SlackPage() {
       setOffset(currentOffset + (response.messages?.length || 0));
     } catch (error) {
       console.error('Error loading Slack messages:', error);
-      toast.error('Failed to load Slack messages');
+      toast.error(`Failed to load Slack messages: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setLoading(false);
       setLoadingMore(false);
