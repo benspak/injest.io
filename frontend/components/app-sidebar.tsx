@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown, MessageSquare } from 'lucide-react';
+import { FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown, MessageSquare, Gift } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { AvatarMenu } from '@/components/avatar-menu';
 import type { User } from '@/lib/api';
@@ -45,6 +45,11 @@ const NAV_ITEMS = [
     href: '/imports',
     label: 'Imports',
     icon: UploadCloud,
+  },
+  {
+    href: '/referrals',
+    label: 'Referrals',
+    icon: Gift,
   },
 ];
 

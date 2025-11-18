@@ -450,6 +450,10 @@ export default function Home() {
             <Link href="/developers" className="hover:text-blue-600 transition-colors">
               Developer Docs
             </Link>
+            <span className="hidden sm:inline">•</span>
+            <Link href="/referrals" className="hover:text-blue-600 transition-colors">
+              Referrals
+            </Link>
           </div>
         </div>
       </footer>
