@@ -52,6 +52,10 @@ const INBOX_SUB_ITEMS = [
     href: '/inbox/spam',
     label: 'Spam',
   },
+  {
+    href: '/inbox/unsubscribe',
+    label: 'Unsubscribe',
+  },
 ];
 
 export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout }: AppSidebarProps) {
