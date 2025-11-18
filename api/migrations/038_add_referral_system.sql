@@ -39,6 +39,15 @@ CREATE INDEX IF NOT EXISTS idx_referral_commissions_referral_id ON referral_comm
 CREATE INDEX IF NOT EXISTS idx_referral_commissions_payment_intent_id ON referral_commissions(payment_intent_id);
 CREATE INDEX IF NOT EXISTS idx_referral_commissions_status ON referral_commissions(status);
 
--- Add constraint to ensure status is valid
-ALTER TABLE referral_commissions
-ADD CONSTRAINT check_status CHECK (status IN ('pending', 'paid', 'failed'));
+-- Add constraint to ensure status is valid (only if it doesn't exist)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'check_status'
+        AND conrelid = 'referral_commissions'::regclass
+    ) THEN
+        ALTER TABLE referral_commissions
+        ADD CONSTRAINT check_status CHECK (status IN ('pending', 'paid', 'failed'));
+    END IF;
+END $$;
