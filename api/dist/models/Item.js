@@ -97,6 +97,12 @@ export class ItemModel {
                 params.push('email');
                 paramCount += 2;
             }
+            else if (filters.source === 'slack') {
+                // For Slack sources, match items that start with "slack:" or have 'slack' in tags
+                query += ` AND (source LIKE $${paramCount} OR 'slack' = ANY(tags))`;
+                params.push('slack:%');
+                paramCount += 1;
+            }
             else {
                 query += ` AND source = $${paramCount++}`;
                 params.push(filters.source);
@@ -163,6 +169,12 @@ export class ItemModel {
                 params.push('email:%');
                 params.push('email');
                 paramCount += 2;
+            }
+            else if (filters.source === 'slack') {
+                // For Slack sources, match items that start with "slack:" or have 'slack' in tags
+                query += ` AND (source LIKE $${paramCount} OR 'slack' = ANY(tags))`;
+                params.push('slack:%');
+                paramCount += 1;
             }
             else {
                 query += ` AND source = $${paramCount++}`;

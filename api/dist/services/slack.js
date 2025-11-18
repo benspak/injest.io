@@ -219,6 +219,17 @@ export class SlackService {
         return token.access_token;
     }
     /**
+     * Get user token (authed_user_token) for fallback when bot token doesn't have access
+     */
+    async getUserToken(userId) {
+        const { SlackOAuthTokenModel } = await import('../models/SlackOAuthToken.js');
+        const token = await SlackOAuthTokenModel.findByUserId(userId);
+        if (!token || !token.authed_user_token) {
+            return null;
+        }
+        return token.authed_user_token;
+    }
+    /**
      * Verify webhook request signature
      */
     verifyWebhookSignature(timestamp, signature, body) {

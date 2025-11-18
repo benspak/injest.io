@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info, Flame } from 'lucide-react';
+import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info, Flame, MessageSquare, ExternalLink } from 'lucide-react';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -182,6 +182,75 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Integrations Section */}
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* Slack Integration Card */}
+            <Card className="bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 rounded-lg">
+                    <MessageSquare className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Connect with Slack</CardTitle>
+                    <CardDescription className="text-gray-700">
+                      Integrate Injest with Slack to easily save messages, files, and conversations directly to your inbox
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <a
+                    href="https://slack.com/oauth/v2/authorize?client_id=9933741812099.9968460027264&scope=channels:history,channels:read,chat:write,commands,files:read,groups:history,groups:read,im:history,im:read,mpim:history,mpim:read,reactions:read,users:read&user_scope=channels:history,groups:history,im:history,mpim:history"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      alt="Add to Slack"
+                      height="40"
+                      width="139"
+                      src="https://platform.slack-edge.com/img/add_to_slack.png"
+                      srcSet="https://platform.slack-edge.com/img/add_to_slack.png 1x, https://platform.slack-edge.com/img/add_to_slack@2x.png 2x"
+                      className="hover:opacity-80 transition-opacity"
+                    />
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Chrome Extension Card */}
+            <Card className="bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200">
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <ExternalLink className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">Chrome Extension</CardTitle>
+                    <CardDescription className="text-gray-700">
+                      Capture links, files, and screenshots straight from your browser with our Chrome extension
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <a
+                    href="https://chromewebstore.google.com/detail/injest-capture/goiocnfkcilgalpmbjbkhdjdblcokpjl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <Button variant="default" className="bg-blue-600 hover:bg-blue-700 text-white">
+                      Install Chrome Extension
+                      <ExternalLink className="ml-2 h-4 w-4" />
+                    </Button>
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
           {/* Quick Links Section */}
           <div>

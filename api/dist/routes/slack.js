@@ -234,8 +234,10 @@ router.get('/messages', authMiddleware, async (req, res) => {
         // Get user's workspaces
         const allTokens = await SlackOAuthTokenModel.findAllByUserId(req.user.id);
         if (!allTokens || allTokens.length === 0) {
+            console.log(`[Slack] No tokens found for user ${req.user.id}`);
             return res.json({ messages: [], total: 0 });
         }
+        console.log(`[Slack] Found ${allTokens.length} workspace(s) for user ${req.user.id}`);
         // Filter by workspace if specified
         const workspaceIds = workspaceId
             ? [workspaceId].filter(wsId => allTokens.some(t => t.workspace_id === wsId))
@@ -245,25 +247,31 @@ router.get('/messages', authMiddleware, async (req, res) => {
         for (const wsId of workspaceIds) {
             let wsMessages;
             if (channelId) {
-                wsMessages = await SlackMessageModel.findByChannel(wsId, channelId, 1000);
+                // Get messages for specific channel
+                const channelMessages = await SlackMessageModel.findByChannel(wsId, channelId, 1000);
+                wsMessages = channelMessages.filter(msg => msg.item_id); // Only messages with items
             }
             else {
                 // Get all messages with items for this workspace
                 const result = await pool.query(`SELECT sm.* FROM slack_messages sm
-           JOIN items i ON sm.item_id = i.id
+           INNER JOIN items i ON sm.item_id = i.id
            WHERE sm.workspace_id = $1 AND sm.item_id IS NOT NULL
            ORDER BY sm.message_ts DESC
-           LIMIT $2`, [wsId, 1000]);
+           LIMIT $2 OFFSET $3`, [wsId, parseInt(limit), parseInt(offset)]);
                 wsMessages = result.rows;
             }
-            // Filter and paginate
-            const filteredMessages = wsMessages
-                .filter(msg => msg.item_id) // Only messages with items
-                .slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+            // For channel-specific queries, paginate after filtering
+            let filteredMessages = wsMessages;
+            if (channelId) {
+                filteredMessages = wsMessages.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+            }
+            console.log(`[Slack] Processing ${filteredMessages.length} messages for workspace ${wsId}`);
             for (const msg of filteredMessages) {
                 const item = await ItemModel.findById(msg.item_id);
-                if (!item)
+                if (!item) {
+                    console.warn(`[Slack] Item ${msg.item_id} not found for message ${msg.message_ts}`);
                     continue;
+                }
                 const channel = await SlackChannelModel.findByChannelId(wsId, msg.channel_id);
                 // Generate permalink: https://slack.com/archives/{channelId}/p{timestamp}
                 const timestampStr = msg.message_ts.replace('.', '');
@@ -293,7 +301,18 @@ router.get('/messages', authMiddleware, async (req, res) => {
                     permalink,
                 });
             }
-            total += wsMessages.filter(msg => msg.item_id).length;
+            // Calculate total for this workspace
+            if (channelId) {
+                const totalResult = await pool.query(`SELECT COUNT(*)::int as count FROM slack_messages
+           WHERE workspace_id = $1 AND channel_id = $2 AND item_id IS NOT NULL`, [wsId, channelId]);
+                total += totalResult.rows[0]?.count || 0;
+            }
+            else {
+                const totalResult = await pool.query(`SELECT COUNT(*)::int as count FROM slack_messages sm
+           INNER JOIN items i ON sm.item_id = i.id
+           WHERE sm.workspace_id = $1 AND sm.item_id IS NOT NULL`, [wsId]);
+                total += totalResult.rows[0]?.count || 0;
+            }
         }
         res.json({ messages, total });
     }

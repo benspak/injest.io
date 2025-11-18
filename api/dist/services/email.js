@@ -439,19 +439,85 @@ The Injest.io Team
         }
         return await response.json();
     }
-    async getEmailAttachment(emailId, attachmentId) {
+    async getEmailAttachment(emailId, attachmentId, retries = 2) {
         const url = `${RESEND_API_BASE}/emails/receiving/${emailId}/attachments/${attachmentId}`;
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-            },
-        });
-        if (!response.ok) {
-            const error = await response.text().catch(() => 'Failed to fetch attachment');
-            throw new Error(`Failed to fetch attachment: ${response.status} - ${error}`);
+        let lastError = null;
+        for (let attempt = 0; attempt <= retries; attempt++) {
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+                    },
+                });
+                if (!response.ok) {
+                    // For 5xx errors, retry if we have attempts left
+                    if (response.status >= 500 && response.status < 600 && attempt < retries) {
+                        const delay = Math.min(1000 * Math.pow(2, attempt), 5000); // Exponential backoff, max 5s
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    // Try to parse error as JSON first, fall back to text
+                    let errorMessage;
+                    const contentType = response.headers.get('content-type') || '';
+                    if (contentType.includes('application/json')) {
+                        try {
+                            const errorJson = await response.json();
+                            errorMessage = errorJson.error || errorJson.message || `HTTP ${response.status}`;
+                        }
+                        catch {
+                            errorMessage = `HTTP ${response.status}`;
+                        }
+                    }
+                    else {
+                        // For HTML errors (like Cloudflare 500 pages), extract a concise message
+                        const errorText = await response.text().catch(() => '');
+                        if (errorText.includes('<!DOCTYPE html>') || errorText.includes('<html')) {
+                            // Extract title or error code from HTML if possible
+                            const titleMatch = errorText.match(/<title[^>]*>([^<]+)<\/title>/i);
+                            const errorCodeMatch = errorText.match(/Error code (\d+)/i);
+                            errorMessage = titleMatch
+                                ? `${titleMatch[1]}${errorCodeMatch ? ` (${errorCodeMatch[1]})` : ''}`
+                                : `HTTP ${response.status} - Server error`;
+                        }
+                        else {
+                            // Limit error text length to avoid logging huge responses
+                            errorMessage = errorText.length > 200
+                                ? `${errorText.substring(0, 200)}...`
+                                : errorText || `HTTP ${response.status}`;
+                        }
+                    }
+                    // For 4xx errors, don't retry - these are client errors
+                    if (response.status >= 400 && response.status < 500) {
+                        throw new Error(`Failed to fetch attachment: ${response.status} - ${errorMessage}`);
+                    }
+                    // For other errors, store and potentially retry
+                    lastError = new Error(`Failed to fetch attachment: ${response.status} - ${errorMessage}`);
+                    if (attempt < retries) {
+                        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        continue;
+                    }
+                    throw lastError;
+                }
+                return response.blob();
+            }
+            catch (error) {
+                lastError = error;
+                // Check if this is a network error or retryable error
+                const isNetworkError = error?.name === 'TypeError' || error?.code === 'ECONNREFUSED' || error?.code === 'ETIMEDOUT';
+                const isRetryable = isNetworkError || (error?.message && error.message.includes('500'));
+                // If this is the last attempt or not a retryable error, throw
+                if (attempt === retries || !isRetryable) {
+                    throw error;
+                }
+                // Otherwise, wait and retry
+                const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
         }
-        return response.blob();
+        // Should never reach here, but TypeScript needs it
+        throw lastError || new Error('Failed to fetch attachment after retries');
     }
 }
 export const emailService = new EmailService();

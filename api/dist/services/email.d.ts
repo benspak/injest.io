@@ -80,7 +80,7 @@ export declare class EmailService {
         has_more: boolean;
         data: EmailAttachment[];
     }>;
-    getEmailAttachment(emailId: string, attachmentId: string): Promise<Blob>;
+    getEmailAttachment(emailId: string, attachmentId: string, retries?: number): Promise<Blob>;
 }
 export declare const emailService: EmailService;
 //# sourceMappingURL=email.d.ts.map

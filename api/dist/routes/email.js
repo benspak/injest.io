@@ -531,8 +531,9 @@ router.get('/attachments/:itemId/:attachmentId', async (req, res) => {
          * - We never successfully persisted the file locally but still have a
          *   stable attachment id we can ask Resend for.
          */
+        let rawData = {};
+        let remoteAttachmentId;
         try {
-            let rawData = {};
             if (item.raw) {
                 try {
                     rawData = JSON.parse(item.raw);
@@ -542,7 +543,7 @@ router.get('/attachments/:itemId/:attachmentId', async (req, res) => {
                 }
             }
             const resendEmailId = rawData.resend_email_id;
-            const remoteAttachmentId = attachment.id || attachment.attachmentId || attachmentId;
+            remoteAttachmentId = attachment.id || attachment.attachmentId || attachmentId;
             if (resendEmailId && remoteAttachmentId) {
                 const blob = await emailService.getEmailAttachment(resendEmailId, remoteAttachmentId);
                 const buffer = Buffer.from(await blob.arrayBuffer());
@@ -560,10 +561,17 @@ router.get('/attachments/:itemId/:attachmentId', async (req, res) => {
             }
         }
         catch (fallbackError) {
+            // Extract a concise error message
+            const errorMessage = fallbackError?.message || String(fallbackError);
+            const conciseError = errorMessage.length > 300
+                ? `${errorMessage.substring(0, 300)}...`
+                : errorMessage;
             console.error('[Email] Failed Resend fallback for attachment:', {
-                error: fallbackError,
+                error: conciseError,
                 itemId: normalizedItem.id,
                 attachmentId,
+                hasResendEmailId: !!rawData.resend_email_id,
+                hasRemoteAttachmentId: !!remoteAttachmentId,
             });
         }
         // If we reach here, we have no way to retrieve the attachment contents

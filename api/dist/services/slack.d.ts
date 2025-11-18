@@ -38,6 +38,10 @@ export declare class SlackService {
      */
     getValidAccessToken(userId: string): Promise<string>;
     /**
+     * Get user token (authed_user_token) for fallback when bot token doesn't have access
+     */
+    getUserToken(userId: string): Promise<string | null>;
+    /**
      * Verify webhook request signature
      */
     verifyWebhookSignature(timestamp: string, signature: string, body: string): boolean;
