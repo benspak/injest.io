@@ -358,10 +358,18 @@ export class SlackIngestionService {
 
         // Rate limiting: sleep 100ms between batches
         await sleep(100);
-      } catch (error) {
-        console.error(`[SlackIngestion] Error fetching messages for channel ${channelId}:`, error);
-        errors++;
-        hasMore = false;
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        // Handle "not_in_channel" error gracefully - this is expected when bot doesn't have access
+        if (errorMessage.includes('not_in_channel')) {
+          console.warn(`[SlackIngestion] Bot not in channel ${channelId} (${channel.channel_name || 'unknown'}), skipping`);
+          hasMore = false;
+          // Don't count this as an error since it's expected behavior
+        } else {
+          console.error(`[SlackIngestion] Error fetching messages for channel ${channelId}:`, error);
+          errors++;
+          hasMore = false;
+        }
       }
     }
 
@@ -420,10 +428,18 @@ export class SlackIngestionService {
 
         // Rate limiting: sleep 100ms between batches
         await sleep(100);
-      } catch (error) {
-        console.error(`[SlackIngestion] Error fetching thread replies for ${threadTs}:`, error);
-        errors++;
-        hasMore = false;
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        // Handle "not_in_channel" error gracefully - this is expected when bot doesn't have access
+        if (errorMessage.includes('not_in_channel')) {
+          console.warn(`[SlackIngestion] Bot not in channel ${channelId} for thread ${threadTs}, skipping`);
+          hasMore = false;
+          // Don't count this as an error since it's expected behavior
+        } else {
+          console.error(`[SlackIngestion] Error fetching thread replies for ${threadTs}:`, error);
+          errors++;
+          hasMore = false;
+        }
       }
     }
 
@@ -472,9 +488,16 @@ export class SlackIngestionService {
 
         // Rate limiting: sleep 1 second between channels
         await sleep(1000);
-      } catch (error) {
-        console.error(`[SlackIngestion] Error ingesting channel ${channel.id}:`, error);
-        totalErrors++;
+      } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        // Handle "not_in_channel" error gracefully - this is expected when bot doesn't have access
+        if (errorMessage.includes('not_in_channel')) {
+          console.warn(`[SlackIngestion] Bot not in channel ${channel.id} (${channel.name || 'unknown'}), skipping`);
+          // Don't count this as an error since it's expected behavior
+        } else {
+          console.error(`[SlackIngestion] Error ingesting channel ${channel.id}:`, error);
+          totalErrors++;
+        }
       }
     }
 
