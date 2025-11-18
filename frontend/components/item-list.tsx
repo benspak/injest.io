@@ -13,7 +13,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { apiClient, Item, LinkMetadata } from '@/lib/api';
-import { Share2, FolderPlus, FolderMinus } from 'lucide-react';
+import { Share2, FolderPlus, FolderMinus, MessageSquare, ExternalLink } from 'lucide-react';
 import { ShareItemDialog } from '@/components/share-item-dialog';
 import { AddToCollectionDialog } from '@/components/add-to-collection-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -930,7 +930,48 @@ export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection
                           <span className="whitespace-nowrap">Resend</span>
                         </>
                       )}
-                      {item.source && (
+                      {/* Slack channel badge */}
+                      {item.source?.toLowerCase().startsWith('slack:') && (() => {
+                        const sourceParts = item.source.split(':');
+                        if (sourceParts.length >= 3) {
+                          const workspaceId = sourceParts[1];
+                          const channelId = sourceParts[2];
+                          const channelName = item.tags?.find(tag => tag !== 'slack' && !tag.includes(':')) || 'slack';
+
+                          // Try to extract message timestamp from notes
+                          const messageTsMatch = item.notes?.match(/[Mm]essage:\s*([\d.]+)/);
+                          const messageTs = messageTsMatch?.[1] || item.notes?.match(/([\d]{10}\.[\d]{6})/)?.[1];
+
+                          const slackPermalink = messageTs
+                            ? `https://slack.com/archives/${channelId}/p${messageTs.replace('.', '')}`
+                            : null;
+
+                          return (
+                            <>
+                              <span>•</span>
+                              <span className="inline-flex items-center gap-1">
+                                <span className="inline-flex items-center rounded bg-purple-50 px-1.5 py-0.5 text-[10px] font-medium text-purple-700 border border-purple-200">
+                                  #{channelName}
+                                </span>
+                                {slackPermalink && (
+                                  <a
+                                    href={slackPermalink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-purple-600 hover:text-purple-800 underline text-[10px]"
+                                    title="View in Slack"
+                                  >
+                                    View
+                                  </a>
+                                )}
+                              </span>
+                            </>
+                          );
+                        }
+                        return null;
+                      })()}
+                      {item.source && !item.source.toLowerCase().startsWith('slack:') && (
                         <>
                           <span>•</span>
                           <span className="whitespace-nowrap truncate max-w-[200px]">{item.source}</span>
@@ -1128,6 +1169,63 @@ export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection
                 ) : (
                   /* Regular content - only show if not URL with metadata or if additional content exists */
                   <>
+                    {/* Slack thread context */}
+                    {itemDetails.source?.toLowerCase().startsWith('slack:') && (() => {
+                      const sourceParts = itemDetails.source.split(':');
+                      if (sourceParts.length >= 3) {
+                        const workspaceId = sourceParts[1];
+                        const channelId = sourceParts[2];
+                        const messageTsMatch = itemDetails.notes?.match(/message\s+([\d.]+)/);
+                        const messageTs = messageTsMatch?.[1];
+                        const threadTsMatch = itemDetails.notes?.match(/thread:\s+([\d.]+)/i);
+                        const threadTs = threadTsMatch?.[1];
+
+                        if (messageTs && workspaceId && channelId) {
+                          return (
+                            <div className="border rounded-lg p-4 bg-purple-50 border-purple-200">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="text-sm font-semibold text-purple-900 flex items-center gap-2">
+                                  <MessageSquare className="h-4 w-4" />
+                                  Slack Message
+                                  {threadTs && (
+                                    <span className="text-xs font-normal text-purple-700 bg-purple-100 px-2 py-0.5 rounded">
+                                      Thread Reply
+                                    </span>
+                                  )}
+                                </h4>
+                                <a
+                                  href={`https://slack.com/archives/${channelId}/p${messageTs.replace('.', '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-purple-600 hover:text-purple-800 underline flex items-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  View in Slack
+                                </a>
+                              </div>
+                              {threadTs && (
+                                <p className="text-xs text-purple-700 mb-2">
+                                  This is a reply in a thread. <a
+                                    href={`https://slack.com/archives/${channelId}/p${threadTs.replace('.', '')}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline"
+                                  >
+                                    View thread
+                                  </a>
+                                </p>
+                              )}
+                              <div className="text-xs text-purple-600 space-y-1">
+                                <div>Channel: <span className="font-medium">#{itemDetails.tags?.find((t: string) => t !== 'slack' && !t.includes(':')) || 'unknown'}</span></div>
+                                <div>Message ID: <span className="font-mono text-[10px]">{messageTs}</span></div>
+                              </div>
+                            </div>
+                          );
+                        }
+                      }
+                      return null;
+                    })()}
+
                     {/* Attachments */}
                     {itemDetails.attachments && Array.isArray(itemDetails.attachments) && itemDetails.attachments.length > 0 && (
                       <div>

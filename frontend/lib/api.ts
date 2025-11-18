@@ -1570,6 +1570,47 @@ class ApiClient {
     });
   }
 
+  async getSlackMessageContext(
+    workspaceId: string,
+    channelId: string,
+    messageTs: string
+  ): Promise<{
+    message: any;
+    thread: any[];
+  }> {
+    return this.request(`/api/slack/messages/${workspaceId}/${channelId}/${encodeURIComponent(messageTs)}/context`);
+  }
+
+  async getSlackMessages(
+    workspaceId?: string,
+    channelId?: string,
+    limit?: number,
+    offset?: number
+  ): Promise<{
+    messages: Array<{
+      id: string;
+      item: Item;
+      slackMessage: {
+        workspaceId: string;
+        channelId: string;
+        messageTs: string;
+        threadTs: string | null;
+        text: string | null;
+      };
+      channel: { name: string | null; type: string | null } | null;
+      permalink: string;
+    }>;
+    total: number;
+  }> {
+    const params = new URLSearchParams();
+    if (workspaceId) params.append('workspaceId', workspaceId);
+    if (channelId) params.append('channelId', channelId);
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString();
+    return this.request(`/api/slack/messages${query ? `?${query}` : ''}`);
+  }
+
 }
 
 export const apiClient = new ApiClient(API_URL);

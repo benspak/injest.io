@@ -28,6 +28,7 @@ export interface UpdateSlackOAuthTokenInput {
 }
 export declare class SlackOAuthTokenModel {
     static findByUserId(userId: string): Promise<SlackOAuthToken | null>;
+    static findAllByUserId(userId: string): Promise<SlackOAuthToken[]>;
     static findByUserIdAndWorkspace(userId: string, workspaceId: string): Promise<SlackOAuthToken | null>;
     static findByWorkspaceId(workspaceId: string): Promise<SlackOAuthToken[]>;
     static findById(id: string): Promise<SlackOAuthToken | null>;

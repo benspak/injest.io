@@ -270,6 +270,9 @@ export class SlackIngestionService {
       description,
       source: `slack:${workspaceId}:${channelId}`,
       tags: ['slack', channelName || 'slack'].filter(Boolean),
+      notes: message.thread_ts
+        ? `Thread: ${message.thread_ts}\nMessage: ${message.ts}`
+        : `Message: ${message.ts}`,
     });
 
     // Store Slack message with link to item

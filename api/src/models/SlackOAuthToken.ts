@@ -40,6 +40,14 @@ export class SlackOAuthTokenModel {
     return result.rows[0] || null;
   }
 
+  static async findAllByUserId(userId: string): Promise<SlackOAuthToken[]> {
+    const result = await pool.query(
+      'SELECT * FROM slack_oauth_tokens WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    return result.rows;
+  }
+
   static async findByUserIdAndWorkspace(userId: string, workspaceId: string): Promise<SlackOAuthToken | null> {
     const result = await pool.query(
       'SELECT * FROM slack_oauth_tokens WHERE user_id = $1 AND workspace_id = $2',

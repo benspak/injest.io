@@ -143,6 +143,12 @@ export default function InboxPage() {
         if (!isEmailSource) {
           return false;
         }
+      } else if (sourceFilter === 'slack') {
+        const isSlackSource = (item.source?.toLowerCase().startsWith('slack:') ?? false) ||
+                              (Array.isArray(item.tags) && item.tags.includes('slack'));
+        if (!isSlackSource) {
+          return false;
+        }
       } else if (sourceFilter.startsWith('email:')) {
         if ((item.source ?? '').toLowerCase() !== sourceFilter.toLowerCase()) {
           return false;
@@ -704,6 +710,7 @@ export default function InboxPage() {
                       <option value="web">Web</option>
                       <option value="bookmark">Bookmark</option>
                       <option value="email">Email</option>
+                      <option value="slack">Slack</option>
                     </select>
                   </div>
                   <div className="flex items-center gap-1.5 sm:gap-2">
