@@ -148,6 +148,34 @@ async function fetchChannels(accessToken: string): Promise<SlackChannel[]> {
 }
 
 /**
+ * Join a channel with bot token
+ */
+async function joinChannel(accessToken: string, channelId: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${SLACK_API_BASE_URL}/conversations.join`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: new URLSearchParams({
+        channel: channelId,
+      }),
+    });
+
+    if (!response.ok) {
+      return false;
+    }
+
+    const data = (await response.json()) as SlackApiResponse<{ channel?: { id: string } }>;
+    return data.ok || false;
+  } catch (error) {
+    console.warn(`[SlackIngestion] Error joining channel ${channelId}:`, error);
+    return false;
+  }
+}
+
+/**
  * Fetch messages from a channel with pagination
  */
 async function fetchChannelMessages(
@@ -318,10 +346,24 @@ export class SlackIngestionService {
     userId: string,
     options: { limit?: number; oldest?: string } = {}
   ): Promise<{ ingested: number; errors: number }> {
-    const accessToken = await slackService.getValidAccessToken(userId);
+    let accessToken = await slackService.getValidAccessToken(userId);
     const channel = await SlackChannelModel.findByChannelId(workspaceId, channelId);
     if (!channel) {
       throw new Error(`Channel ${channelId} not found in workspace ${workspaceId}`);
+    }
+
+    // Try to join the channel with bot token first
+    const joined = await joinChannel(accessToken, channelId);
+    if (!joined) {
+      // If bot can't join, try using user token as fallback
+      const userToken = await slackService.getUserToken(userId);
+      if (userToken) {
+        console.log(`[SlackIngestion] Bot couldn't join channel ${channelId}, using user token as fallback`);
+        accessToken = userToken;
+      } else {
+        console.warn(`[SlackIngestion] Bot not in channel ${channelId} (${channel.channel_name || 'unknown'}) and no user token available, skipping`);
+        return { ingested: 0, errors: 0 };
+      }
     }
 
     let ingested = 0;
@@ -360,11 +402,19 @@ export class SlackIngestionService {
         await sleep(100);
       } catch (error: any) {
         const errorMessage = error?.message || String(error);
-        // Handle "not_in_channel" error gracefully - this is expected when bot doesn't have access
+        // Handle "not_in_channel" error - try user token if we haven't already
         if (errorMessage.includes('not_in_channel')) {
-          console.warn(`[SlackIngestion] Bot not in channel ${channelId} (${channel.channel_name || 'unknown'}), skipping`);
-          hasMore = false;
-          // Don't count this as an error since it's expected behavior
+          const userToken = await slackService.getUserToken(userId);
+          if (userToken && accessToken !== userToken) {
+            console.log(`[SlackIngestion] Bot token failed for channel ${channelId}, trying user token`);
+            accessToken = userToken;
+            // Retry with user token - don't break the loop
+            continue;
+          } else {
+            console.warn(`[SlackIngestion] Bot not in channel ${channelId} (${channel.channel_name || 'unknown'}), skipping`);
+            hasMore = false;
+            // Don't count this as an error since it's expected behavior
+          }
         } else {
           console.error(`[SlackIngestion] Error fetching messages for channel ${channelId}:`, error);
           errors++;
@@ -385,10 +435,24 @@ export class SlackIngestionService {
     workspaceId: string,
     userId: string
   ): Promise<{ ingested: number; errors: number }> {
-    const accessToken = await slackService.getValidAccessToken(userId);
+    let accessToken = await slackService.getValidAccessToken(userId);
     const channel = await SlackChannelModel.findByChannelId(workspaceId, channelId);
     if (!channel) {
       throw new Error(`Channel ${channelId} not found in workspace ${workspaceId}`);
+    }
+
+    // Try to join the channel with bot token first
+    const joined = await joinChannel(accessToken, channelId);
+    if (!joined) {
+      // If bot can't join, try using user token as fallback
+      const userToken = await slackService.getUserToken(userId);
+      if (userToken) {
+        console.log(`[SlackIngestion] Bot couldn't join channel ${channelId} for thread, using user token as fallback`);
+        accessToken = userToken;
+      } else {
+        console.warn(`[SlackIngestion] Bot not in channel ${channelId} for thread ${threadTs} and no user token available, skipping`);
+        return { ingested: 0, errors: 0 };
+      }
     }
 
     let ingested = 0;
@@ -430,11 +494,19 @@ export class SlackIngestionService {
         await sleep(100);
       } catch (error: any) {
         const errorMessage = error?.message || String(error);
-        // Handle "not_in_channel" error gracefully - this is expected when bot doesn't have access
+        // Handle "not_in_channel" error - try user token if we haven't already
         if (errorMessage.includes('not_in_channel')) {
-          console.warn(`[SlackIngestion] Bot not in channel ${channelId} for thread ${threadTs}, skipping`);
-          hasMore = false;
-          // Don't count this as an error since it's expected behavior
+          const userToken = await slackService.getUserToken(userId);
+          if (userToken && accessToken !== userToken) {
+            console.log(`[SlackIngestion] Bot token failed for channel ${channelId} thread ${threadTs}, trying user token`);
+            accessToken = userToken;
+            // Retry with user token - don't break the loop
+            continue;
+          } else {
+            console.warn(`[SlackIngestion] Bot not in channel ${channelId} for thread ${threadTs}, skipping`);
+            hasMore = false;
+            // Don't count this as an error since it's expected behavior
+          }
         } else {
           console.error(`[SlackIngestion] Error fetching thread replies for ${threadTs}:`, error);
           errors++;
@@ -491,6 +563,7 @@ export class SlackIngestionService {
       } catch (error: any) {
         const errorMessage = error?.message || String(error);
         // Handle "not_in_channel" error gracefully - this is expected when bot doesn't have access
+        // Note: ingestChannel now handles joining channels and fallback to user token internally
         if (errorMessage.includes('not_in_channel')) {
           console.warn(`[SlackIngestion] Bot not in channel ${channel.id} (${channel.name || 'unknown'}), skipping`);
           // Don't count this as an error since it's expected behavior
