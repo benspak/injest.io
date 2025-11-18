@@ -1,0 +1,1 @@
+{"version":3,"file":"markdownToEmail.d.ts","sourceRoot":"","sources":["../../src/utils/markdownToEmail.ts"],"names":[],"mappings":"AAGA;;;GAGG;AACH,wBAAgB,mBAAmB,CAAC,QAAQ,EAAE,MAAM,GAAG,MAAM,CA0D5D;AAED;;GAEG;AACH,wBAAgB,eAAe,CAAC,IAAI,EAAE,MAAM,GAAG,MAAM,CAKpD;AAED;;GAEG;AACH,eAAO,MAAM,eAAe,wBAAkB,CAAC;AAE/C;;GAEG;AACH,wBAAgB,mBAAmB,CAAC,QAAQ,EAAE,MAAM,GAAG,MAAM,CAG5D"}

@@ -4,6 +4,7 @@ import { promises as fs } from 'fs';
 import crypto from 'crypto';
 import type { Item } from '../models/Item.js';
 import { fileStorageService } from './storage.js';
+import { markdownToEmailHtml, htmlToPlainText } from '../utils/markdownToEmail.js';
 
 dotenv.config();
 
@@ -432,31 +433,23 @@ The Injest.io Team
     const emailSignature = '-- Email generated via Injest.io --';
     const emailSignatureHtml = '<p style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px;">-- Email generated via Injest.io --</p>';
 
-    let htmlContent =
-      bodyHtml ??
-      (bodyText
-        ? bodyText
-            .split('\n')
-            .map((line) =>
-              line.trim().length > 0
-                ? `<p>${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</p>`
-                : '<br />'
-            )
-            .join('\n')
-        : '<p></p>');
+    let htmlContent: string;
+    let textContent: string;
 
-    let textContent =
-      bodyText ??
-      (bodyHtml
-        ? bodyHtml
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<\/p>/gi, '\n\n')
-            .replace(/<[^>]*>/g, '')
-            .trim()
-        : '');
-
-    // Append signature to text content
-    textContent = textContent ? `${textContent}\n\n${emailSignature}` : emailSignature;
+    if (bodyHtml) {
+      // If HTML is explicitly provided, use it as-is
+      htmlContent = bodyHtml;
+      textContent = htmlToPlainText(bodyHtml);
+    } else if (bodyText) {
+      // Convert Markdown to HTML with email-compatible inline styles
+      htmlContent = markdownToEmailHtml(bodyText);
+      // Generate plain text fallback from the HTML
+      textContent = htmlToPlainText(htmlContent);
+    } else {
+      // Empty content
+      htmlContent = '<p></p>';
+      textContent = '';
+    }
 
     let preparedAttachments:
       | Array<{ filename: string; content: string; contentType: string; contentId?: string }>
@@ -522,8 +515,11 @@ The Injest.io Team
       htmlContent = `${htmlContent}\n${imageHtml}`;
     }
 
-    // Append signature to HTML content
+    // Append signature to HTML content (after attachments)
     htmlContent = `${htmlContent}${emailSignatureHtml}`;
+
+    // Append signature to text content
+    textContent = textContent ? `${textContent}\n\n${emailSignature}` : emailSignature;
 
     // Resend's runtime API supports `replyTo`, but TypeScript typings may lag behind.
     // We use `replyTo` here and cast the payload to `any` to avoid over-constraining the type.

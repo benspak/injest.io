@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { MarkdownEditor } from '@/components/markdown-editor';
 import {
   apiClient,
   type ExecuteSendRequest,
@@ -458,11 +459,11 @@ export default function SendPage() {
               </div>
               <div className="space-y-1">
                 <Label htmlFor="email-body">Email Body</Label>
-                <Textarea
+                <MarkdownEditor
                   id="email-body"
                   rows={12}
                   value={body}
-                  onChange={(event) => setBody(event.target.value)}
+                  onChange={(value) => setBody(value)}
                   placeholder={plan ? undefined : "Generate a plan to see suggested email body"}
                   disabled={!plan}
                 />
