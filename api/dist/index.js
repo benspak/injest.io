@@ -16,6 +16,7 @@ import sendRoutes from './routes/send.js';
 import profilesRoutes from './routes/profiles.js';
 import collectionsRoutes from './routes/collections.js';
 import externalRoutes from './routes/external.js';
+import slackRoutes from './routes/slack.js';
 import './config/database.js';
 dotenv.config();
 const app = express();
@@ -86,6 +87,7 @@ app.use('/api/send', sendRoutes);
 app.use('/api/profiles', profilesRoutes);
 app.use('/api/collections', collectionsRoutes);
 app.use('/api/external', externalRoutes);
+app.use('/api/slack', slackRoutes);
 // Serve uploaded files (avatars, attachments, etc.)
 app.get('/api/uploads/:path(*)', (req, res) => {
     try {

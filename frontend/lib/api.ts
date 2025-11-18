@@ -1550,6 +1550,26 @@ class ApiClient {
     });
   }
 
+  // Slack integration methods
+  async getSlackStatus(): Promise<{ connected: boolean; workspaceId: string | null; workspaceName: string | null }> {
+    return this.request('/api/slack/status');
+  }
+
+  async initiateSlackOAuth(): Promise<{ authUrl: string; state: string }> {
+    return this.request('/api/slack/oauth/initiate', { method: 'POST' });
+  }
+
+  async disconnectSlack(): Promise<void> {
+    return this.request('/api/slack/disconnect', { method: 'DELETE' });
+  }
+
+  async ingestSlackWorkspace(workspaceId: string): Promise<{ message: string }> {
+    return this.request('/api/slack/ingest', {
+      method: 'POST',
+      body: JSON.stringify({ workspaceId }),
+    });
+  }
+
 }
 
 export const apiClient = new ApiClient(API_URL);

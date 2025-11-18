@@ -691,6 +691,15 @@ function SettingsPageContent() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Slack Integration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <SlackIntegrationSection />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Login History</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -742,6 +751,117 @@ function SettingsPageContent() {
         initialTier={requestedTier ?? undefined}
       />
 
+    </div>
+  );
+}
+
+function SlackIntegrationSection() {
+  const [slackStatus, setSlackStatus] = useState<{
+    connected: boolean;
+    workspaceId: string | null;
+    workspaceName: string | null;
+  } | null>(null);
+  const [slackLoading, setSlackLoading] = useState(true);
+  const [slackConnecting, setSlackConnecting] = useState(false);
+  const [ingesting, setIngesting] = useState(false);
+
+  const loadSlackStatus = useCallback(async () => {
+    try {
+      setSlackLoading(true);
+      const status = await apiClient.getSlackStatus();
+      setSlackStatus(status);
+    } catch (error) {
+      console.error('Error loading Slack status:', error);
+      setSlackStatus({ connected: false, workspaceId: null, workspaceName: null });
+    } finally {
+      setSlackLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSlackStatus();
+  }, [loadSlackStatus]);
+
+  const handleConnectSlack = async () => {
+    try {
+      setSlackConnecting(true);
+      const { authUrl } = await apiClient.initiateSlackOAuth();
+      window.location.href = authUrl;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to initiate Slack connection';
+      toast.error(message);
+      setSlackConnecting(false);
+    }
+  };
+
+  const handleDisconnectSlack = async () => {
+    if (!confirm('Are you sure you want to disconnect your Slack workspace?')) {
+      return;
+    }
+
+    try {
+      await apiClient.disconnectSlack();
+      toast.success('Slack workspace disconnected');
+      await loadSlackStatus();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to disconnect Slack';
+      toast.error(message);
+    }
+  };
+
+  const handleIngestWorkspace = async () => {
+    if (!slackStatus?.workspaceId) {
+      return;
+    }
+
+    try {
+      setIngesting(true);
+      await apiClient.ingestSlackWorkspace(slackStatus.workspaceId);
+      toast.success('Slack workspace ingestion started. This may take a few minutes.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start ingestion';
+      toast.error(message);
+    } finally {
+      setIngesting(false);
+    }
+  };
+
+  if (slackLoading) {
+    return (
+      <div className="flex items-center justify-center py-6">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {slackStatus?.connected ? (
+        <div className="space-y-3">
+          <div className="text-sm text-gray-600">
+            <p>
+              Connected to workspace: <span className="font-semibold">{slackStatus.workspaceName || 'Unknown'}</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button variant="outline" onClick={handleIngestWorkspace} disabled={ingesting}>
+              {ingesting ? 'Ingesting...' : 'Sync Messages'}
+            </Button>
+            <Button variant="outline" onClick={handleDisconnectSlack}>
+              Disconnect
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-sm text-gray-600">
+            Connect your Slack workspace to search messages, create summaries, and extract actions.
+          </p>
+          <Button onClick={handleConnectSlack} disabled={slackConnecting}>
+            {slackConnecting ? 'Connecting...' : 'Connect Slack Workspace'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
