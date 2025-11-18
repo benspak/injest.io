@@ -1552,7 +1552,12 @@ class ApiClient {
 
   // Slack integration methods
   async getSlackStatus(): Promise<{ connected: boolean; workspaceId: string | null; workspaceName: string | null }> {
-    return this.request('/api/slack/status');
+    const status = await this.request<{ connected: boolean; workspaceName: string | null; workspaceId: string | null }>('/api/slack/status');
+    return {
+      connected: status.connected,
+      workspaceId: status.workspaceId,
+      workspaceName: status.workspaceName,
+    };
   }
 
   async initiateSlackOAuth(): Promise<{ authUrl: string; state: string }> {

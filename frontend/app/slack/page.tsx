@@ -39,6 +39,8 @@ export default function SlackPage() {
   const [authLoading, setAuthLoading] = useState(true);
   const [selectedChannel, setSelectedChannel] = useState<string>('');
   const [channels, setChannels] = useState<Array<{ id: string; name: string | null }>>([]);
+  const [ingesting, setIngesting] = useState(false);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const loadMoreSentinelRef = useRef<HTMLDivElement>(null);
   const BATCH_SIZE = 50;
 
@@ -117,9 +119,37 @@ export default function SlackPage() {
 
   useEffect(() => {
     if (!authLoading && auth.isAuthenticated()) {
+      // Get workspace ID from tokens
+      apiClient.getSlackStatus().then(status => {
+        if (status.connected && status.workspaceId) {
+          setWorkspaceId(status.workspaceId);
+        }
+      });
       loadMessages(0, true);
     }
   }, [authLoading, loadMessages]);
+
+  const handleIngest = async () => {
+    if (!workspaceId) {
+      toast.error('No workspace connected');
+      return;
+    }
+
+    setIngesting(true);
+    try {
+      await apiClient.ingestSlackWorkspace(workspaceId);
+      toast.success('Ingestion started! Messages will appear shortly.');
+      // Reload messages after a short delay
+      setTimeout(() => {
+        loadMessages(0, true);
+      }, 2000);
+    } catch (error) {
+      console.error('Error starting ingestion:', error);
+      toast.error(`Failed to start ingestion: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIngesting(false);
+    }
+  };
 
   useEffect(() => {
     loadChannels();
@@ -183,17 +213,28 @@ export default function SlackPage() {
       <AnnouncementBanner />
       <div className="border-b border-gray-200 bg-white">
         <div className="container mx-auto px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <AvatarMenu user={currentUser} />
               <h1 className="text-xl font-semibold text-gray-900">Slack Messages</h1>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => router.push('/inbox')}
-            >
-              Back to Inbox
-            </Button>
+            <div className="flex items-center gap-2">
+              {workspaceId && (
+                <Button
+                  variant="default"
+                  onClick={handleIngest}
+                  disabled={ingesting}
+                >
+                  {ingesting ? 'Ingesting...' : 'Sync Messages'}
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                onClick={() => router.push('/inbox')}
+              >
+                Back to Inbox
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -251,8 +292,29 @@ export default function SlackPage() {
               {loading && messages.length === 0 ? (
                 <div className="py-8 text-center text-muted-foreground">Loading messages...</div>
               ) : messages.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground">
-                  No Slack messages found. Sync your workspace in settings to get started.
+                <div className="py-8 text-center space-y-4">
+                  <p className="text-muted-foreground">
+                    No Slack messages found yet.
+                  </p>
+                  {workspaceId && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-muted-foreground">
+                        Click "Sync Messages" above to import messages from your Slack workspace.
+                      </p>
+                      <Button
+                        variant="default"
+                        onClick={handleIngest}
+                        disabled={ingesting}
+                      >
+                        {ingesting ? 'Ingesting...' : 'Sync Messages Now'}
+                      </Button>
+                    </div>
+                  )}
+                  {!workspaceId && (
+                    <p className="text-sm text-muted-foreground">
+                      Please connect your Slack workspace in settings first.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <>
