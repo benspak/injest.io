@@ -149,22 +149,28 @@ CREATE INDEX IF NOT EXISTS idx_slack_user_mappings_slack_user_id ON slack_user_m
 CREATE INDEX IF NOT EXISTS idx_slack_user_mappings_contact_id ON slack_user_mappings(contact_id) WHERE contact_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_slack_user_mappings_workspace_slack_user ON slack_user_mappings(workspace_id, slack_user_id);
 
--- Add triggers for updated_at
+-- Add triggers for updated_at (drop if exists to make idempotent)
+DROP TRIGGER IF EXISTS update_slack_oauth_tokens_updated_at ON slack_oauth_tokens;
 CREATE TRIGGER update_slack_oauth_tokens_updated_at BEFORE UPDATE ON slack_oauth_tokens
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_slack_workspaces_updated_at ON slack_workspaces;
 CREATE TRIGGER update_slack_workspaces_updated_at BEFORE UPDATE ON slack_workspaces
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_slack_channels_updated_at ON slack_channels;
 CREATE TRIGGER update_slack_channels_updated_at BEFORE UPDATE ON slack_channels
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_slack_messages_updated_at ON slack_messages;
 CREATE TRIGGER update_slack_messages_updated_at BEFORE UPDATE ON slack_messages
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_slack_threads_updated_at ON slack_threads;
 CREATE TRIGGER update_slack_threads_updated_at BEFORE UPDATE ON slack_threads
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_slack_user_mappings_updated_at ON slack_user_mappings;
 CREATE TRIGGER update_slack_user_mappings_updated_at BEFORE UPDATE ON slack_user_mappings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
