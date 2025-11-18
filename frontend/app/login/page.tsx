@@ -18,6 +18,25 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Handle referral code from URL parameter
+  useEffect(() => {
+    const refCode = searchParams.get('ref');
+    if (refCode) {
+      // Store in localStorage for later use
+      localStorage.setItem('referral_code', refCode);
+      // Pre-fill if on signup tab
+      if (activeTab === 'signup') {
+        setSignUpReferralCode(refCode);
+      }
+    } else {
+      // Check localStorage for stored referral code
+      const storedCode = localStorage.getItem('referral_code');
+      if (storedCode && activeTab === 'signup') {
+        setSignUpReferralCode((prev) => prev || storedCode);
+      }
+    }
+  }, [searchParams, activeTab]);
+
   // Sign in form state
   const [signInUsernameOrEmail, setSignInUsernameOrEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
@@ -43,6 +62,7 @@ function LoginForm() {
   const [signUpYoutubeUrl, setSignUpYoutubeUrl] = useState('');
   const [signUpGithubUrl, setSignUpGithubUrl] = useState('');
   const [signUpLinkedinUrl, setSignUpLinkedinUrl] = useState('');
+  const [signUpReferralCode, setSignUpReferralCode] = useState('');
   const [signUpLoading, setSignUpLoading] = useState(false);
   const [signUpMessage, setSignUpMessage] = useState('');
 
@@ -123,6 +143,9 @@ function LoginForm() {
     }
 
     try {
+      // Use referral code from input or stored code
+      const referralCode = signUpReferralCode || localStorage.getItem('referral_code') || undefined;
+
       const result = await auth.signup({
         username: signUpUsername,
         password: signUpPassword,
@@ -140,7 +163,13 @@ function LoginForm() {
         youtube_url: signUpYoutubeUrl || undefined,
         github_url: signUpGithubUrl || undefined,
         linkedin_url: signUpLinkedinUrl || undefined,
+        referral_code: referralCode,
       });
+
+      // Clear stored referral code after successful signup
+      if (referralCode) {
+        localStorage.removeItem('referral_code');
+      }
 
       // Success - redirect to dashboard
       router.push('/dashboard');
@@ -466,6 +495,21 @@ function LoginForm() {
                     value={signUpLinkedinUrl}
                     onChange={(e) => setSignUpLinkedinUrl(e.target.value)}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-referral-code">Referral Code (Optional)</Label>
+                  <Input
+                    id="signup-referral-code"
+                    type="text"
+                    placeholder="Enter referral code"
+                    value={signUpReferralCode}
+                    onChange={(e) => setSignUpReferralCode(e.target.value)}
+                    maxLength={20}
+                  />
+                  <p className="text-xs text-gray-500">
+                    Have a referral code? Enter it here to support the person who referred you.
+                  </p>
                 </div>
               </div>
 

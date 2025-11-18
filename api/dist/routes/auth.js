@@ -10,6 +10,7 @@ import { ItemAccessModel } from '../models/ItemAccess.js';
 import { LoginSessionModel } from '../models/LoginSession.js';
 import { hashPassword, verifyPassword } from '../utils/passwords.js';
 import { generateTwoFactorSecret, verifyTwoFactorToken, generateRecoveryCodes, hashRecoveryCode, verifyRecoveryCode, } from '../services/twoFactor.js';
+import { ReferralService } from '../services/referral.js';
 const router = express.Router();
 const TWO_FACTOR_PENDING_EXPIRATION = '10m';
 const PASSWORD_RESET_EXPIRATION = '1h'; // Password reset tokens expire in 1 hour
@@ -80,7 +81,7 @@ function validateEmail(email) {
 // Signup endpoint
 router.post('/signup', async (req, res) => {
     try {
-        const { username, password, recovery_email, first_name, last_name, date_of_birth, headline, bio, company, project_title, project_description, zip_code, x_profile_url, youtube_url, github_url, linkedin_url, } = req.body;
+        const { username, password, recovery_email, first_name, last_name, date_of_birth, headline, bio, company, project_title, project_description, zip_code, x_profile_url, youtube_url, github_url, linkedin_url, referral_code, } = req.body;
         // Validate required fields
         const usernameValidation = validateUsername(username);
         if (!usernameValidation.valid) {
@@ -149,6 +150,16 @@ router.post('/signup', async (req, res) => {
             linkedin_url: linkedin_url?.trim(),
         });
         await ItemAccessModel.linkUserToEmail(user.id, user.email);
+        // Handle referral code if provided
+        if (referral_code && typeof referral_code === 'string') {
+            try {
+                await ReferralService.createReferral(referral_code.trim(), user.id);
+            }
+            catch (error) {
+                // Log error but don't fail signup if referral code is invalid
+                console.error('Error processing referral code:', error);
+            }
+        }
         // Create session token
         const sessionToken = createSessionToken(user);
         // Record login session

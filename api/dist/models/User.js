@@ -187,6 +187,14 @@ export class UserModel {
             fields.push(`date_of_birth = $${paramCount++}`);
             values.push(updates.date_of_birth);
         }
+        if (updates.referral_code !== undefined) {
+            fields.push(`referral_code = $${paramCount++}`);
+            values.push(updates.referral_code);
+        }
+        if (updates.stripe_connect_account_id !== undefined) {
+            fields.push(`stripe_connect_account_id = $${paramCount++}`);
+            values.push(updates.stripe_connect_account_id);
+        }
         if (fields.length === 0) {
             return await this.findById(id);
         }
@@ -251,6 +259,11 @@ export class UserModel {
     }
     static async findByInboundHandle(handle) {
         const result = await pool.query('SELECT * FROM users WHERE LOWER(inbound_email_handle) = LOWER($1) AND inbound_email_handle IS NOT NULL', [handle]);
+        return result.rows[0] || null;
+    }
+    static async findByReferralCode(code) {
+        // Case-insensitive referral code lookup
+        const result = await pool.query('SELECT * FROM users WHERE LOWER(referral_code) = LOWER($1) AND referral_code IS NOT NULL', [code]);
         return result.rows[0] || null;
     }
     static async findByUsernameOrEmail(usernameOrEmail) {

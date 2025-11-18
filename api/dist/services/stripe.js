@@ -136,6 +136,73 @@ export class StripeService {
         });
         return session;
     }
+    /**
+     * Create a Stripe Connect Express account
+     */
+    async createConnectAccount(userId, email) {
+        const stripe = getStripe();
+        try {
+            const account = await stripe.accounts.create({
+                type: 'express',
+                country: 'US', // Default to US, can be made configurable
+                email,
+                metadata: {
+                    userId,
+                },
+            });
+            return account;
+        }
+        catch (error) {
+            console.error('Stripe account creation error:', {
+                type: error?.type,
+                code: error?.code,
+                message: error?.message,
+                rawMessage: error?.raw?.message,
+            });
+            // Check if the error is about platform not being onboarded to Connect
+            const errorMessage = error?.message || error?.raw?.message || '';
+            const errorCode = error?.code || error?.raw?.code;
+            if (errorCode === 'account_invalid' ||
+                errorMessage.includes('Connect') ||
+                errorMessage.includes('onboard') ||
+                errorMessage.includes('You can only create new accounts')) {
+                const platformError = new Error('Stripe Connect is not enabled for this account. ' +
+                    'Please complete the platform onboarding at https://dashboard.stripe.com/settings/connect/platform-profile ' +
+                    'before creating connected accounts.');
+                platformError.code = errorCode || 'connect_not_enabled';
+                platformError.type = error?.type || 'invalid_request_error';
+                throw platformError;
+            }
+            throw error;
+        }
+    }
+    /**
+     * Create Stripe Connect onboarding link
+     */
+    async createConnectOnboardingLink(accountId, returnUrl, refreshUrl) {
+        const stripe = getStripe();
+        const accountLink = await stripe.accountLinks.create({
+            account: accountId,
+            return_url: returnUrl,
+            refresh_url: refreshUrl,
+            type: 'account_onboarding',
+        });
+        return accountLink;
+    }
+    /**
+     * Get Stripe Connect account status
+     */
+    async getConnectAccountStatus(accountId) {
+        const stripe = getStripe();
+        return await stripe.accounts.retrieve(accountId);
+    }
+    /**
+     * Check if user has a connected Stripe account
+     */
+    async hasConnectedAccount(userId) {
+        const user = await UserModel.findById(userId);
+        return Boolean(user?.stripe_connect_account_id);
+    }
 }
 export const stripeService = new StripeService();
 //# sourceMappingURL=stripe.js.map

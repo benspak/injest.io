@@ -27,6 +27,7 @@ export const auth = {
     youtube_url?: string;
     github_url?: string;
     linkedin_url?: string;
+    referral_code?: string;
   }): Promise<{ user: User; twoFactorRequired: boolean }> {
     const response = await apiClient.signup(signupData);
 

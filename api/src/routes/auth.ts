@@ -17,6 +17,7 @@ import {
   hashRecoveryCode,
   verifyRecoveryCode,
 } from '../services/twoFactor.js';
+import { ReferralService } from '../services/referral.js';
 
 const router = express.Router();
 
@@ -132,6 +133,7 @@ router.post('/signup', async (req: express.Request, res: express.Response) => {
       youtube_url,
       github_url,
       linkedin_url,
+      referral_code,
     } = req.body;
 
     // Validate required fields
@@ -220,6 +222,16 @@ router.post('/signup', async (req: express.Request, res: express.Response) => {
     );
 
     await ItemAccessModel.linkUserToEmail(user.id, user.email);
+
+    // Handle referral code if provided
+    if (referral_code && typeof referral_code === 'string') {
+      try {
+        await ReferralService.createReferral(referral_code.trim(), user.id);
+      } catch (error) {
+        // Log error but don't fail signup if referral code is invalid
+        console.error('Error processing referral code:', error);
+      }
+    }
 
     // Create session token
     const sessionToken = createSessionToken(user);

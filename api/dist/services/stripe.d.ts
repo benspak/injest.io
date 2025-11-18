@@ -28,6 +28,22 @@ export declare class StripeService {
      * This is an alternative approach that redirects to Stripe Checkout
      */
     createBookmarkImportCheckoutSession(userId: string, email: string, bookmarkCount: number, successUrl: string, cancelUrl: string): Promise<Stripe.Checkout.Session>;
+    /**
+     * Create a Stripe Connect Express account
+     */
+    createConnectAccount(userId: string, email: string): Promise<Stripe.Account>;
+    /**
+     * Create Stripe Connect onboarding link
+     */
+    createConnectOnboardingLink(accountId: string, returnUrl: string, refreshUrl: string): Promise<Stripe.AccountLink>;
+    /**
+     * Get Stripe Connect account status
+     */
+    getConnectAccountStatus(accountId: string): Promise<Stripe.Account>;
+    /**
+     * Check if user has a connected Stripe account
+     */
+    hasConnectedAccount(userId: string): Promise<boolean>;
 }
 export declare const stripeService: StripeService;
 //# sourceMappingURL=stripe.d.ts.map

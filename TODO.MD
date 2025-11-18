@@ -7,7 +7,7 @@
  Activity & Audit Logs
  Permissions & Roles
  Notifications & Digest Emails
- Email Unsubscribe
+
 - Reindexing of items
 •	⚙️ SDKs or client wrappers (JS, Python)
 •	🔄 Webhooks (“notify me when image is processed”)
@@ -26,10 +26,6 @@
 - Item collections (one item can be in many collections)
 •	🧭 Smart folders (auto-group images by detected topics or keywords)
 - Github integration
-- Markdown file support
-
-
-- Integrate Slack API for posting and message saving.
 - Public user posts.
 - Shared workspaces, permissions, team roles, collaborative workflows.
 - Calendar/kanban, multi-step actions
@@ -45,11 +41,10 @@
 1.	Build team/organization workspaces, with user roles, shared items, permissions.
 2.	Build task/workflow module: allow users to turn items into tasks, set due dates, automate triggers.
 3.	Develop mobile native apps (iOS and Android) with capture and search.
-4.	Extend integrations: Slack, Notion, Google Drive, Dropbox, browser screencap, etc.
+4.	Extend integrations: Notion, Google Drive, Dropbox, browser screencap, etc.
 5.	Build analytics & saved queries: show workspace usage stats, create alerts when search fails, saved search macros.
 6.	Build advanced knowledge graph: visualize contacts/entities, relationships, timeline view of items.
 7.	Refine monetization: add team pricing, enterprise features (SSO, data export, compliance), usage-based pricing.
 8.	Add public/shared features: allow content sharing across users/teams, build network effects (collaboration, community).
 
 Public items feed
-WYSIWYG editor

@@ -88,6 +88,8 @@ JWT_EXPIRES_IN=7d
 OPENAI_API_KEY=sk-your-openai-api-key
 RESEND_API_KEY=re_your-resend-api-key
 STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
+# Optional: For affiliate program webhooks
+# STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 
 # App URLs (use absolute URLs with protocol)
 PORT=5555
@@ -139,7 +141,30 @@ npm run dev
 
 Open `http://localhost:3000` to see the dashboard. The onboarding flow uses passwordless magic links via Resend.
 
-## 5. Seed a Pro-Tier Developer Account (Optional but Recommended)
+## 5. Configure Stripe Connect for Affiliate Program (Optional)
+
+If you want to enable the affiliate program where users can earn commissions:
+
+1. Complete Stripe Connect platform onboarding:
+   - Go to https://dashboard.stripe.com/settings/connect/platform-profile
+   - Fill out your platform information
+   - This is a one-time setup required before creating connected accounts
+
+2. Configure Stripe webhook for commission processing:
+   - In Stripe Dashboard → Webhooks → Add endpoint
+   - URL: `https://<your-api-host>/api/stripe-webhook`
+   - Events to listen for: `payment_intent.succeeded`, `payment_intent.payment_failed`
+   - Copy the webhook signing secret and add to `.env`:
+     ```bash
+     STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+     ```
+
+3. For local development, use Stripe CLI to forward webhooks:
+   ```bash
+   stripe listen --forward-to localhost:5555/api/stripe-webhook
+   ```
+
+## 6. Seed a Pro-Tier Developer Account (Optional but Recommended)
 
 API key generation, the `/developers` portal, and `/api/external` routes require a Pro (or higher) subscription tier.
 
@@ -154,7 +179,7 @@ API key generation, the `/developers` portal, and `/api/external` routes require
 
 3. Refresh the app; the developer docs now unlock, and API key endpoints will succeed.
 
-## 6. Configure Resend Inbound Email
+## 7. Configure Resend Inbound Email
 
 1. Verify your domain in the [Resend Dashboard](https://resend.com/domains).
 2. Configure inbound email for your domain (for example, `username@injest.io` for each user).
@@ -164,7 +189,7 @@ API key generation, the `/developers` portal, and `/api/external` routes require
    - Events: `email.received`
 4. Ensure `api/src/services/email.ts` uses a verified `from` address for outbound messages.
 
-## 7. Verify the Stack
+## 8. Verify the Stack
 
 1. **Backend health** – `GET http://localhost:5555/health` returns `{"status":"ok"}`.
 2. **Auth flow** – Submit your email at `/login`, click the magic link, and confirm the dashboard loads.

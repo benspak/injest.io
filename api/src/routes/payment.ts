@@ -9,6 +9,7 @@ import {
   isPaidTier,
   type SubscriptionTier,
 } from '../utils/subscriptionPlans.js';
+import { AffiliateService } from '../services/affiliate.js';
 
 const router = express.Router();
 router.use(authMiddleware);
@@ -200,6 +201,18 @@ router.post('/verify', async (req: AuthRequest, res: express.Response) => {
         is_premium: isPaidTier(tier),
         subscription_tier: tier,
       });
+
+      // Process commission (webhook will also handle this, but this ensures it happens)
+      try {
+        await AffiliateService.processCommission(
+          paymentIntentId,
+          req.user.id,
+          paymentIntent.amount
+        );
+      } catch (error) {
+        // Log but don't fail payment verification if commission processing fails
+        console.error('Error processing commission:', error);
+      }
 
       return res.json({
         verified: true,

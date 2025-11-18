@@ -700,6 +700,23 @@ function SettingsPageContent() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Referrals</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-gray-600 mb-4">
+              Earn 20% commission on subscription payments from users you refer. Create a referral code and start sharing!
+            </p>
+            <Button
+              onClick={() => router.push('/referrals')}
+              variant="outline"
+            >
+              Go to Referrals Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Login History</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">

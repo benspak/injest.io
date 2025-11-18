@@ -573,6 +573,7 @@ class ApiClient {
     youtube_url?: string;
     github_url?: string;
     linkedin_url?: string;
+    referral_code?: string;
   }) {
     const response = await this.request<{ token: string; user: User }>('/api/auth/signup', {
       method: 'POST',
@@ -1614,6 +1615,71 @@ class ApiClient {
     if (offset) params.append('offset', offset.toString());
     const query = params.toString();
     return this.request(`/api/slack/messages${query ? `?${query}` : ''}`);
+  }
+
+  // Referral
+  async setReferralCode(code: string) {
+    return this.request<{ success: boolean; referral_code: string | null }>('/api/referral/code', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  }
+
+  async getReferralCode() {
+    return this.request<{ referral_code: string | null }>('/api/referral/code');
+  }
+
+  async getReferralStats() {
+    return this.request<{
+      referral_code: string | null;
+      total_referrals: number;
+      total_earnings_cents: number;
+      pending_earnings_cents: number;
+      has_connected_account: boolean;
+    }>('/api/referral/stats');
+  }
+
+  async getReferralCommissions(limit?: number, offset?: number) {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit.toString());
+    if (offset) params.append('offset', offset.toString());
+    const query = params.toString();
+    return this.request<{
+      commissions: Array<{
+        id: string;
+        referral_id: string;
+        payment_intent_id: string;
+        amount_cents: number;
+        status: 'pending' | 'paid' | 'failed';
+        stripe_transfer_id: string | null;
+        created_at: string;
+        paid_at: string | null;
+      }>;
+      pagination: {
+        limit: number;
+        offset: number;
+        has_more: boolean;
+      };
+    }>(`/api/referral/commissions${query ? `?${query}` : ''}`);
+  }
+
+  async setupStripeConnect() {
+    return this.request<{
+      onboarding_url: string;
+      account_id: string;
+    }>('/api/referral/connect/setup', {
+      method: 'POST',
+    });
+  }
+
+  async getStripeConnectStatus() {
+    return this.request<{
+      has_account: boolean;
+      account_id?: string;
+      details_submitted?: boolean;
+      charges_enabled?: boolean;
+      payouts_enabled?: boolean;
+    }>('/api/referral/connect/status');
   }
 
 }

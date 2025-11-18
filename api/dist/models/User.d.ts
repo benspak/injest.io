@@ -35,6 +35,8 @@ export interface User {
     password_hash?: string | null;
     recovery_email?: string | null;
     date_of_birth?: Date | null;
+    referral_code?: string | null;
+    stripe_connect_account_id?: string | null;
     created_at: Date;
     updated_at: Date;
 }
@@ -70,6 +72,7 @@ export declare class UserModel {
     static updateRecoveryCodes(userId: string, recoveryCodes: string[] | null): Promise<User>;
     static findByPublicUsername(username: string): Promise<User | null>;
     static findByInboundHandle(handle: string): Promise<User | null>;
+    static findByReferralCode(code: string): Promise<User | null>;
     static findByUsernameOrEmail(usernameOrEmail: string): Promise<User | null>;
     static setPassword(userId: string, passwordHash: string): Promise<User>;
     static isProfilePrivate(userId: string): Promise<boolean>;
