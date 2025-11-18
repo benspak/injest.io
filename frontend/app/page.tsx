@@ -28,7 +28,7 @@ export default function Home() {
     {
       tier: 'pro' as const,
       name: "Pro",
-      priceDisplay: "$12",
+      priceDisplay: "$30",
       priceNote: "/mo",
       limit: "Unlimited items",
       description: "Unlimited indexed items with priority ingestion and support.",
@@ -42,7 +42,7 @@ export default function Home() {
     {
       tier: 'pro_annual' as const,
       name: "Pro Annual",
-      priceDisplay: "$115",
+      priceDisplay: "$288",
       priceNote: "/year (save 20%)",
       limit: "Unlimited items",
       description: "Annual billing with a 20% discount and dedicated onboarding.",

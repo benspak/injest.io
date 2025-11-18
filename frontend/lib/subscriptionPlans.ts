@@ -10,7 +10,7 @@ export interface SubscriptionPlan {
   description: string;
 }
 
-const PRO_MONTHLY_PRICE_CENTS = 1200;
+const PRO_MONTHLY_PRICE_CENTS = 3000;
 const PRO_ANNUAL_PRICE_CENTS = Math.round(PRO_MONTHLY_PRICE_CENTS * 12 * 0.8); // 20% discount
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {

@@ -1360,7 +1360,7 @@ Upgrade a user to a paid subscription tier (Pro monthly or annual).
     "plan": {
       "name": "Pro",
       "maxIndexedItems": null,
-      "amountCents": 1200,
+      "amountCents": 3000,
       "billingInterval": "month"
     }
   }
