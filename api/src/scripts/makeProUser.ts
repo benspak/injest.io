@@ -8,16 +8,38 @@ import type { SubscriptionTier } from '../utils/subscriptionPlans.js';
 
 dotenv.config();
 
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
 async function promptForEmail(): Promise<string> {
   const providedEmail = process.argv[2];
   if (providedEmail) {
-    return providedEmail.trim();
+    const trimmed = providedEmail.trim();
+    if (!isValidEmail(trimmed)) {
+      console.error('Invalid email format provided.');
+      process.exitCode = 1;
+      return '';
+    }
+    return trimmed;
   }
 
   const rl = readline.createInterface({ input, output });
   try {
-    const answer = await rl.question('Enter the email to upgrade to pro: ');
-    return answer.trim();
+    let email = '';
+    while (!email || !isValidEmail(email)) {
+      email = (await rl.question('Enter the email to upgrade to pro: ')).trim();
+      if (!email) {
+        console.error('Email cannot be empty.');
+        continue;
+      }
+      if (!isValidEmail(email)) {
+        console.error('Invalid email format. Please try again.');
+        continue;
+      }
+    }
+    return email;
   } finally {
     rl.close();
   }
@@ -45,14 +67,14 @@ async function upgradeUserToPro(email: string): Promise<void> {
     subscription_tier: targetTier,
   });
 
-  console.log('✓ User upgraded successfully');
-  console.log('User details:');
-  console.log({
+  console.log('\n✓ User upgraded successfully!');
+  console.log('\nUser details:');
+  console.log(JSON.stringify({
     id: updatedUser.id,
     email: updatedUser.email,
     subscription_tier: updatedUser.subscription_tier,
     is_premium: updatedUser.is_premium,
-  });
+  }, null, 2));
 }
 
 async function main(): Promise<void> {
