@@ -58,10 +58,15 @@ export function AppShell({ children }: AppShellProps) {
   }, []);
 
   const isHomepage = pathname === '/';
+  const isLoginPage = pathname === '/login';
+  const isForgotPasswordPage = pathname === '/forgot-password';
+  const isPrivacyPage = pathname === '/privacy';
+  const isTermsPage = pathname === '/terms';
+  const shouldShowSidebar = !isHomepage && !isLoginPage && !isForgotPasswordPage && !isPrivacyPage && !isTermsPage;
 
   return (
     <div className="relative min-h-screen bg-gray-50 lg:flex">
-      {!isHomepage && (
+      {shouldShowSidebar && (
         <AppSidebar
           currentUser={currentUser}
           isMobileOpen={isSidebarOpen}
@@ -71,7 +76,7 @@ export function AppShell({ children }: AppShellProps) {
       )}
 
       <div className="flex min-h-screen flex-1 flex-col">
-        {!isHomepage && (
+        {shouldShowSidebar && (
           <div className="sticky top-0 z-20 border-b border-gray-200 bg-white px-4 py-3 shadow-xs lg:hidden">
             <div className="flex items-center justify-between">
               <div>

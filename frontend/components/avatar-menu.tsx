@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { User } from '@/lib/api';
+import { API_URL } from '@/lib/api';
 import { auth } from '@/lib/auth';
 import { SUBSCRIPTION_PLANS } from '@/lib/subscriptionPlans';
 
@@ -44,6 +45,13 @@ export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
     return user.email.charAt(0).toUpperCase();
   }, [user]);
 
+  const avatarUrl = useMemo(() => {
+    if (!user?.avatar_url) {
+      return null;
+    }
+    return `${API_URL}/api/uploads/${user.avatar_url}`;
+  }, [user]);
+
   if (!user) {
     return null;
   }
@@ -71,11 +79,19 @@ export function AvatarMenu({ user, onLogout }: AvatarMenuProps) {
       <button
         type="button"
         onClick={() => setOpen((prev) => !prev)}
-        className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-gray-100 text-sm font-semibold text-gray-700 transition hover:border-gray-300 hover:bg-gray-200 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 overflow-hidden"
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        {avatarInitial}
+        {avatarUrl ? (
+          <img
+            src={avatarUrl}
+            alt={user.email || 'User avatar'}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          avatarInitial
+        )}
       </button>
       {open && (
         <div

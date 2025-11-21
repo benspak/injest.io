@@ -112,9 +112,6 @@ export default function Home() {
               <Button asChild size="lg" className="text-lg px-8 py-6">
                 <Link href="/login">Get Started</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6">
-                <Link href="/inbox">Explore the Inbox</Link>
-              </Button>
             </div>
           </div>
           <div className="relative">
@@ -427,9 +424,6 @@ export default function Home() {
               <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
                 <Link href="/login">Get Started</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="text-lg px-8 py-6 bg-transparent border-white text-white hover:bg-white hover:text-blue-600">
-                <Link href="/inbox">Explore the Inbox</Link>
-              </Button>
             </div>
           </div>
         </div>
@@ -445,14 +439,6 @@ export default function Home() {
             <span className="hidden sm:inline">•</span>
             <Link href="/terms" className="hover:text-blue-600 transition-colors">
               Terms of Service
-            </Link>
-            <span className="hidden sm:inline">•</span>
-            <Link href="/developers" className="hover:text-blue-600 transition-colors">
-              Developer Docs
-            </Link>
-            <span className="hidden sm:inline">•</span>
-            <Link href="/referrals" className="hover:text-blue-600 transition-colors">
-              Referrals
             </Link>
           </div>
         </div>

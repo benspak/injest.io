@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ItemList } from '@/components/item-list';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
+import { FeedbackDialog } from '@/components/feedback-dialog';
 import { auth } from '@/lib/auth';
 import { apiClient, Item } from '@/lib/api';
 import { toast } from 'sonner';
@@ -211,33 +212,30 @@ export default function SlackPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <AnnouncementBanner />
-      <div className="border-b border-gray-200 bg-white">
-        <div className="container mx-auto px-4 sm:px-6 py-4">
-            <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <AvatarMenu user={currentUser} />
-              <h1 className="text-xl font-semibold text-gray-900">Slack Messages</h1>
-            </div>
-            <div className="flex items-center gap-2">
-              {workspaceId && (
-                <Button
-                  variant="default"
-                  onClick={handleIngest}
-                  disabled={ingesting}
-                >
-                  {ingesting ? 'Ingesting...' : 'Sync Messages'}
-                </Button>
-              )}
+      <header className="bg-white border-b">
+        <div className="container mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Slack Messages</h1>
+          <div className="flex items-center gap-2 sm:gap-4">
+            {workspaceId && (
               <Button
-                variant="outline"
-                onClick={() => router.push('/inbox')}
+                variant="default"
+                size="sm"
+                onClick={handleIngest}
+                disabled={ingesting}
               >
-                Back to Inbox
+                {ingesting ? 'Ingesting...' : 'Sync Messages'}
               </Button>
-            </div>
+            )}
+            <FeedbackDialog
+              userEmail={currentUser?.email}
+              buttonVariant="outline"
+              buttonSize="sm"
+              triggerClassName="text-xs sm:text-sm"
+            />
+            <AvatarMenu user={currentUser} />
           </div>
         </div>
-      </div>
+      </header>
 
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <div className="space-y-6">

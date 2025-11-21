@@ -58,10 +58,10 @@ function LoginForm() {
   const [signUpProjectTitle, setSignUpProjectTitle] = useState('');
   const [signUpProjectDescription, setSignUpProjectDescription] = useState('');
   const [signUpZipCode, setSignUpZipCode] = useState('');
-  const [signUpXProfileUrl, setSignUpXProfileUrl] = useState('');
-  const [signUpYoutubeUrl, setSignUpYoutubeUrl] = useState('');
-  const [signUpGithubUrl, setSignUpGithubUrl] = useState('');
-  const [signUpLinkedinUrl, setSignUpLinkedinUrl] = useState('');
+  const [signUpXProfileUsername, setSignUpXProfileUsername] = useState('');
+  const [signUpYoutubeUsername, setSignUpYoutubeUsername] = useState('');
+  const [signUpGithubUsername, setSignUpGithubUsername] = useState('');
+  const [signUpLinkedinUsername, setSignUpLinkedinUsername] = useState('');
   const [signUpReferralCode, setSignUpReferralCode] = useState('');
   const [signUpLoading, setSignUpLoading] = useState(false);
   const [signUpMessage, setSignUpMessage] = useState('');
@@ -211,6 +211,20 @@ function LoginForm() {
       // Use referral code from input or stored code
       const referralCode = signUpReferralCode || localStorage.getItem('referral_code') || undefined;
 
+      // Construct full URLs from usernames
+      const xProfileUrl = signUpXProfileUsername.trim()
+        ? `https://x.com/${signUpXProfileUsername.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?x\.com\//, '')}`
+        : undefined;
+      const youtubeUrl = signUpYoutubeUsername.trim()
+        ? `https://youtube.com/@${signUpYoutubeUsername.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?youtube\.com\/@?/, '')}`
+        : undefined;
+      const githubUrl = signUpGithubUsername.trim()
+        ? `https://github.com/${signUpGithubUsername.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?github\.com\//, '')}`
+        : undefined;
+      const linkedinUrl = signUpLinkedinUsername.trim()
+        ? `https://linkedin.com/in/${signUpLinkedinUsername.trim().replace(/^@/, '').replace(/^https?:\/\/(www\.)?linkedin\.com\/in\//, '')}`
+        : undefined;
+
       const result = await auth.signup({
         username: signUpUsername,
         password: signUpPassword,
@@ -224,10 +238,10 @@ function LoginForm() {
         project_title: signUpProjectTitle || undefined,
         project_description: signUpProjectDescription || undefined,
         zip_code: signUpZipCode || undefined,
-        x_profile_url: signUpXProfileUrl || undefined,
-        youtube_url: signUpYoutubeUrl || undefined,
-        github_url: signUpGithubUrl || undefined,
-        linkedin_url: signUpLinkedinUrl || undefined,
+        x_profile_url: xProfileUrl,
+        youtube_url: youtubeUrl,
+        github_url: githubUrl,
+        linkedin_url: linkedinUrl,
         referral_code: referralCode,
       });
 
@@ -563,10 +577,10 @@ function LoginForm() {
                       <Label htmlFor="signup-x-profile">X (Twitter) Profile</Label>
                       <Input
                         id="signup-x-profile"
-                        type="url"
-                        placeholder="https://x.com/username"
-                        value={signUpXProfileUrl}
-                        onChange={(e) => setSignUpXProfileUrl(e.target.value)}
+                        type="text"
+                        placeholder="username"
+                        value={signUpXProfileUsername}
+                        onChange={(e) => setSignUpXProfileUsername(e.target.value)}
                       />
                     </div>
 
@@ -574,10 +588,10 @@ function LoginForm() {
                       <Label htmlFor="signup-youtube">YouTube Channel</Label>
                       <Input
                         id="signup-youtube"
-                        type="url"
-                        placeholder="https://youtube.com/@username"
-                        value={signUpYoutubeUrl}
-                        onChange={(e) => setSignUpYoutubeUrl(e.target.value)}
+                        type="text"
+                        placeholder="username"
+                        value={signUpYoutubeUsername}
+                        onChange={(e) => setSignUpYoutubeUsername(e.target.value)}
                       />
                     </div>
 
@@ -585,10 +599,10 @@ function LoginForm() {
                       <Label htmlFor="signup-github">GitHub Profile</Label>
                       <Input
                         id="signup-github"
-                        type="url"
-                        placeholder="https://github.com/username"
-                        value={signUpGithubUrl}
-                        onChange={(e) => setSignUpGithubUrl(e.target.value)}
+                        type="text"
+                        placeholder="username"
+                        value={signUpGithubUsername}
+                        onChange={(e) => setSignUpGithubUsername(e.target.value)}
                       />
                     </div>
 
@@ -596,10 +610,10 @@ function LoginForm() {
                       <Label htmlFor="signup-linkedin">LinkedIn Profile</Label>
                       <Input
                         id="signup-linkedin"
-                        type="url"
-                        placeholder="https://linkedin.com/in/username"
-                        value={signUpLinkedinUrl}
-                        onChange={(e) => setSignUpLinkedinUrl(e.target.value)}
+                        type="text"
+                        placeholder="username"
+                        value={signUpLinkedinUsername}
+                        onChange={(e) => setSignUpLinkedinUsername(e.target.value)}
                       />
                     </div>
                   </div>
