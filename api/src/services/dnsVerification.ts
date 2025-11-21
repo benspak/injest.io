@@ -29,8 +29,15 @@ export async function verifyTxtRecord(domain: string, expectedValue: string): Pr
 
     // Check if any record matches the expected value
     return allValues.includes(expectedValue);
-  } catch (error) {
+  } catch (error: any) {
     // DNS resolution failed - domain doesn't exist or record not found
+    // ENOTFOUND is expected when DNS records haven't been configured yet
+    if (error?.code === 'ENOTFOUND') {
+      // This is expected - the DNS record simply doesn't exist yet
+      // Don't log as an error, just return false
+      return false;
+    }
+    // For other DNS errors, log them for debugging
     console.error(`DNS verification failed for ${domain}:`, error);
     return false;
   }
@@ -49,8 +56,14 @@ export async function verifyCnameRecord(domain: string, expectedTarget: string):
     const normalizedRecords = records.map((r) => r.toLowerCase().replace(/\.$/, ''));
 
     return normalizedRecords.some((record) => record === normalizedExpected || record.endsWith(`.${normalizedExpected}`));
-  } catch (error) {
+  } catch (error: any) {
     // DNS resolution failed - CNAME not found or points elsewhere
+    // ENOTFOUND is expected when DNS records haven't been configured yet
+    if (error?.code === 'ENOTFOUND') {
+      // This is expected - the DNS record simply doesn't exist yet
+      return false;
+    }
+    // For other DNS errors, log them for debugging
     console.error(`CNAME verification failed for ${domain}:`, error);
     return false;
   }
