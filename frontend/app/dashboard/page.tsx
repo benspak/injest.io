@@ -131,6 +131,19 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <div className="space-y-6">
+          {/* Video Section */}
+          <div className="w-full">
+            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+              <iframe
+                className="absolute top-0 left-0 w-full h-full rounded-lg"
+                src="https://www.youtube.com/embed/YY84dGofrnk"
+                title="YouTube video player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allowFullScreen
+              />
+            </div>
+          </div>
+
           {/* Get Started Section */}
           <Card className="bg-linear-to-r from-blue-50 to-indigo-50 border-blue-200">
             <CardHeader>
