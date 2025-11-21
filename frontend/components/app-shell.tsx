@@ -57,38 +57,44 @@ export function AppShell({ children }: AppShellProps) {
     };
   }, []);
 
+  const isHomepage = pathname === '/';
+
   return (
     <div className="relative min-h-screen bg-gray-50 lg:flex">
-      <AppSidebar
-        currentUser={currentUser}
-        isMobileOpen={isSidebarOpen}
-        onMobileToggle={setIsSidebarOpen}
-        onLogout={() => setCurrentUser(null)}
-      />
+      {!isHomepage && (
+        <AppSidebar
+          currentUser={currentUser}
+          isMobileOpen={isSidebarOpen}
+          onMobileToggle={setIsSidebarOpen}
+          onLogout={() => setCurrentUser(null)}
+        />
+      )}
 
       <div className="flex min-h-screen flex-1 flex-col">
-        <div className="sticky top-0 z-20 border-b border-gray-200 bg-white px-4 py-3 shadow-xs lg:hidden">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500">Injest.io</p>
-              <p className="text-base font-semibold text-gray-900">
-                {pathname === '/' ? 'Welcome' : pathname.replace('/', '') || 'Dashboard'}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <FeedbackDialog
-                userEmail={currentUser?.email}
-                buttonVariant="ghost"
-                buttonSize="sm"
-                triggerClassName="text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-              />
-              <AvatarMenu
-                user={currentUser}
-                onLogout={() => setCurrentUser(null)}
-              />
+        {!isHomepage && (
+          <div className="sticky top-0 z-20 border-b border-gray-200 bg-white px-4 py-3 shadow-xs lg:hidden">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Injest.io</p>
+                <p className="text-base font-semibold text-gray-900">
+                  {pathname.replace('/', '') || 'Dashboard'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <FeedbackDialog
+                  userEmail={currentUser?.email}
+                  buttonVariant="ghost"
+                  buttonSize="sm"
+                  triggerClassName="text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                />
+                <AvatarMenu
+                  user={currentUser}
+                  onLogout={() => setCurrentUser(null)}
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <main className="flex-1">{children}</main>
       </div>

@@ -10,7 +10,7 @@ import { API_URL } from '@/lib/api';
 
 function ForgotPasswordForm() {
   const router = useRouter();
-  const [usernameOrEmail, setUsernameOrEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false);
@@ -26,7 +26,7 @@ function ForgotPasswordForm() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ usernameOrEmail }),
+        body: JSON.stringify({ usernameOrEmail: username }),
       });
 
       const data = await response.json();
@@ -36,7 +36,7 @@ function ForgotPasswordForm() {
       }
 
       setSuccess(true);
-      setMessage(data.message || 'If an account exists with that username/email, a password reset link has been sent.');
+      setMessage(data.message || 'If an account exists with that username, a password reset link has been sent.');
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send reset email';
       setMessage(errorMessage);
@@ -52,7 +52,7 @@ function ForgotPasswordForm() {
         <CardHeader>
           <CardTitle>Forgot Password</CardTitle>
           <CardDescription>
-            Enter your username or email address and we'll send you a link to reset your password.
+            Enter your username and we'll send you a link to reset your password.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -72,13 +72,13 @@ function ForgotPasswordForm() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="username-or-email">Username or Email</Label>
+                <Label htmlFor="username">Username</Label>
                 <Input
-                  id="username-or-email"
+                  id="username"
                   type="text"
-                  placeholder="username or username@injest.io"
-                  value={usernameOrEmail}
-                  onChange={(e) => setUsernameOrEmail(e.target.value)}
+                  placeholder="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   required
                   autoFocus
                 />
