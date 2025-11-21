@@ -700,6 +700,36 @@ function SettingsPageContent() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Custom Domains</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isSubscriber ? (
+              <>
+                <p className="text-sm text-gray-600 mb-4">
+                  Host injest on your own domain. Configure custom domains for your workspace.
+                </p>
+                <Button
+                  onClick={() => router.push('/settings/domains')}
+                  variant="outline"
+                >
+                  Manage Custom Domains
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Unlock custom domain support when you upgrade to Pro. Host injest on your own domain.
+                </p>
+                <Button onClick={openSubscriptionDialog} className="w-full sm:w-auto">
+                  Upgrade to unlock custom domains
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Referrals</CardTitle>
           </CardHeader>
           <CardContent>

@@ -19,6 +19,7 @@ import externalRoutes from './routes/external.js';
 import slackRoutes from './routes/slack.js';
 import referralRoutes from './routes/referral.js';
 import stripeWebhookRoutes from './routes/stripe-webhook.js';
+import customDomainsRoutes from './routes/customDomains.js';
 import './config/database.js';
 
 dotenv.config();
@@ -103,6 +104,7 @@ app.use('/api/external', externalRoutes);
 app.use('/api/slack', slackRoutes);
 app.use('/api/referral', referralRoutes);
 app.use('/api/stripe-webhook', stripeWebhookRoutes);
+app.use('/api/custom-domains', customDomainsRoutes);
 
 // Serve uploaded files (avatars, attachments, etc.)
 app.get('/api/uploads/:path(*)', (req: express.Request, res: express.Response) => {
