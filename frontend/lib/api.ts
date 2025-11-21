@@ -378,7 +378,7 @@ export interface ExecuteSendRequest {
   body?: string;
   xcomPost?: string;
   contactId?: string | null;
-  toEmail?: string | null;
+  toEmail?: string | string[] | null;
   cc?: string[];
   bcc?: string[];
   replyTo?: string | null;

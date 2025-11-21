@@ -1,6 +1,5 @@
 - Do security audit
-- PWA (Progressive web application with offline mode)
-- Item and collection sharing (can be shared publicly if user selects)
+- Develop mobile native apps (iOS and Android) with capture and search.
 - Google Drive Sync https://developers.google.com/drive/api
  Shared Workspace View (Team Dashboard)
  Comments & Collaboration Thread

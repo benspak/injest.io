@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
@@ -13,6 +14,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { MarkdownEditor } from '@/components/markdown-editor';
+import { EmailRecipientInput } from '@/components/email-recipient-input';
+import { FileUploadAttachment, type UploadedAttachment } from '@/components/file-upload-attachment';
 import {
   apiClient,
   type ExecuteSendRequest,
@@ -41,9 +44,19 @@ export default function SendPage() {
   const [body, setBody] = useState('');
   const [loadingPlan, setLoadingPlan] = useState(false);
   const [sending, setSending] = useState(false);
-  const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
-  const [customEmail, setCustomEmail] = useState('');
-  const [selectedAttachments, setSelectedAttachments] = useState<string[]>([]);
+
+  // Recipients - multiple emails
+  const [toEmails, setToEmails] = useState<string[]>([]);
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
+  const [bccEmails, setBccEmails] = useState<string[]>([]);
+
+  // Attachments
+  const [manualAttachments, setManualAttachments] = useState<UploadedAttachment[]>([]);
+  const [selectedPlanAttachments, setSelectedPlanAttachments] = useState<string[]>([]);
+
+  // Plan suggestions
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [showPlanSection, setShowPlanSection] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -101,28 +114,47 @@ export default function SendPage() {
     try {
       const response = await apiClient.planSend(promptValue.trim());
       setPlan(response);
-      setSubject(response.recommendation.subject);
-      setBody(response.recommendation.body);
 
+      // Populate subject and body if empty
+      if (!subject.trim()) {
+        setSubject(response.recommendation.subject);
+      }
+      if (!body.trim()) {
+        setBody(response.recommendation.body);
+      }
+
+      // Add recommended contacts to recipients
       const recommendedContactId = response.recommendation.recommendedContactId;
+      const emailsToAdd: string[] = [];
+      const contactIdsToSelect = new Set<string>();
+
       if (
         recommendedContactId &&
         response.contacts.some((contact) => contact.id === recommendedContactId)
       ) {
-        setSelectedContactId(recommendedContactId);
         const contact = response.contacts.find((c) => c.id === recommendedContactId);
-        setCustomEmail(contact?.email ?? '');
+        if (contact?.email) {
+          emailsToAdd.push(contact.email);
+          contactIdsToSelect.add(recommendedContactId);
+        }
       } else if (response.recommendation.recommendedContactEmail) {
-        setSelectedContactId(null);
-        setCustomEmail(response.recommendation.recommendedContactEmail);
+        emailsToAdd.push(response.recommendation.recommendedContactEmail);
       } else if (response.contacts.length > 0) {
-        setSelectedContactId(response.contacts[0].id);
-        setCustomEmail(response.contacts[0].email ?? '');
-      } else {
-        setSelectedContactId(null);
-        setCustomEmail('');
+        const firstContact = response.contacts[0];
+        if (firstContact.email) {
+          emailsToAdd.push(firstContact.email);
+          contactIdsToSelect.add(firstContact.id);
+        }
       }
 
+      // Add emails that aren't already in the list
+      setToEmails((prev) => {
+        const newEmails = emailsToAdd.filter((email) => !prev.includes(email.toLowerCase()));
+        return [...prev, ...newEmails];
+      });
+      setSelectedContactIds(contactIdsToSelect);
+
+      // Select recommended attachments
       const recommendedAttachmentKeys = new Set(
         response.recommendation.attachments
           .map((attachment) =>
@@ -142,32 +174,46 @@ export default function SendPage() {
         }
       }
 
-      setSelectedAttachments(defaults);
-      toast.success('Plan generated. Review the draft before sending.');
+      setSelectedPlanAttachments(defaults);
+      setShowPlanSection(true);
+      toast.success('Plan generated. Review suggestions below.');
     } catch (error) {
       console.error('Failed to generate send plan:', error);
       toast.error('Unable to generate plan right now. Please try again in a moment.');
     } finally {
       setLoadingPlan(false);
     }
-  }, [attachmentOptions, promptValue]);
+  }, [attachmentOptions, promptValue, subject, body]);
 
-  const toggleAttachment = useCallback((key: string) => {
-    setSelectedAttachments((prev) =>
+  const togglePlanAttachment = useCallback((key: string) => {
+    setSelectedPlanAttachments((prev) =>
       prev.includes(key) ? prev.filter((value) => value !== key) : [...prev, key]
     );
   }, []);
 
-  const currentContact: SendPlanContact | null = useMemo(() => {
-    if (!plan || !selectedContactId) {
-      return null;
-    }
-    return plan.contacts.find((contact) => contact.id === selectedContactId) ?? null;
-  }, [plan, selectedContactId]);
+  const toggleContactSelection = useCallback((contactId: string, email: string | null) => {
+    setSelectedContactIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(contactId)) {
+        next.delete(contactId);
+        // Remove email from recipients if it was from this contact
+        if (email) {
+          setToEmails((emails) => emails.filter((e) => e !== email.toLowerCase()));
+        }
+      } else {
+        next.add(contactId);
+        // Add email to recipients
+        if (email && !toEmails.includes(email.toLowerCase())) {
+          setToEmails((emails) => [...emails, email.toLowerCase()]);
+        }
+      }
+      return next;
+    });
+  }, [toEmails]);
 
   const handleSend = useCallback(async () => {
-    if (!plan) {
-      toast.error('Generate a plan before sending.');
+    if (toEmails.length === 0) {
+      toast.error('Please add at least one recipient.');
       return;
     }
 
@@ -181,28 +227,37 @@ export default function SendPage() {
       return;
     }
 
-    const toEmail = currentContact?.email ?? customEmail.trim();
-    if (!toEmail) {
-      toast.error('Please select a contact or provide a recipient email.');
-      return;
+    // Combine manual attachments and plan attachments
+    const allAttachments: Array<{ itemId: string; attachmentFilename?: string }> = [];
+
+    // Add manual attachments
+    for (const attachment of manualAttachments) {
+      allAttachments.push({
+        itemId: attachment.itemId,
+        attachmentFilename: attachment.attachmentFilename,
+      });
+    }
+
+    // Add plan attachments
+    for (const key of selectedPlanAttachments) {
+      const [itemId, filename] = key.split('::');
+      allAttachments.push({
+        itemId,
+        attachmentFilename: filename || undefined,
+      });
     }
 
     const payload: ExecuteSendRequest = {
       platforms: ['email'],
       subject,
       body,
-      contactId: currentContact?.id ?? undefined,
-      toEmail: currentContact ? currentContact.email ?? undefined : customEmail.trim() || undefined,
-      attachments: selectedAttachments.map((key) => {
-        const [itemId, filename] = key.split('::');
-        return {
-          itemId,
-          attachmentFilename: filename || undefined,
-        };
-      }),
-      prompt: plan.prompt || promptValue,
-      recommendation: plan.recommendation,
-      analysis: plan.analysis,
+      toEmail: toEmails,
+      cc: ccEmails.length > 0 ? ccEmails : undefined,
+      bcc: bccEmails.length > 0 ? bccEmails : undefined,
+      attachments: allAttachments.length > 0 ? allAttachments : undefined,
+      prompt: plan?.prompt || promptValue || undefined,
+      recommendation: plan?.recommendation,
+      analysis: plan?.analysis,
     };
 
     setSending(true);
@@ -211,6 +266,18 @@ export default function SendPage() {
 
       if (response.results?.email?.success) {
         toast.success('Email sent successfully.');
+
+        // Reset form
+        setToEmails([]);
+        setCcEmails([]);
+        setBccEmails([]);
+        setSubject('');
+        setBody('');
+        setManualAttachments([]);
+        setSelectedPlanAttachments([]);
+        setSelectedContactIds(new Set());
+        setPlan(null);
+        setPromptValue('');
       } else {
         toast.error('Failed to send email.');
       }
@@ -218,23 +285,23 @@ export default function SendPage() {
       if (response.results?.email?.error) {
         toast.error(`Email failed: ${response.results.email.error}`);
       }
-
-      // Reset form if email succeeded
-      if (response.success) {
-        setPlan(null);
-        setSubject('');
-        setBody('');
-        setSelectedAttachments([]);
-        setSelectedContactId(null);
-        setCustomEmail('');
-      }
     } catch (error) {
       console.error('Failed to send:', error);
       toast.error('Unable to send. Please try again.');
     } finally {
       setSending(false);
     }
-  }, [body, currentContact, customEmail, plan, promptValue, selectedAttachments, subject]);
+  }, [
+    toEmails,
+    ccEmails,
+    bccEmails,
+    subject,
+    body,
+    manualAttachments,
+    selectedPlanAttachments,
+    plan,
+    promptValue,
+  ]);
 
   if (authLoading) {
     return <div className="container mx-auto px-4 py-12">Loading...</div>;
@@ -263,19 +330,43 @@ export default function SendPage() {
       </header>
 
       <main className="container mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8 max-w-5xl space-y-6">
+        {/* AI Plan Generation (Optional Enrichment) */}
         <Card>
           <CardHeader>
-            <CardTitle>Describe your outreach</CardTitle>
-            <CardDescription>
-              Tell the assistant what you want to accomplish. Include goals, recipients, and any context you would like attached.
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>AI Suggestions (Optional)</CardTitle>
+                <CardDescription>
+                  Generate AI-powered suggestions for contacts, attachments, and content.
+                </CardDescription>
+              </div>
+              {plan && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowPlanSection(!showPlanSection)}
+                >
+                  {showPlanSection ? (
+                    <>
+                      <ChevronUp className="h-4 w-4 mr-1" />
+                      Hide
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4 mr-1" />
+                      Show
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="send-prompt">Request</Label>
+              <Label htmlFor="send-prompt">Describe your outreach</Label>
               <Textarea
                 id="send-prompt"
-                rows={6}
+                rows={4}
                 value={promptValue}
                 onChange={(event) => setPromptValue(event.target.value)}
                 placeholder="e.g. Craft a message to the HR contact at bytedance.com. Include relevant UI images of my past work."
@@ -284,9 +375,9 @@ export default function SendPage() {
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button onClick={handleGeneratePlan} disabled={loadingPlan || sending || !authReady}>
-                {loadingPlan ? 'Generating...' : 'Generate Plan'}
+                {loadingPlan ? 'Generating...' : 'Generate Suggestions'}
               </Button>
-              {plan ? (
+              {plan && (
                 <Button
                   variant="outline"
                   onClick={handleGeneratePlan}
@@ -294,41 +385,31 @@ export default function SendPage() {
                 >
                   Regenerate
                 </Button>
-              ) : null}
+              )}
             </div>
-          </CardContent>
-        </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>AI Recommendations</CardTitle>
-            <CardDescription>
-              {plan
-                ? 'Review the suggested contacts, attachments, and message draft. Make any edits before sending.'
-                : 'Generate a plan to see AI recommendations for contacts, attachments, and message draft.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <section className="space-y-2">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Summary</h2>
-              {plan ? (
-                <>
+            {/* Plan Suggestions */}
+            {plan && showPlanSection && (
+              <div className="space-y-6 pt-4 border-t">
+                {/* Summary */}
+                <section className="space-y-2">
+                  <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Summary</h3>
                   <div className="space-y-1 text-sm text-gray-700">
                     <p>
                       <span className="font-medium">Intent:</span> {plan.analysis.intent}
                     </p>
-                    {plan.analysis.targetCompany ? (
+                    {plan.analysis.targetCompany && (
                       <p>
                         <span className="font-medium">Target Company:</span> {plan.analysis.targetCompany}
                       </p>
-                    ) : null}
-                    {plan.analysis.targetPersona ? (
+                    )}
+                    {plan.analysis.targetPersona && (
                       <p>
                         <span className="font-medium">Persona:</span> {plan.analysis.targetPersona}
                       </p>
-                    ) : null}
+                    )}
                   </div>
-                  {plan.analysis.keyFacts.length > 0 ? (
+                  {plan.analysis.keyFacts.length > 0 && (
                     <ul className="flex flex-wrap gap-2 text-xs text-gray-600">
                       {plan.analysis.keyFacts.map((fact) => (
                         <li key={fact} className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
@@ -336,139 +417,165 @@ export default function SendPage() {
                         </li>
                       ))}
                     </ul>
-                  ) : null}
-                </>
-              ) : (
-                <p className="text-sm text-gray-500 italic">Generate a plan to see analysis summary.</p>
-              )}
-            </section>
+                  )}
+                </section>
 
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Contact</h2>
-              <div className="space-y-2">
-                {plan ? (
-                  plan.contacts.length > 0 ? (
-                    plan.contacts.map((contact) => {
-                      const isRecommended = plan.recommendation.recommendedContactId === contact.id;
-                      return (
-                        <label
-                          key={contact.id}
-                          className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
-                            selectedContactId === contact.id
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-200 hover:border-blue-300'
-                          }`}
-                        >
-                          <div className="flex flex-col">
-                            <span className="font-medium text-gray-900">
-                              {contact.name || contact.email || 'Unknown contact'}
-                            </span>
-                            <span className="text-xs text-gray-600">
-                              {contact.email || 'No email on record'}
-                              {contact.company ? ` • ${contact.company}` : ''}
-                            </span>
-                            {isRecommended && plan.recommendation.contactReason ? (
-                              <span className="mt-1 text-xs text-blue-700">
-                                Recommended: {plan.recommendation.contactReason}
+                {/* Suggested Contacts */}
+                {plan.contacts.length > 0 && (
+                  <section className="space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                      Suggested Contacts
+                    </h3>
+                    <div className="space-y-2">
+                      {plan.contacts.map((contact) => {
+                        const isRecommended = plan.recommendation.recommendedContactId === contact.id;
+                        const isSelected = selectedContactIds.has(contact.id);
+                        return (
+                          <label
+                            key={contact.id}
+                            className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-blue-300'
+                            }`}
+                          >
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900">
+                                {contact.name || contact.email || 'Unknown contact'}
                               </span>
-                            ) : null}
-                          </div>
-                          <input
-                            type="radio"
-                            name="contact"
-                            value={contact.id}
-                            checked={selectedContactId === contact.id}
-                            onChange={() => {
-                              setSelectedContactId(contact.id);
-                              setCustomEmail(contact.email ?? '');
-                            }}
-                          />
-                        </label>
-                      );
-                    })
-                  ) : (
-                    <p className="text-sm text-gray-600">
-                      No contacts were suggested. Provide an email below to continue.
-                    </p>
-                  )
-                ) : (
-                  <p className="text-sm text-gray-500 italic">Generate a plan to see suggested contacts.</p>
+                              <span className="text-xs text-gray-600">
+                                {contact.email || 'No email on record'}
+                                {contact.company ? ` • ${contact.company}` : ''}
+                              </span>
+                              {isRecommended && plan.recommendation.contactReason && (
+                                <span className="mt-1 text-xs text-blue-700">
+                                  Recommended: {plan.recommendation.contactReason}
+                                </span>
+                              )}
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleContactSelection(contact.id, contact.email ?? null)}
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
                 )}
-                <div className="space-y-1">
-                  <Label htmlFor="custom-email">Recipient Email</Label>
-                  <Input
-                    id="custom-email"
-                    type="email"
-                    value={customEmail}
-                    onChange={(event) => setCustomEmail(event.target.value)}
-                    placeholder="you@example.com"
-                    className="max-w-md"
+
+                {/* Suggested Attachments */}
+                {attachmentOptions.length > 0 && (
+                  <section className="space-y-3">
+                    <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                      Suggested Attachments
+                    </h3>
+                    <div className="space-y-2">
+                      {attachmentOptions.map((attachment) => (
+                        <label
+                          key={attachment.key}
+                          className="flex items-start gap-3 rounded-md border border-gray-200 px-3 py-2 text-sm hover:border-blue-300 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={selectedPlanAttachments.includes(attachment.key)}
+                            onChange={() => togglePlanAttachment(attachment.key)}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-900">{attachment.displayName}</span>
+                            {attachment.itemTitle && (
+                              <span className="text-xs text-gray-600">Source: {attachment.itemTitle}</span>
+                            )}
+                            {attachment.mimetype && (
+                              <span className="text-xs text-gray-500">{attachment.mimetype}</span>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Main Email Composer */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Compose Email</CardTitle>
+            <CardDescription>
+              Write and send an email. Use AI suggestions above to enrich your message.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Recipients */}
+            <section className="space-y-4">
+              <EmailRecipientInput
+                value={toEmails}
+                onChange={setToEmails}
+                label="To"
+                placeholder="Enter recipient email addresses..."
+                disabled={sending}
+              />
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <EmailRecipientInput
+                    value={ccEmails}
+                    onChange={setCcEmails}
+                    label="CC"
+                    placeholder="Optional..."
+                    disabled={sending}
+                  />
+                </div>
+                <div className="flex-1">
+                  <EmailRecipientInput
+                    value={bccEmails}
+                    onChange={setBccEmails}
+                    label="BCC"
+                    placeholder="Optional..."
+                    disabled={sending}
                   />
                 </div>
               </div>
             </section>
 
+            {/* Attachments */}
             <section className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Attachments</h2>
-              {plan ? (
-                attachmentOptions.length > 0 ? (
-                  <div className="space-y-2">
-                    {attachmentOptions.map((attachment) => (
-                      <label
-                        key={attachment.key}
-                        className="flex items-start gap-3 rounded-md border border-gray-200 px-3 py-2 text-sm hover:border-blue-300"
-                      >
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={selectedAttachments.includes(attachment.key)}
-                          onChange={() => toggleAttachment(attachment.key)}
-                        />
-                        <div className="flex flex-col">
-                          <span className="font-medium text-gray-900">{attachment.displayName}</span>
-                          {attachment.itemTitle ? (
-                            <span className="text-xs text-gray-600">Source: {attachment.itemTitle}</span>
-                          ) : null}
-                          {attachment.mimetype ? (
-                            <span className="text-xs text-gray-500">{attachment.mimetype}</span>
-                          ) : null}
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-600">
-                    No attachments were suggested. Run another plan or add more context to your request.
-                  </p>
-                )
-              ) : (
-                <p className="text-sm text-gray-500 italic">Generate a plan to see suggested attachments.</p>
-              )}
+              <FileUploadAttachment
+                value={manualAttachments}
+                onChange={setManualAttachments}
+                label="Attachments"
+                disabled={sending}
+              />
             </section>
 
-            <section className="space-y-4">
-              <div className="space-y-1">
-                <Label htmlFor="email-subject">Subject</Label>
-                <Input
-                  id="email-subject"
-                  value={subject}
-                  onChange={(event) => setSubject(event.target.value)}
-                  placeholder={plan ? "Subject line" : "Generate a plan to see suggested subject"}
-                  disabled={!plan}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="email-body">Email Body</Label>
-                <MarkdownEditor
-                  id="email-body"
-                  rows={12}
-                  value={body}
-                  onChange={(value) => setBody(value)}
-                  placeholder={plan ? undefined : "Generate a plan to see suggested email body"}
-                  disabled={!plan}
-                />
-              </div>
-              {plan ? (
+            {/* Subject */}
+            <section className="space-y-2">
+              <Label htmlFor="email-subject">Subject</Label>
+              <Input
+                id="email-subject"
+                value={subject}
+                onChange={(event) => setSubject(event.target.value)}
+                placeholder="Email subject"
+                disabled={sending}
+              />
+            </section>
+
+            {/* Body */}
+            <section className="space-y-2">
+              <Label htmlFor="email-body">Email Body</Label>
+              <MarkdownEditor
+                id="email-body"
+                rows={12}
+                value={body}
+                onChange={(value) => setBody(value)}
+                placeholder="Write your email message..."
+                disabled={sending}
+              />
+              {plan && (
                 <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
@@ -483,15 +590,16 @@ export default function SendPage() {
                     }}
                     disabled={sending}
                   >
-                    Reset Email Draft
+                    Reset to AI Suggestion
                   </Button>
                 </div>
-              ) : null}
+              )}
             </section>
 
+            {/* Send Button */}
             <section className="flex flex-wrap items-center gap-3 pt-4 border-t">
-              <Button onClick={handleSend} disabled={sending || !plan}>
-                {sending ? 'Sending...' : !plan ? 'Generate Plan to Send' : 'Send Email'}
+              <Button onClick={handleSend} disabled={sending}>
+                {sending ? 'Sending...' : 'Send Email'}
               </Button>
             </section>
           </CardContent>
