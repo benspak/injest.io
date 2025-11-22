@@ -138,6 +138,186 @@ Get information about the currently authenticated user.
 
 ---
 
+#### Sign Up
+
+Create a new user account with username and password.
+
+**Endpoint:** `POST /api/auth/signup`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "username": "johndoe",
+  "password": "securepassword123",
+  "recovery_email": "recovery@example.com",
+  "first_name": "John",
+  "last_name": "Doe",
+  "date_of_birth": "1990-01-01",
+  "headline": "Software Engineer",
+  "bio": "Building awesome things",
+  "company": "Acme Corp",
+  "project_title": "My Project",
+  "project_description": "Project description",
+  "zip_code": "10001",
+  "x_profile_url": "https://x.com/johndoe",
+  "youtube_url": "https://youtube.com/@johndoe",
+  "github_url": "https://github.com/johndoe",
+  "linkedin_url": "https://linkedin.com/in/johndoe",
+  "referral_code": "REF123"
+}
+```
+
+**Required Fields:**
+- `username` (string, 3-30 chars, alphanumeric + dots/hyphens/underscores)
+- `password` (string, minimum 8 characters)
+- `recovery_email` (string, valid email, must differ from primary email)
+- `first_name` (string)
+- `last_name` (string)
+- `date_of_birth` (ISO date string, user must be 18+)
+
+**Optional Fields:**
+- `headline` (string, max 100 chars)
+- `bio` (string, max 250 chars)
+- `company` (string, max 200 chars)
+- `project_title` (string, max 200 chars)
+- `project_description` (string, max 500 chars)
+- `zip_code` (string, auto-fetches city)
+- `x_profile_url` (string, must be from x.com or twitter.com)
+- `youtube_url` (string, must be from youtube.com or youtu.be)
+- `github_url` (string, must be from github.com)
+- `linkedin_url` (string, must be from linkedin.com)
+- `referral_code` (string, optional referral code)
+
+**Response:** `201 Created`
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user-id",
+    "email": "johndoe@injest.io",
+    "verified": true,
+    "public_username": "johndoe"
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid input data
+- `409 Conflict` - Username already taken
+- `500 Internal Server Error` - Failed to create user
+
+**Notes:**
+- Primary email is automatically set to `{username}@injest.io`
+- Recovery email must be different from primary email
+- Username must be unique and not reserved
+- Referral code is processed if provided
+
+---
+
+#### Login
+
+Authenticate with username/email and password.
+
+**Endpoint:** `POST /api/auth/login`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "usernameOrEmail": "johndoe",
+  "password": "securepassword123"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": {
+    "id": "user-id",
+    "email": "johndoe@injest.io",
+    "verified": true
+  }
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Username/email and password required
+- `401 Unauthorized` - Invalid credentials
+- `500 Internal Server Error` - Failed to authenticate
+
+---
+
+#### Forgot Password
+
+Request a password reset link.
+
+**Endpoint:** `POST /api/auth/forgot-password`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "usernameOrEmail": "johndoe"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "If an account exists with that username/email, a password reset link has been sent."
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Username/email required
+- `500 Internal Server Error` - Failed to process request
+
+**Notes:**
+- Password reset link is sent to recovery email if available, otherwise primary email
+- Reset tokens expire after 1 hour
+- Response is always the same (security best practice)
+
+---
+
+#### Reset Password
+
+Reset password using a reset token.
+
+**Endpoint:** `POST /api/auth/reset-password`
+
+**Authentication:** Not required
+
+**Request Body:**
+```json
+{
+  "token": "reset-token-from-email",
+  "password": "newsecurepassword123"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Password has been reset successfully"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Token and password required, or invalid password
+- `401 Unauthorized` - Invalid or expired token
+- `500 Internal Server Error` - Failed to reset password
+
+**Notes:**
+- Password must be at least 8 characters
+- Token expires after 1 hour
+
+---
+
 ### Items (`/api/items`)
 
 #### Create Item
@@ -404,6 +584,106 @@ Update only the notes field of an item.
 - `500 Internal Server Error` - Failed to update notes
 
 **Note:** Triggers automatic re-indexing for search.
+
+---
+
+#### Share Item
+
+Share an item with another user via email.
+
+**Endpoint:** `POST /api/items/:id/share`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Request Body:**
+```json
+{
+  "email": "recipient@example.com"
+}
+```
+
+**Response:** `200 OK`
+```json
+{
+  "success": true
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Valid email address required
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to share item
+
+**Notes:**
+- Grants access to the recipient via email
+- Sends an email notification with a link to view the item
+- Recipient can access the item even if they don't have an account yet
+- Access is automatically linked when recipient signs up with that email
+
+---
+
+#### Post Item to Profile
+
+Make an item visible on your public profile.
+
+**Endpoint:** `POST /api/items/:id/post-to-profile`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Response:** `200 OK`
+```json
+{
+  "id": "item-id",
+  "posted_to_profile": true,
+  ...
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to post item
+
+**Notes:**
+- Item becomes visible on your public profile at `/u/{username}/items`
+- Only works if your profile is public (`profile_private: false`)
+
+---
+
+#### Remove Item from Profile
+
+Remove an item from your public profile.
+
+**Endpoint:** `DELETE /api/items/:id/post-to-profile`
+
+**Authentication:** Required
+
+**Path Parameters:**
+- `id` (string, required) - Item ID
+
+**Response:** `200 OK`
+```json
+{
+  "id": "item-id",
+  "posted_to_profile": false,
+  ...
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized` - Not authenticated
+- `403 Forbidden` - Item belongs to another user
+- `404 Not Found` - Item not found
+- `500 Internal Server Error` - Failed to remove item
 
 ---
 
@@ -1404,6 +1684,612 @@ Verify a completed payment intent.
 - Updates user's bookmark import count and payment timestamp
 - Use this after payment is completed to confirm payment status
 - When verifying a premium subscription payment, the user’s `subscription_tier` is set and `is_premium` becomes `true`
+
+---
+
+### Collections (`/api/collections`)
+
+Organize items into collections with sharing capabilities.
+
+#### Create Collection
+
+**Endpoint:** `POST /api/collections`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "title": "My Collection",
+  "description": "Collection description",
+  "color": "#FF5733",
+  "icon": "📚"
+}
+```
+
+**Required Fields:**
+- `title` (string, required, max 255 chars)
+
+**Optional Fields:**
+- `description` (string)
+- `color` (string, hex color code, e.g., "#FF5733")
+- `icon` (string, max 50 chars, emoji or icon identifier)
+
+**Response:** `201 Created`
+```json
+{
+  "id": "collection-id",
+  "owner_id": "user-id",
+  "title": "My Collection",
+  "description": "Collection description",
+  "color": "#FF5733",
+  "icon": "📚",
+  "is_publicly_shareable": false,
+  "share_token": null,
+  "posted_to_profile": false,
+  "created_at": "2024-01-01T00:00:00.000Z",
+  "updated_at": "2024-01-01T00:00:00.000Z"
+}
+```
+
+#### List Collections
+
+**Endpoint:** `GET /api/collections`
+
+**Authentication:** Required
+
+**Response:** `200 OK`
+```json
+[
+  {
+    "id": "collection-id",
+    "title": "My Collection",
+    "item_count": 5,
+    ...
+  }
+]
+```
+
+#### Get Collection
+
+**Endpoint:** `GET /api/collections/:id`
+
+**Authentication:** Required
+
+**Response:** `200 OK` (collection with item_count)
+
+#### Update Collection
+
+**Endpoint:** `PATCH /api/collections/:id`
+
+**Authentication:** Required
+
+**Request Body:** Same fields as create (all optional)
+
+#### Delete Collection
+
+**Endpoint:** `DELETE /api/collections/:id`
+
+**Authentication:** Required
+
+#### Get Collection Items
+
+**Endpoint:** `GET /api/collections/:id/items`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `limit` (number, optional, default: 100)
+- `offset` (number, optional, default: 0)
+
+#### Add Items to Collection
+
+**Endpoint:** `POST /api/collections/:id/items`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "itemIds": ["item-id-1", "item-id-2"]
+}
+```
+
+**Notes:**
+- Resend email items (IDs starting with "resend-email-") cannot be added to collections
+- Items must belong to the authenticated user
+
+#### Remove Item from Collection
+
+**Endpoint:** `DELETE /api/collections/:id/items/:itemId`
+
+**Authentication:** Required
+
+#### Post Collection to Profile
+
+**Endpoint:** `POST /api/collections/:id/post-to-profile`
+
+**Authentication:** Required
+
+**Notes:** Makes collection visible on public profile
+
+#### Remove Collection from Profile
+
+**Endpoint:** `DELETE /api/collections/:id/post-to-profile`
+
+**Authentication:** Required
+
+#### Update Collection Sharing
+
+**Endpoint:** `PATCH /api/collections/:id/sharing`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "is_publicly_shareable": true
+}
+```
+
+**Notes:**
+- When enabled, generates a share token if one doesn't exist
+- When disabled, clears the share token
+
+#### Get Share Token
+
+**Endpoint:** `GET /api/collections/:id/share-token`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "share_token": "abc123..."
+}
+```
+
+#### Get Shared Collection (Public)
+
+**Endpoint:** `GET /api/collections/shared/:token`
+
+**Authentication:** Not required
+
+**Query Parameters:**
+- `limit` (number, optional, default: 50)
+- `offset` (number, optional, default: 0)
+
+**Response:** Collection with items (public access)
+
+---
+
+### Profiles (`/api/profiles`)
+
+Manage user profiles and public profile pages.
+
+#### Get Own Profile
+
+**Endpoint:** `GET /api/profiles/me`
+
+**Authentication:** Required
+
+**Response:** Full user profile object
+
+#### Update Own Profile
+
+**Endpoint:** `PUT /api/profiles/me`
+
+**Authentication:** Required
+
+**Request Body (multipart/form-data):**
+- `public_username` (string, 3-30 chars, alphanumeric + dots/hyphens/underscores)
+- `first_name` (string)
+- `last_name` (string)
+- `headline` (string, max 100 chars)
+- `bio` (string, max 250 chars)
+- `company` (string, max 200 chars)
+- `project_title` (string, max 200 chars)
+- `project_description` (string, max 500 chars)
+- `zip_code` (string, auto-fetches city)
+- `x_profile_url` (string, must be from x.com or twitter.com)
+- `youtube_url` (string, must be from youtube.com or youtu.be)
+- `github_url` (string, must be from github.com)
+- `linkedin_url` (string, must be from linkedin.com)
+- `avatar` (file, optional, JPG/PNG/WebP, max 5MB)
+
+**Response:** Updated profile object
+
+#### Update Profile Privacy
+
+**Endpoint:** `PUT /api/profiles/me/privacy`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "profile_private": true
+}
+```
+
+#### Get Public Profile
+
+**Endpoint:** `GET /api/profiles/:username`
+
+**Authentication:** Not required
+
+**Response:** Public profile data (excludes sensitive fields)
+
+#### Get Profile Collections
+
+**Endpoint:** `GET /api/profiles/:username/collections`
+
+**Authentication:** Not required
+
+**Query Parameters:**
+- `limit` (number, optional, default: 50)
+- `offset` (number, optional, default: 0)
+
+**Response:** Posted collections for the profile
+
+#### Get Profile Items
+
+**Endpoint:** `GET /api/profiles/:username/items`
+
+**Authentication:** Not required
+
+**Query Parameters:**
+- `limit` (number, optional, default: 50)
+- `offset` (number, optional, default: 0)
+
+**Response:** Posted items for the profile
+
+#### Get Username by User ID
+
+**Endpoint:** `GET /api/profiles/user/:userId/username`
+
+**Authentication:** Not required
+
+**Response:**
+```json
+{
+  "username": "johndoe"
+}
+```
+
+**Notes:** Only returns username if profile is public
+
+---
+
+### Referral System (`/api/referral`)
+
+Manage referral codes and track commissions.
+
+#### Set Referral Code
+
+**Endpoint:** `POST /api/referral/code`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "code": "MYREFCODE"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "referral_code": "MYREFCODE"
+}
+```
+
+#### Get Referral Code
+
+**Endpoint:** `GET /api/referral/code`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "referral_code": "MYREFCODE"
+}
+```
+
+#### Get Referral Statistics
+
+**Endpoint:** `GET /api/referral/stats`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "referral_code": "MYREFCODE",
+  "total_referrals": 10,
+  "total_earnings_cents": 5000,
+  "pending_earnings_cents": 2000,
+  "has_connected_account": true
+}
+```
+
+#### Get Commission History
+
+**Endpoint:** `GET /api/referral/commissions`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `limit` (number, optional, default: 50)
+- `offset` (number, optional, default: 0)
+
+**Response:**
+```json
+{
+  "commissions": [
+    {
+      "id": "commission-id",
+      "referrer_id": "user-id",
+      "referred_user_id": "referred-user-id",
+      "payment_intent_id": "pi_xxx",
+      "amount_cents": 500,
+      "status": "paid",
+      "created_at": "2024-01-01T00:00:00.000Z"
+    }
+  ],
+  "pagination": {
+    "limit": 50,
+    "offset": 0,
+    "has_more": false
+  }
+}
+```
+
+#### Setup Stripe Connect Account
+
+**Endpoint:** `POST /api/referral/connect/setup`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "onboarding_url": "https://connect.stripe.com/...",
+  "account_id": "acct_xxx"
+}
+```
+
+**Notes:**
+- Creates or retrieves Stripe Connect account for receiving commissions
+- Returns onboarding URL if account needs setup
+- Returns account status if already set up
+
+#### Get Stripe Connect Status
+
+**Endpoint:** `GET /api/referral/connect/status`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "has_account": true,
+  "account_id": "acct_xxx",
+  "details_submitted": true,
+  "charges_enabled": true,
+  "payouts_enabled": true
+}
+```
+
+---
+
+### Slack Integration (`/api/slack`)
+
+Integrate with Slack workspaces for message ingestion and search.
+
+#### Initiate Slack OAuth
+
+**Endpoint:** `POST /api/slack/oauth/initiate`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "authUrl": "https://slack.com/oauth/...",
+  "state": "state-token"
+}
+```
+
+#### Slack OAuth Callback
+
+**Endpoint:** `GET /api/slack/oauth/callback`
+
+**Authentication:** Not required (handled by Slack)
+
+**Query Parameters:**
+- `code` (string, required)
+- `state` (string, required)
+
+**Response:** Redirects to frontend with success/error status
+
+#### Slack Events Webhook
+
+**Endpoint:** `POST /api/slack/events`
+
+**Authentication:** Not required (verified via Slack signature)
+
+**Notes:**
+- Handles Slack Events API webhooks
+- Verifies request signature
+- Processes events asynchronously
+
+#### Slack Slash Commands
+
+**Endpoint:** `POST /api/slack/commands`
+
+**Authentication:** Not required (verified via Slack token)
+
+**Notes:** Handles Slack slash commands
+
+#### Slack Interactions
+
+**Endpoint:** `POST /api/slack/interactions`
+
+**Authentication:** Not required (verified via Slack signature)
+
+**Notes:** Handles button clicks and other interactions
+
+#### Get Slack Connection Status
+
+**Endpoint:** `GET /api/slack/status`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "connected": true,
+  "workspaces": [
+    {
+      "workspaceId": "T123456",
+      "workspaceName": "My Workspace"
+    }
+  ]
+}
+```
+
+#### Disconnect Slack
+
+**Endpoint:** `DELETE /api/slack/disconnect`
+
+**Authentication:** Required
+
+**Response:**
+```json
+{
+  "success": true
+}
+```
+
+#### Trigger Workspace Ingestion
+
+**Endpoint:** `POST /api/slack/ingest`
+
+**Authentication:** Required
+
+**Request Body:**
+```json
+{
+  "workspaceId": "T123456"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Ingestion started"
+}
+```
+
+**Notes:** Ingests Slack messages in the background
+
+#### Get Slack Messages
+
+**Endpoint:** `GET /api/slack/messages`
+
+**Authentication:** Required
+
+**Query Parameters:**
+- `workspaceId` (string, optional)
+- `channelId` (string, optional)
+- `limit` (number, optional, default: 50)
+- `offset` (number, optional, default: 0)
+
+**Response:**
+```json
+{
+  "messages": [
+    {
+      "id": "message-id",
+      "item": {
+        "id": "item-id",
+        "title": "Message title",
+        ...
+      },
+      "slackMessage": {
+        "workspaceId": "T123456",
+        "channelId": "C123456",
+        "messageTs": "1234567890.123456",
+        "text": "Message text"
+      },
+      "channel": {
+        "name": "general",
+        "type": "channel"
+      },
+      "permalink": "https://slack.com/archives/..."
+    }
+  ],
+  "total": 100
+}
+```
+
+#### Get Message Context
+
+**Endpoint:** `GET /api/slack/messages/:workspaceId/:channelId/:messageTs/context`
+
+**Authentication:** Required
+
+**Response:** Thread context and related messages
+
+---
+
+### X.com Integration (`/api/auth/xcom`)
+
+OAuth integration with X.com (formerly Twitter) for login and account linking.
+
+#### Initiate X.com Login OAuth
+
+**Endpoint:** `GET /api/auth/xcom/login`
+
+**Authentication:** Not required
+
+**Response:** Redirects to X.com OAuth authorization page
+
+**Notes:**
+- Creates new user account if X.com user doesn't exist
+- Auto-verifies email for X.com users
+
+#### Initiate X.com Link OAuth
+
+**Endpoint:** `GET /api/auth/xcom/initiate`
+
+**Authentication:** Required (token in Authorization header or query parameter)
+
+**Response:** Redirects to X.com OAuth authorization page
+
+**Notes:**
+- Links X.com account to existing user
+- Accepts token in `Authorization: Bearer <token>` header or `?token=<token>` query parameter
+
+#### X.com OAuth Callback
+
+**Endpoint:** `GET /api/auth/xcom/callback`
+
+**Authentication:** Not required (handled by X.com)
+
+**Query Parameters:**
+- `code` (string, required)
+- `state` (string, required)
+
+**Response:** Redirects to frontend with success/error status
+
+**Notes:**
+- Uses PKCE (Proof Key for Code Exchange) for security
+- Supports both login and link flows
 
 ---
 

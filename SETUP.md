@@ -86,10 +86,24 @@ JWT_EXPIRES_IN=7d
 
 # Third-party services
 OPENAI_API_KEY=sk-your-openai-api-key
+OPENAI_EMBEDDING_MODEL=small  # Options: small (default, 1536 dims) or large (3072 dims)
 RESEND_API_KEY=re_your-resend-api-key
+RECEIVING_EMAIL=input@injest.io  # Email address for receiving inbound emails
+INBOUND_EMAIL_DOMAIN=injest.io  # Domain for inbound email routing
 STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
 # Optional: For affiliate program webhooks
 # STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
+
+# Slack Integration (Optional)
+# SLACK_CLIENT_ID=your-slack-client-id
+# SLACK_CLIENT_SECRET=your-slack-client-secret
+# SLACK_SIGNING_SECRET=your-slack-signing-secret
+# SLACK_REDIRECT_URI=http://localhost:5555/api/slack/oauth/callback
+
+# X.com Integration (Optional)
+# X_CLIENT_ID=your-x-client-id
+# X_CLIENT_SECRET=your-x-client-secret
+# X_REDIRECT_URI=http://localhost:5555/api/auth/xcom/callback  # Optional, auto-constructed from API_URL if not set
 
 # App URLs (use absolute URLs with protocol)
 PORT=5555
@@ -188,13 +202,74 @@ API key generation, the `/developers` portal, and `/api/external` routes require
    - URL: `https://<your-api-host>/api/email/inbound` (local development requires a tunnel)
    - Events: `email.received`
 4. Ensure `api/src/services/email.ts` uses a verified `from` address for outbound messages.
+5. Set `RECEIVING_EMAIL` and `INBOUND_EMAIL_DOMAIN` in your `.env` file.
 
-## 8. Verify the Stack
+## 8. Configure Slack Integration (Optional)
+
+1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps).
+2. Configure OAuth & Permissions:
+   - Redirect URL: `http://localhost:5555/api/slack/oauth/callback` (development) or `https://<your-api-host>/api/slack/oauth/callback` (production)
+   - Scopes: `channels:read`, `channels:history`, `groups:read`, `groups:history`, `im:read`, `im:history`, `mpim:read`, `mpim:history`, `users:read`
+3. Enable Events API:
+   - Request URL: `https://<your-api-host>/api/slack/events`
+   - Subscribe to: `message.channels`, `message.groups`, `message.im`, `message.mpim`
+4. Enable Slash Commands (optional):
+   - Command URL: `https://<your-api-host>/api/slack/commands`
+5. Copy credentials to `.env`:
+   - `SLACK_CLIENT_ID`
+   - `SLACK_CLIENT_SECRET`
+   - `SLACK_SIGNING_SECRET`
+   - `SLACK_REDIRECT_URI`
+
+## 9. Configure X.com Integration (Optional)
+
+1. Create an app at [developer.twitter.com](https://developer.twitter.com/en/portal/dashboard).
+2. Configure OAuth 2.0 settings:
+   - App permissions: Read and Write (for posting tweets)
+   - Callback URL: `http://localhost:5555/api/auth/xcom/callback` (development) or `https://<your-api-host>/api/auth/xcom/callback` (production)
+   - Type: Web App
+3. Copy credentials to `.env`:
+   - `X_CLIENT_ID`
+   - `X_CLIENT_SECRET`
+   - `X_REDIRECT_URI` (optional, auto-constructed from `API_URL` if not set)
+
+**Note:** X.com integration uses PKCE (Proof Key for Code Exchange) for enhanced security.
+
+## 10. Verify the Stack
 
 1. **Backend health** – `GET http://localhost:5555/health` returns `{"status":"ok"}`.
 2. **Auth flow** – Submit your email at `/login`, click the magic link, and confirm the dashboard loads.
 3. **External API** – With a Pro user, visit `http://localhost:3000/developers`, generate an API key, and hit `http://localhost:5555/api/external/items`.
 4. **Email ingestion** – Forward an email to your inbound address and confirm it appears in the dashboard after processing.
+
+## 11. Additional Features
+
+### Collections
+Collections allow you to organize items into groups. Collections can be:
+- Shared publicly via share tokens
+- Posted to your public profile
+- Customized with colors and icons
+
+### User Profiles
+Users can create public profiles with:
+- Custom usernames (`/u/{username}`)
+- Bio, headline, company, project information
+- Social links (X.com, YouTube, GitHub, LinkedIn)
+- Avatar uploads
+- Posted items and collections
+
+### Referral System
+Users can earn commissions by referring new users:
+1. Set a referral code via `/api/referral/code`
+2. New users can sign up with a referral code
+3. Commissions are paid when referred users upgrade to Pro
+4. Requires Stripe Connect account setup for payouts
+
+### Item Sharing
+Items can be shared with other users via email:
+- Recipients receive an email with a link to view the item
+- Access is granted even if recipient doesn't have an account
+- Access is automatically linked when recipient signs up
 
 ## Troubleshooting
 

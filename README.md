@@ -38,6 +38,65 @@ All scripts should run from the `api` directory.
 - The dashboard search bar mirrors the backend filters and surfaces similarity + recency insights.
 - Embedding defaults: `text-embedding-3-small` (1536 dimensions). If upgrading from 3k-dimension models, run migration `016_force_small_embeddings.sql` and reindex.
 
+## Key Features
+
+### Collections
+Organize items into collections with custom colors, icons, and descriptions. Collections can be:
+- Shared publicly via share tokens (`/api/collections/shared/:token`)
+- Posted to your public profile
+- Used to group related items for better organization
+
+### User Profiles
+Public user profiles with customizable usernames (`/u/{username}`):
+- Bio, headline, company, and project information
+- Social links (X.com, YouTube, GitHub, LinkedIn)
+- Avatar uploads
+- Posted items and collections visible to the public
+- Privacy controls to make profiles private
+
+### Item Sharing
+Share items with other users via email:
+- Grant access by email address
+- Recipients receive email notifications with links
+- Access works even if recipient doesn't have an account
+- Automatic linking when recipient signs up
+
+### Referral System
+Earn commissions by referring new users:
+- Set custom referral codes
+- Track referrals and earnings
+- Stripe Connect integration for payouts
+- Commission history and statistics
+
+### Integrations
+
+#### Slack
+- OAuth integration for workspace access
+- Message ingestion from Slack channels
+- Search across Slack messages
+- Slash commands and interactions
+- Event webhooks for real-time updates
+
+#### X.com (Twitter)
+- OAuth 2.0 PKCE integration
+- Login with X.com account
+- Link X.com account to existing user
+- Post tweets (with appropriate permissions)
+
+#### Email (Resend)
+- Inbound email processing
+- Automatic item creation from emails
+- Email summaries with AI
+- Outbound email sending via send workflow
+
+### Authentication
+Multiple authentication methods:
+- Magic link (passwordless)
+- Username/password login
+- X.com OAuth login
+- Two-factor authentication (2FA) with recovery codes
+- Password recovery via email
+
 ## Support
 
 Questions or issues? Open a GitHub issue or contact the team. Internal handoff notes (e.g., Nov 5 2025 Google Docs integration) live in project planning docs rather than this README.
