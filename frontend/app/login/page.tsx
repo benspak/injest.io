@@ -105,7 +105,7 @@ function LoginForm() {
   };
 
   // Step validation functions
-  const validateStep1 = (): string | null => {
+  const validateStep2 = (): string | null => {
     if (!signUpUsername.trim()) {
       return 'Username is required';
     }
@@ -124,7 +124,7 @@ function LoginForm() {
     return null;
   };
 
-  const validateStep2 = (): string | null => {
+  const validateStep3 = (): string | null => {
     if (!signUpRecoveryEmail.trim()) {
       return 'Recovery email is required';
     }
@@ -151,11 +151,7 @@ function LoginForm() {
     let error: string | null = null;
 
     if (signUpCurrentStep === 1) {
-      error = validateStep1();
-      if (error) {
-        setSignUpMessage(error);
-        return;
-      }
+      // Step 1: Referral code (no validation required)
       setSignUpMessage('');
       setSignUpCurrentStep(2);
     } else if (signUpCurrentStep === 2) {
@@ -167,7 +163,15 @@ function LoginForm() {
       setSignUpMessage('');
       setSignUpCurrentStep(3);
     } else if (signUpCurrentStep === 3) {
+      error = validateStep3();
+      if (error) {
+        setSignUpMessage(error);
+        return;
+      }
+      setSignUpMessage('');
       setSignUpCurrentStep(4);
+    } else if (signUpCurrentStep === 4) {
+      setSignUpCurrentStep(5);
     }
   };
 
@@ -184,18 +188,18 @@ function LoginForm() {
     setSignUpMessage('');
 
     // Final validation before submission
-    const step1Error = validateStep1();
-    if (step1Error) {
-      setSignUpMessage(step1Error);
-      setSignUpCurrentStep(1);
-      setSignUpLoading(false);
-      return;
-    }
-
     const step2Error = validateStep2();
     if (step2Error) {
       setSignUpMessage(step2Error);
       setSignUpCurrentStep(2);
+      setSignUpLoading(false);
+      return;
+    }
+
+    const step3Error = validateStep3();
+    if (step3Error) {
+      setSignUpMessage(step3Error);
+      setSignUpCurrentStep(3);
       setSignUpLoading(false);
       return;
     }
@@ -362,29 +366,50 @@ function LoginForm() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-medium text-gray-700">
-                    Step {signUpCurrentStep} of 4
+                    Step {signUpCurrentStep} of 5
                   </span>
                   <span className="text-xs text-gray-500">
-                    {Math.round((signUpCurrentStep / 4) * 100)}% Complete
+                    {Math.round((signUpCurrentStep / 5) * 100)}% Complete
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${(signUpCurrentStep / 4) * 100}%` }}
+                    style={{ width: `${(signUpCurrentStep / 5) * 100}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-xs text-gray-500 mt-1">
-                  <span className={signUpCurrentStep >= 1 ? 'text-blue-600 font-medium' : ''}>Credentials</span>
-                  <span className={signUpCurrentStep >= 2 ? 'text-blue-600 font-medium' : ''}>Personal Info</span>
-                  <span className={signUpCurrentStep >= 3 ? 'text-blue-600 font-medium' : ''}>Profile</span>
-                  <span className={signUpCurrentStep >= 4 ? 'text-blue-600 font-medium' : ''}>Terms</span>
+                  <span className={signUpCurrentStep >= 1 ? 'text-blue-600 font-medium' : ''}>Referral</span>
+                  <span className={signUpCurrentStep >= 2 ? 'text-blue-600 font-medium' : ''}>Credentials</span>
+                  <span className={signUpCurrentStep >= 3 ? 'text-blue-600 font-medium' : ''}>Personal Info</span>
+                  <span className={signUpCurrentStep >= 4 ? 'text-blue-600 font-medium' : ''}>Profile</span>
+                  <span className={signUpCurrentStep >= 5 ? 'text-blue-600 font-medium' : ''}>Terms</span>
                 </div>
               </div>
 
               <form onSubmit={handleSignUp} className="space-y-4">
-                {/* Step 1: Credentials */}
+                {/* Step 1: Referral Code */}
                 {signUpCurrentStep === 1 && (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-referral-code">Referral Code (Optional)</Label>
+                      <Input
+                        id="signup-referral-code"
+                        type="text"
+                        placeholder="Enter referral code"
+                        value={signUpReferralCode}
+                        onChange={(e) => setSignUpReferralCode(e.target.value)}
+                        maxLength={20}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Have a referral code? Enter it here to get a <span className="font-semibold text-blue-600">10% monthly discount</span> and support the person who referred you.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 2: Credentials */}
+                {signUpCurrentStep === 2 && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="signup-username">Username *</Label>
@@ -430,8 +455,8 @@ function LoginForm() {
                   </div>
                 )}
 
-                {/* Step 2: Personal Information */}
-                {signUpCurrentStep === 2 && (
+                {/* Step 3: Personal Information */}
+                {signUpCurrentStep === 3 && (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="signup-recovery-email">Recovery Email *</Label>
@@ -496,8 +521,8 @@ function LoginForm() {
                   </div>
                 )}
 
-                {/* Step 3: Profile Section */}
-                {signUpCurrentStep === 3 && (
+                {/* Step 4: Profile Section */}
+                {signUpCurrentStep === 4 && (
                   <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
                     <p className="text-sm font-medium text-gray-700">Optional Profile Information</p>
 
@@ -619,25 +644,10 @@ function LoginForm() {
                   </div>
                 )}
 
-                {/* Step 4: Referral & Terms */}
-                {signUpCurrentStep === 4 && (
+                {/* Step 5: Terms */}
+                {signUpCurrentStep === 5 && (
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="signup-referral-code">Referral Code (Optional)</Label>
-                      <Input
-                        id="signup-referral-code"
-                        type="text"
-                        placeholder="Enter referral code"
-                        value={signUpReferralCode}
-                        onChange={(e) => setSignUpReferralCode(e.target.value)}
-                        maxLength={20}
-                      />
-                      <p className="text-xs text-gray-500">
-                        Have a referral code? Enter it here to support the person who referred you.
-                      </p>
-                    </div>
-
-                    <div className="space-y-2 pt-4 border-t">
                       <div className="flex items-start space-x-2">
                         <Checkbox
                           id="signup-agree-terms"
@@ -673,7 +683,7 @@ function LoginForm() {
                       Back
                     </Button>
                   )}
-                  {signUpCurrentStep < 4 ? (
+                  {signUpCurrentStep < 5 ? (
                     <Button
                       type="button"
                       onClick={handleNextStep}

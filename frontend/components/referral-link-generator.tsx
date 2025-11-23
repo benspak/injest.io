@@ -55,7 +55,7 @@ export function ReferralLinkGenerator() {
       <CardHeader>
         <CardTitle>Your Referral Link</CardTitle>
         <CardDescription>
-          Share this link with others. When they sign up and subscribe, you'll earn 20% commission on their payments.
+          Share this link with others. When they sign up and subscribe, you'll earn 20% commission on their discounted payments and they'll get a 10% discount.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

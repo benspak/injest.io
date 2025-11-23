@@ -59,7 +59,7 @@ export function ReferralCodeManager() {
       <CardHeader>
         <CardTitle>Your Referral Code</CardTitle>
         <CardDescription>
-          Create a unique referral code to share with others. You'll earn 20% commission on all subscription payments from users you refer.
+          Create a unique referral code to share with others. You'll earn 20% commission on all subscription payments from users you refer (based on their discounted price), and they'll get a 10% discount.
         </CardDescription>
       </CardHeader>
       <CardContent>

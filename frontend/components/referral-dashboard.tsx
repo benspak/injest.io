@@ -77,7 +77,7 @@ export function ReferralDashboard() {
       <div>
         <h1 className="text-3xl font-bold">Referral Program</h1>
         <p className="text-gray-600 mt-2">
-          Earn 20% commission on all subscription payments from users you refer.
+          Earn 20% commission on all subscription payments from users you refer (based on their discounted price). Referred users get a 10% discount on their subscription.
         </p>
       </div>
 

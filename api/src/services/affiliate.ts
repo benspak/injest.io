@@ -16,7 +16,7 @@ function getStripe(): Stripe {
 
 export class AffiliateService {
   /**
-   * Calculate commission amount (20% of payment)
+   * Calculate commission amount (20% of discounted payment)
    */
   static calculateCommission(amountCents: number): number {
     return Math.round(amountCents * COMMISSION_PERCENTAGE);

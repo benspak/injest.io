@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import pool from '../config/database.js';
 import { UserModel } from '../models/User.js';
+import { ReferralModel } from '../models/Referral.js';
 import { getPlan, coerceSubscriptionTier, SubscriptionTier } from '../utils/subscriptionPlans.js';
 
 // Stripe is optional - throw error only when actually used
@@ -106,7 +107,13 @@ export class StripeService {
       throw new Error('Cannot create payment intent for free tier');
     }
 
-    const amount = plan.priceCents;
+    // Check if user was referred and apply 10% discount
+    const referral = await ReferralModel.findByReferredUserId(userId);
+    const originalAmount = plan.priceCents;
+    const amount = referral
+      ? Math.round(originalAmount * 0.9) // 10% discount for referred users
+      : originalAmount;
+
     const customerId = await this.getOrCreateCustomer(userId, email);
     const stripe = getStripe();
 

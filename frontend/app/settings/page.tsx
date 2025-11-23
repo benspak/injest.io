@@ -704,7 +704,7 @@ function SettingsPageContent() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-gray-600 mb-4">
-              Earn 20% commission on subscription payments from users you refer. Create a referral code and start sharing!
+              Earn 20% commission on subscription payments from users you refer (based on their discounted price). Referred users get a 10% discount. Create a referral code and start sharing!
             </p>
             <Button
               onClick={() => router.push('/referrals')}
