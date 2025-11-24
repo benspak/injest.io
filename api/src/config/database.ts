@@ -7,10 +7,11 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Enable SSL certificate validation in production for security
-  // Only disable in development if database doesn't support SSL
+  // Enable SSL in production, but allow self-signed certificates
+  // Many cloud providers (e.g., Render) use self-signed certificates
+  // Setting rejectUnauthorized: false allows these while still using SSL encryption
   ssl: process.env.NODE_ENV === 'production'
-    ? { rejectUnauthorized: true }  // Enable validation to prevent MITM attacks
+    ? { rejectUnauthorized: false }  // Allow self-signed certs for cloud providers
     : false,
 });
 
