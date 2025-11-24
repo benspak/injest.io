@@ -107,6 +107,13 @@ router.post('/premium-subscription', async (req: AuthRequest, res: express.Respo
     }
     const plan = getPlan(tier);
 
+    if (!plan || !plan.name) {
+      console.error('Invalid plan returned from getPlan:', { tier, plan });
+      return res.status(500).json({
+        error: 'Failed to get subscription plan details',
+      });
+    }
+
     const currentTier: SubscriptionTier = coerceSubscriptionTier(user.subscription_tier);
     const userIsPaid = isPaidTier(currentTier) || user.is_premium;
 

@@ -43,6 +43,10 @@ export const PAID_TIERS: SubscriptionTier[] = ['pro', 'pro_annual'];
 export function getPlan(tier: SubscriptionTier): SubscriptionPlan {
   const basePlan = BASE_PLANS[tier];
 
+  if (!basePlan) {
+    throw new Error(`Invalid subscription tier: ${tier}`);
+  }
+
   // Calculate price dynamically (especially for annual plan which depends on sale status)
   let priceCents: number;
   if (tier === 'free') {

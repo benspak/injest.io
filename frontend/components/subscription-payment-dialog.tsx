@@ -174,6 +174,10 @@ export function SubscriptionPaymentDialog({
       const { apiClient } = await import('@/lib/api');
       const paymentData = await apiClient.createSubscriptionPaymentIntent(tier);
 
+      if (!paymentData.plan) {
+        throw new Error('Invalid payment response: plan data missing');
+      }
+
       setClientSecret(paymentData.clientSecret);
       setActivePlan({
         tier: paymentData.subscriptionTier ?? tier,
