@@ -185,9 +185,7 @@ export function SubscriptionPaymentDialog({
           tier,
           hasPlan: !!paymentData?.plan,
         });
-        throw new Error(
-          paymentData?.message || 'Invalid payment response: plan data missing. Please try again or contact support.'
-        );
+        throw new Error('Invalid payment response: plan data missing. Please try again or contact support.');
       }
 
       // Only set client secret if it exists (user might already be subscribed)

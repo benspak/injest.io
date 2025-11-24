@@ -59,7 +59,7 @@ export declare class EmailService {
         senderName?: string | null;
     }): Promise<void>;
     sendComposedEmail(params: {
-        to: string;
+        to: string | string[];
         subject: string;
         bodyHtml?: string;
         bodyText?: string;

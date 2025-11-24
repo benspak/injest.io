@@ -13,15 +13,20 @@ function getStripe() {
 }
 export class AffiliateService {
     /**
-     * Calculate commission amount (20% of payment)
+     * Calculate commission amount (20% of discounted payment)
      */
     static calculateCommission(amountCents) {
         return Math.round(amountCents * COMMISSION_PERCENTAGE);
     }
     /**
      * Process commission for a successful payment
+     * Note: Commissions are NOT processed for annual plan (pro_annual)
      */
-    static async processCommission(paymentIntentId, userId, amountCents) {
+    static async processCommission(paymentIntentId, userId, amountCents, subscriptionTier) {
+        // Skip commission processing for annual plan
+        if (subscriptionTier === 'pro_annual') {
+            return;
+        }
         // Find referral relationship for this user
         const referral = await ReferralModel.findByReferredUserId(userId);
         if (!referral) {

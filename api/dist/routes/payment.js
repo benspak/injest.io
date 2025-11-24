@@ -85,6 +85,12 @@ router.post('/premium-subscription', async (req, res) => {
             tier = 'pro';
         }
         const plan = getPlan(tier);
+        if (!plan || !plan.name) {
+            console.error('Invalid plan returned from getPlan:', { tier, plan });
+            return res.status(500).json({
+                error: 'Failed to get subscription plan details',
+            });
+        }
         const currentTier = coerceSubscriptionTier(user.subscription_tier);
         const userIsPaid = isPaidTier(currentTier) || user.is_premium;
         // Check if user already has this paid tier
@@ -93,6 +99,16 @@ router.post('/premium-subscription', async (req, res) => {
                 message: `User already subscribed to the ${plan.name} plan`,
                 premium: true,
                 subscriptionTier: currentTier,
+                clientSecret: null,
+                paymentIntentId: null,
+                amount: plan.priceCents,
+                currency: 'usd',
+                plan: {
+                    name: plan.name,
+                    billingInterval: plan.billingInterval,
+                    maxIndexedItems: plan.maxIndexedItems,
+                    amountCents: plan.priceCents,
+                },
             });
         }
         // Create payment intent
@@ -165,8 +181,9 @@ router.post('/verify', async (req, res) => {
                 subscription_tier: tier,
             });
             // Process commission (webhook will also handle this, but this ensures it happens)
+            // Note: Commissions are NOT processed for annual plan
             try {
-                await AffiliateService.processCommission(paymentIntentId, req.user.id, paymentIntent.amount);
+                await AffiliateService.processCommission(paymentIntentId, req.user.id, paymentIntent.amount, tier);
             }
             catch (error) {
                 // Log but don't fail payment verification if commission processing fails

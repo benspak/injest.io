@@ -282,8 +282,10 @@ The Injest.io Team
     }
     async sendComposedEmail(params) {
         const { to, subject, bodyHtml, bodyText, cc, bcc, replyTo, attachments, fromEmail, } = params;
-        if (!to || !to.trim()) {
-            throw new Error('Recipient email is required to send composed email');
+        // Normalize to array for validation
+        const toArray = Array.isArray(to) ? to : [to];
+        if (toArray.length === 0 || toArray.some((email) => !email || !email.trim())) {
+            throw new Error('At least one recipient email is required to send composed email');
         }
         if (!subject || !subject.trim()) {
             throw new Error('Subject is required to send composed email');
@@ -368,11 +370,12 @@ The Injest.io Team
         textContent = textContent ? `${textContent}\n\n${emailSignature}` : emailSignature;
         // Resend's runtime API supports `replyTo`, but TypeScript typings may lag behind.
         // We use `replyTo` here and cast the payload to `any` to avoid over-constraining the type.
+        // Resend accepts `to` as string or array of strings
         const emailPayload = {
             from: fromAddress,
-            to,
-            cc,
-            bcc,
+            to: toArray.length === 1 ? toArray[0] : toArray,
+            cc: cc && cc.length > 0 ? cc : undefined,
+            bcc: bcc && bcc.length > 0 ? bcc : undefined,
             replyTo: replyTo || undefined,
             subject,
             html: htmlContent,

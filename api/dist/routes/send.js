@@ -225,7 +225,13 @@ router.post('/execute', async (req, res) => {
         const body = typeof req.body?.body === 'string' ? req.body.body : '';
         const xcomPost = typeof req.body?.xcomPost === 'string' ? req.body.xcomPost.trim() : '';
         const contactId = typeof req.body?.contactId === 'string' ? req.body.contactId.trim() : null;
-        const toEmailInput = typeof req.body?.toEmail === 'string' ? req.body.toEmail.trim() : '';
+        // Support toEmail as string or array of strings
+        const toEmailInputRaw = req.body?.toEmail;
+        const toEmailInput = Array.isArray(toEmailInputRaw)
+            ? toEmailInputRaw.filter((value) => typeof value === 'string' && value.trim().length > 0).map((email) => email.trim())
+            : typeof toEmailInputRaw === 'string'
+                ? toEmailInputRaw.trim()
+                : '';
         const cc = Array.isArray(req.body?.cc)
             ? req.body.cc.filter((value) => typeof value === 'string' && value.trim().length > 0)
             : [];
@@ -301,12 +307,30 @@ router.post('/execute', async (req, res) => {
                 return res.status(404).json({ error: 'Contact not found' });
             }
         }
-        // Validate email recipient only if email platform is selected
-        let recipientEmail = null;
+        // Validate email recipient(s) only if email platform is selected
+        let recipientEmails = [];
         if (platforms.includes('email')) {
-            recipientEmail = contact?.email?.trim() || toEmailInput;
-            if (!recipientEmail || !isValidEmail(recipientEmail)) {
-                return res.status(400).json({ error: 'Valid recipient email is required for email' });
+            // If contact is selected, use contact email; otherwise use toEmailInput
+            if (contact?.email?.trim()) {
+                recipientEmails = [contact.email.trim()];
+            }
+            else {
+                // Handle toEmailInput as string or array
+                if (Array.isArray(toEmailInput)) {
+                    recipientEmails = toEmailInput;
+                }
+                else if (typeof toEmailInput === 'string' && toEmailInput.length > 0) {
+                    recipientEmails = [toEmailInput];
+                }
+            }
+            // Validate all recipient emails
+            if (recipientEmails.length === 0) {
+                return res.status(400).json({ error: 'At least one recipient email is required for email' });
+            }
+            for (const email of recipientEmails) {
+                if (!isValidEmail(email)) {
+                    return res.status(400).json({ error: `Invalid recipient email: ${email}` });
+                }
             }
         }
         const attachmentsInput = Array.isArray(req.body?.attachments)
@@ -381,10 +405,10 @@ router.post('/execute', async (req, res) => {
         // Execute posting to each platform
         const results = {};
         // Post to email if selected
-        if (platforms.includes('email') && recipientEmail) {
+        if (platforms.includes('email') && recipientEmails.length > 0) {
             try {
                 await emailService.sendComposedEmail({
-                    to: recipientEmail,
+                    to: recipientEmails.length === 1 ? recipientEmails[0] : recipientEmails,
                     subject,
                     bodyText: body,
                     cc: cc.length > 0 ? cc : undefined,
@@ -410,7 +434,7 @@ router.post('/execute', async (req, res) => {
                 }
                 const metadata = {
                     sentAt: new Date().toISOString(),
-                    to: recipientEmail,
+                    to: recipientEmails,
                     cc,
                     bcc,
                     replyTo: replyTo ?? null,

@@ -1,10 +1,10 @@
+import { getAnnualPlanPriceCents } from './saleConfig.js';
 const PRO_MONTHLY_PRICE_CENTS = 3000;
-const PRO_ANNUAL_PRICE_CENTS = Math.round(PRO_MONTHLY_PRICE_CENTS * 12 * 0.8); // 20% discount
-export const SUBSCRIPTION_PLANS = {
+// Base plans (annual price is calculated dynamically)
+const BASE_PLANS = {
     free: {
         id: 'free',
         name: 'Free',
-        priceCents: 0,
         billingInterval: 'month',
         minIndexedItems: 0,
         maxIndexedItems: 1000,
@@ -12,7 +12,6 @@ export const SUBSCRIPTION_PLANS = {
     pro: {
         id: 'pro',
         name: 'Pro',
-        priceCents: PRO_MONTHLY_PRICE_CENTS,
         billingInterval: 'month',
         minIndexedItems: 0,
         maxIndexedItems: null,
@@ -20,7 +19,6 @@ export const SUBSCRIPTION_PLANS = {
     pro_annual: {
         id: 'pro_annual',
         name: 'Pro Annual',
-        priceCents: PRO_ANNUAL_PRICE_CENTS,
         billingInterval: 'year',
         minIndexedItems: 0,
         maxIndexedItems: null,
@@ -28,8 +26,33 @@ export const SUBSCRIPTION_PLANS = {
 };
 export const PAID_TIERS = ['pro', 'pro_annual'];
 export function getPlan(tier) {
-    return SUBSCRIPTION_PLANS[tier];
+    const basePlan = BASE_PLANS[tier];
+    if (!basePlan) {
+        throw new Error(`Invalid subscription tier: ${tier}`);
+    }
+    // Calculate price dynamically (especially for annual plan which depends on sale status)
+    let priceCents;
+    if (tier === 'free') {
+        priceCents = 0;
+    }
+    else if (tier === 'pro') {
+        priceCents = PRO_MONTHLY_PRICE_CENTS;
+    }
+    else {
+        // pro_annual - calculate based on current sale status
+        priceCents = getAnnualPlanPriceCents(PRO_MONTHLY_PRICE_CENTS);
+    }
+    return {
+        ...basePlan,
+        priceCents,
+    };
 }
+// For backwards compatibility, export a getter that calculates plans dynamically
+export const SUBSCRIPTION_PLANS = {
+    get free() { return getPlan('free'); },
+    get pro() { return getPlan('pro'); },
+    get pro_annual() { return getPlan('pro_annual'); },
+};
 export function getMaxIndexedItems(tier) {
     const plan = SUBSCRIPTION_PLANS[tier];
     return plan.maxIndexedItems ?? Number.POSITIVE_INFINITY;
