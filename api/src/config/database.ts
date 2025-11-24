@@ -7,7 +7,11 @@ const { Pool } = pg;
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  // Enable SSL certificate validation in production for security
+  // Only disable in development if database doesn't support SSL
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: true }  // Enable validation to prevent MITM attacks
+    : false,
 });
 
 // Test connection

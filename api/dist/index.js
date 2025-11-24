@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import helmet from 'helmet';
 import authRoutes from './routes/auth.js';
 import itemsRoutes from './routes/items.js';
 import searchRoutes from './routes/search.js';
@@ -23,21 +24,52 @@ import './config/database.js';
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5555;
+// Security headers middleware (must be before other middleware)
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"], // Allow inline styles for compatibility
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"], // Allow images from HTTPS and data URIs
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            mediaSrc: ["'self'"],
+            frameSrc: ["'none'"],
+        },
+    },
+    crossOriginEmbedderPolicy: false, // Disable if causing issues with third-party integrations
+}));
 // Middleware
-// Allow both port 3000 and 3001 for local development
+// Configure CORS with security best practices
 const allowedOrigins = process.env.FRONTEND_URL
     ? [process.env.FRONTEND_URL]
     : ['http://localhost:3000', 'http://localhost:3001'];
+// In production, use strict whitelist
+const productionOrigins = process.env.FRONTEND_URL
+    ? [process.env.FRONTEND_URL]
+    : [];
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (like mobile apps or curl requests)
-        if (!origin)
-            return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
+        // In production, be more restrictive about requests with no origin
+        if (!origin) {
+            // Only allow no-origin requests in development (for mobile apps, curl, etc.)
+            if (process.env.NODE_ENV !== 'production') {
+                return callback(null, true);
+            }
+            // In production, reject requests with no origin for better security
+            return callback(new Error('CORS: Origin header required'));
+        }
+        // Check against allowed origins
+        const originsToCheck = process.env.NODE_ENV === 'production'
+            ? productionOrigins
+            : allowedOrigins;
+        if (originsToCheck.includes(origin)) {
             callback(null, true);
         }
         else {
-            // In development, allow localhost on any port
+            // In development only, allow localhost on any port for convenience
             if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:')) {
                 callback(null, true);
             }
@@ -47,10 +79,12 @@ app.use(cors({
         }
     },
     credentials: true,
+    // Additional security headers
+    optionsSuccessStatus: 200,
 }));
-// Create parser middleware instances
-const jsonParser = express.json();
-const urlencodedParser = express.urlencoded({ extended: true });
+// Create parser middleware instances with size limits to prevent DoS attacks
+const jsonParser = express.json({ limit: '10mb' }); // 10MB limit for JSON payloads
+const urlencodedParser = express.urlencoded({ extended: true, limit: '10mb' }); // 10MB limit for form data
 // Conditional body parsing - skip multipart/form-data (handled by multer)
 app.use((req, res, next) => {
     const contentType = req.headers['content-type'] || '';

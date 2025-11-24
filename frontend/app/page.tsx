@@ -325,6 +325,42 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Security Section */}
+      <section className="bg-gray-50 py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
+              Security & Compliance
+            </h2>
+            <p className="text-lg text-gray-600 mb-8 text-center leading-relaxed">
+              We take security seriously. Our codebase is continuously scanned using industry-leading tools, and we run automated security audits to keep your data safe.
+            </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Code Scanning</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    We use <strong>Snyk</strong> and <strong>Red Hat Dependency Analysis</strong> to continuously scan our codebase for vulnerabilities and security issues.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Automated Security Audits</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    Our agentic Security audit and patching process runs automatically every 30 days to identify and remediate security vulnerabilities.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Pricing Section */}
       <section className="bg-white py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">

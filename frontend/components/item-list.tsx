@@ -2,6 +2,7 @@
 
 import { MouseEvent, useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import DOMPurify from 'isomorphic-dompurify';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -1384,13 +1385,21 @@ export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection
                               }
                             })();
 
+                            // Sanitize HTML to prevent XSS attacks
+                            const sanitizedHtml = DOMPurify.sanitize(rewrittenHtml, {
+                              ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'u', 'a', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'span', 'blockquote', 'pre', 'code', 'img', 'table', 'thead', 'tbody', 'tr', 'td', 'th'],
+                              ALLOWED_ATTR: ['href', 'target', 'rel', 'src', 'alt', 'title', 'class', 'style', 'data-original-cid'],
+                              ALLOW_DATA_ATTR: true,
+                              ALLOW_UNKNOWN_PROTOCOLS: false,
+                            });
+
                             return (
                               <div>
                                 {emailBodyExpanded ? (
-                                  // Show full HTML when expanded
+                                  // Show full HTML when expanded (sanitized)
                                   <div
                                     className="text-sm prose prose-sm max-w-none"
-                                    dangerouslySetInnerHTML={{ __html: rewrittenHtml }}
+                                    dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
                                   />
                                 ) : (
                                   // Show truncated plain text when collapsed

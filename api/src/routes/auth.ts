@@ -86,7 +86,7 @@ function validateUsername(username: string): { valid: boolean; error?: string } 
   return { valid: true };
 }
 
-// Validate password
+// Validate password with stronger requirements
 function validatePassword(password: string): { valid: boolean; error?: string } {
   if (!password || password.length === 0) {
     return { valid: false, error: 'Password is required' };
@@ -94,6 +94,22 @@ function validatePassword(password: string): { valid: boolean; error?: string } 
 
   if (password.length < 8) {
     return { valid: false, error: 'Password must be at least 8 characters' };
+  }
+
+  // Check for password complexity
+  const hasUpperCase = /[A-Z]/.test(password);
+  const hasLowerCase = /[a-z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+
+  const complexityCount = [hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar].filter(Boolean).length;
+
+  // Require at least 3 out of 4 complexity requirements
+  if (complexityCount < 3) {
+    return {
+      valid: false,
+      error: 'Password must contain at least 3 of the following: uppercase letter, lowercase letter, number, special character'
+    };
   }
 
   return { valid: true };

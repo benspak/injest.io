@@ -114,11 +114,22 @@ export class ContactEnrichmentService {
     // Build search terms from the normalized name
     const searchTerms = normalizedSearchName.split(/\s+/).filter(Boolean);
 
+    // Security: Validate and sanitize search terms to prevent SQL injection
+    // Only allow alphanumeric characters, spaces, hyphens, and apostrophes
+    const sanitizedSearchTerms = searchTerms.filter(term => {
+      // Allow only safe characters for name searches
+      return /^[a-zA-Z0-9\s\-']+$/.test(term) && term.length <= 100;
+    });
+
+    if (sanitizedSearchTerms.length === 0) {
+      return [];
+    }
+
     // Query public profiles where first_name or last_name matches
     // We'll do a fuzzy match in the application layer
     // Search for the full normalized name and also individual words
     const searchPattern = `%${normalizedSearchName}%`;
-    const wordPatterns = searchTerms.map((term) => `%${term}%`);
+    const wordPatterns = sanitizedSearchTerms.map((term) => `%${term}%`);
 
     // Build conditions for full name match and individual word matches
     const conditions: string[] = [
@@ -126,8 +137,8 @@ export class ContactEnrichmentService {
       `LOWER(TRIM(COALESCE(last_name, '') || ' ' || COALESCE(first_name, ''))) LIKE $1`,
     ];
 
-    // Add individual word matches
-    searchTerms.forEach((term, index) => {
+    // Add individual word matches (using sanitized terms)
+    sanitizedSearchTerms.forEach((term, index) => {
       const paramIndex = index + 2; // $1 is used for full pattern
       conditions.push(`LOWER(COALESCE(first_name, '')) LIKE $${paramIndex}`);
       conditions.push(`LOWER(COALESCE(last_name, '')) LIKE $${paramIndex}`);
