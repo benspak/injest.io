@@ -174,11 +174,27 @@ export function SubscriptionPaymentDialog({
       const { apiClient } = await import('@/lib/api');
       const paymentData = await apiClient.createSubscriptionPaymentIntent(tier);
 
-      if (!paymentData.plan) {
-        throw new Error('Invalid payment response: plan data missing');
+      // Log the full response for debugging
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Payment intent response:', paymentData);
       }
 
-      setClientSecret(paymentData.clientSecret);
+      if (!paymentData || !paymentData.plan) {
+        console.error('Payment response missing plan data:', {
+          paymentData,
+          tier,
+          hasPlan: !!paymentData?.plan,
+        });
+        throw new Error(
+          paymentData?.message || 'Invalid payment response: plan data missing. Please try again or contact support.'
+        );
+      }
+
+      // Only set client secret if it exists (user might already be subscribed)
+      if (paymentData.clientSecret) {
+        setClientSecret(paymentData.clientSecret);
+      }
+
       setActivePlan({
         tier: paymentData.subscriptionTier ?? tier,
         name: paymentData.plan.name,

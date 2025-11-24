@@ -123,6 +123,16 @@ router.post('/premium-subscription', async (req: AuthRequest, res: express.Respo
         message: `User already subscribed to the ${plan.name} plan`,
         premium: true,
         subscriptionTier: currentTier,
+        clientSecret: null,
+        paymentIntentId: null,
+        amount: plan.priceCents,
+        currency: 'usd',
+        plan: {
+          name: plan.name,
+          billingInterval: plan.billingInterval,
+          maxIndexedItems: plan.maxIndexedItems,
+          amountCents: plan.priceCents,
+        },
       });
     }
 
