@@ -25,6 +25,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <script src="https://t.contentsquare.net/uxa/554f401177b03.js"></script>
+      </head>
       <body className={`${inter.className} overflow-x-hidden`} suppressHydrationWarning>
         <Script
           src="https://www.googletagmanager.com/gtag/js?id=G-F6DZ44M10R"
