@@ -1,11 +1,20 @@
+'use client';
+
+import { useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HomepagePricingPlans } from "@/components/homepage-pricing-plans";
+import { CountdownTimer } from "@/components/countdown-timer";
+import { getAnnualPlanDiscount, SALE_END_DATE, shouldShowSaleBanner } from "@/lib/saleConfig";
 
 export default function Home() {
-  const pricingPlans = [
+  const showBanner = useMemo(() => shouldShowSaleBanner(), []);
+  const discount = useMemo(() => getAnnualPlanDiscount(), []);
+  const annualPrice = "$72"; // Always 80% off: $30 * 12 * 0.2 = $72
+
+  const pricingPlans = useMemo(() => [
     {
       tier: 'free' as const,
       name: "Free",
@@ -42,17 +51,18 @@ export default function Home() {
     {
       tier: 'pro_annual' as const,
       name: "Pro Annual",
-      priceDisplay: "$288",
-      priceNote: "/year (save 20%)",
+      priceDisplay: annualPrice,
+      priceNote: `/year (${discount}% off)`,
       limit: "Unlimited items",
-      description: "Annual billing with a 20% discount and dedicated onboarding.",
+      description: `Cyber Week Sale: ${discount}% off annual billing with dedicated onboarding.`,
       features: [
         "Everything in Pro",
         "Dedicated onboarding support",
-        "Annual billing discount",
+        `${discount}% discount (Cyber Week Sale)`,
       ],
+      badge: "Cyber Week Sale",
     },
-  ];
+  ], [discount, annualPrice]);
 
   const interfaceScreens = [
     {
@@ -319,6 +329,26 @@ export default function Home() {
       <section className="bg-white py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-6xl mx-auto">
+            {/* Sales Banner */}
+            {showBanner && (
+              <div className="mb-8 rounded-2xl bg-linear-to-r from-red-500 via-orange-500 to-yellow-500 p-1 shadow-xl">
+                <div className="rounded-xl bg-white p-6 text-center">
+                  <div className="inline-block px-4 py-2 bg-red-100 text-red-700 rounded-full text-sm font-bold mb-3">
+                    🎉 CYBER WEEK SALE
+                  </div>
+                  <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
+                    {discount}% Off Annual Plan
+                  </h3>
+                  <p className="text-lg text-gray-600 mb-1">
+                    Get Pro Annual for just <span className="font-bold text-red-600">{annualPrice}/year</span> (normally $360/year)
+                  </p>
+                  <p className="text-sm text-gray-500 font-semibold mb-2">
+                    ⏰ Offer expires December 2nd at 12:00 AM MST
+                  </p>
+                  <CountdownTimer targetDate={SALE_END_DATE} />
+                </div>
+              </div>
+            )}
             <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
               Pricing
             </h2>

@@ -1,3 +1,5 @@
+import { getAnnualPlanPriceCents } from './saleConfig.js';
+
 export type SubscriptionTier = 'free' | 'pro' | 'pro_annual';
 
 export interface SubscriptionPlan {
@@ -10,13 +12,12 @@ export interface SubscriptionPlan {
 }
 
 const PRO_MONTHLY_PRICE_CENTS = 3000;
-const PRO_ANNUAL_PRICE_CENTS = Math.round(PRO_MONTHLY_PRICE_CENTS * 12 * 0.8); // 20% discount
 
-export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
+// Base plans (annual price is calculated dynamically)
+const BASE_PLANS: Record<SubscriptionTier, Omit<SubscriptionPlan, 'priceCents'>> = {
   free: {
     id: 'free',
     name: 'Free',
-    priceCents: 0,
     billingInterval: 'month',
     minIndexedItems: 0,
     maxIndexedItems: 1000,
@@ -24,7 +25,6 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
   pro: {
     id: 'pro',
     name: 'Pro',
-    priceCents: PRO_MONTHLY_PRICE_CENTS,
     billingInterval: 'month',
     minIndexedItems: 0,
     maxIndexedItems: null,
@@ -32,7 +32,6 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
   pro_annual: {
     id: 'pro_annual',
     name: 'Pro Annual',
-    priceCents: PRO_ANNUAL_PRICE_CENTS,
     billingInterval: 'year',
     minIndexedItems: 0,
     maxIndexedItems: null,
@@ -42,8 +41,31 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
 export const PAID_TIERS: SubscriptionTier[] = ['pro', 'pro_annual'];
 
 export function getPlan(tier: SubscriptionTier): SubscriptionPlan {
-  return SUBSCRIPTION_PLANS[tier];
+  const basePlan = BASE_PLANS[tier];
+
+  // Calculate price dynamically (especially for annual plan which depends on sale status)
+  let priceCents: number;
+  if (tier === 'free') {
+    priceCents = 0;
+  } else if (tier === 'pro') {
+    priceCents = PRO_MONTHLY_PRICE_CENTS;
+  } else {
+    // pro_annual - calculate based on current sale status
+    priceCents = getAnnualPlanPriceCents(PRO_MONTHLY_PRICE_CENTS);
+  }
+
+  return {
+    ...basePlan,
+    priceCents,
+  };
 }
+
+// For backwards compatibility, export a getter that calculates plans dynamically
+export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
+  get free() { return getPlan('free'); },
+  get pro() { return getPlan('pro'); },
+  get pro_annual() { return getPlan('pro_annual'); },
+};
 
 export function getMaxIndexedItems(tier: SubscriptionTier): number {
   const plan = SUBSCRIPTION_PLANS[tier];

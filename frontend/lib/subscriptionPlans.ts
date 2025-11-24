@@ -1,3 +1,5 @@
+import { getAnnualPlanPriceCents, getAnnualPlanDiscount } from './saleConfig';
+
 export type SubscriptionTier = 'free' | 'pro' | 'pro_annual';
 
 export interface SubscriptionPlan {
@@ -11,7 +13,8 @@ export interface SubscriptionPlan {
 }
 
 const PRO_MONTHLY_PRICE_CENTS = 3000;
-const PRO_ANNUAL_PRICE_CENTS = Math.round(PRO_MONTHLY_PRICE_CENTS * 12 * 0.8); // 20% discount
+// Annual price is always 80% off: $30/month * 12 * 0.2 = $72/year
+const PRO_ANNUAL_PRICE_CENTS = getAnnualPlanPriceCents(PRO_MONTHLY_PRICE_CENTS);
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
   free: {
@@ -39,7 +42,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
     billingInterval: 'year',
     maxIndexedItems: null,
     minIndexedItems: 0,
-    description: 'Save 20% with annual billing while keeping unlimited items.',
+    description: `Cyber Week Sale: ${getAnnualPlanDiscount()}% off annual billing with dedicated onboarding.`,
   },
 };
 

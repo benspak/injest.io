@@ -83,9 +83,13 @@ async function handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent)
     return;
   }
 
+  // Get subscription tier from metadata to check if commission should be processed
+  // Note: Commissions are NOT processed for annual plan (pro_annual)
+  const subscriptionTier = paymentIntent.metadata?.subscription_tier;
+
   // Process commission
   try {
-    await AffiliateService.processCommission(paymentIntent.id, userId, amountCents);
+    await AffiliateService.processCommission(paymentIntent.id, userId, amountCents, subscriptionTier);
   } catch (error) {
     console.error('Error processing commission:', error);
   }

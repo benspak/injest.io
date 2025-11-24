@@ -203,11 +203,13 @@ router.post('/verify', async (req: AuthRequest, res: express.Response) => {
       });
 
       // Process commission (webhook will also handle this, but this ensures it happens)
+      // Note: Commissions are NOT processed for annual plan
       try {
         await AffiliateService.processCommission(
           paymentIntentId,
           req.user.id,
-          paymentIntent.amount
+          paymentIntent.amount,
+          tier
         );
       } catch (error) {
         // Log but don't fail payment verification if commission processing fails

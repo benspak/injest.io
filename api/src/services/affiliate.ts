@@ -24,12 +24,19 @@ export class AffiliateService {
 
   /**
    * Process commission for a successful payment
+   * Note: Commissions are NOT processed for annual plan (pro_annual)
    */
   static async processCommission(
     paymentIntentId: string,
     userId: string,
-    amountCents: number
+    amountCents: number,
+    subscriptionTier?: string
   ): Promise<void> {
+    // Skip commission processing for annual plan
+    if (subscriptionTier === 'pro_annual') {
+      return;
+    }
+
     // Find referral relationship for this user
     const referral = await ReferralModel.findByReferredUserId(userId);
     if (!referral) {
