@@ -1,5 +1,23 @@
 import pool from '../config/database.js';
+import { encryptField, decryptField } from '../utils/encryption.js';
 export class ItemModel {
+    /**
+     * Decrypt encrypted fields from database result
+     * Handles both encrypted and unencrypted data (for migration compatibility)
+     */
+    static decryptItem(item) {
+        if (!item) {
+            return item;
+        }
+        return {
+            ...item,
+            raw: decryptField(item.raw),
+            title: decryptField(item.title),
+            description: decryptField(item.description),
+            notes: decryptField(item.notes),
+            clean: decryptField(item.clean),
+        };
+    }
     static async create(input, client) {
         // For new unified items, generate raw from structured data for backward compatibility
         let rawContent = input.raw;
@@ -9,24 +27,30 @@ export class ItemModel {
                 description: input.description || '',
             });
         }
+        // Encrypt sensitive content fields before storing
+        const encryptedRaw = rawContent ? encryptField(rawContent) : null; // Opaque encryption
+        const encryptedTitle = encryptField(input.title, true); // Deterministic encryption for searchability
+        const encryptedDescription = encryptField(input.description); // Opaque encryption
+        const encryptedNotes = encryptField(input.notes); // Opaque encryption
+        const encryptedClean = encryptField(input.clean); // Opaque encryption
         const executor = client ?? pool;
         const result = await executor.query(`INSERT INTO items (owner_id, type, raw, title, description, url, attachments, notes, clean, tags, source, link_metadata)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING *`, [
             input.owner_id,
             input.type || null,
-            rawContent || null,
-            input.title || null,
-            input.description || null,
+            encryptedRaw,
+            encryptedTitle,
+            encryptedDescription,
             input.url || null,
             input.attachments ? JSON.stringify(input.attachments) : null,
-            input.notes || null,
-            input.clean || null,
+            encryptedNotes,
+            encryptedClean,
             input.tags || null,
             input.source || null,
             input.link_metadata || null,
         ]);
-        const item = result.rows[0];
+        const item = this.decryptItem(result.rows[0]);
         if (input.attachments?.length) {
             for (const attachment of input.attachments) {
                 if (!attachment.checksum) {
@@ -78,11 +102,11 @@ export class ItemModel {
     }
     static async findById(id) {
         const result = await pool.query('SELECT * FROM items WHERE id = $1 AND deleted_at IS NULL', [id]);
-        return result.rows[0] || null;
+        return this.decryptItem(result.rows[0] || null);
     }
     static async findByIdIncludingDeleted(id) {
         const result = await pool.query('SELECT * FROM items WHERE id = $1', [id]);
-        return result.rows[0] || null;
+        return this.decryptItem(result.rows[0] || null);
     }
     static async findByOwner(ownerId, limit = 100, offset = 0, filters) {
         let query = 'SELECT * FROM items WHERE owner_id = $1 AND deleted_at IS NULL';
@@ -157,7 +181,7 @@ export class ItemModel {
         query += ` ORDER BY created_at DESC LIMIT $${paramCount++} OFFSET $${paramCount++}`;
         params.push(limit, offset);
         const result = await pool.query(query, params);
-        return result.rows;
+        return result.rows.map(row => this.decryptItem(row));
     }
     static async countIndexedByOwner(ownerId, filters) {
         let query = 'SELECT COUNT(*) as total FROM items WHERE owner_id = $1 AND deleted_at IS NULL AND embedding_id IS NOT NULL';
@@ -233,7 +257,7 @@ export class ItemModel {
           AND deleted_at IS NULL
         ORDER BY created_at DESC
       `, [ownerId]);
-        return result.rows;
+        return result.rows.map(row => this.decryptItem(row));
     }
     static async findByAttachmentChecksum(ownerId, checksum, client) {
         const executor = client ?? pool;
@@ -250,7 +274,7 @@ export class ItemModel {
           )
         LIMIT 1
       `, [ownerId, checksum]);
-        return result.rows[0] || null;
+        return this.decryptItem(result.rows[0] || null);
     }
     static async update(id, updates) {
         const fields = [];
@@ -258,11 +282,11 @@ export class ItemModel {
         let paramCount = 1;
         if (updates.title !== undefined) {
             fields.push(`title = $${paramCount++}`);
-            values.push(updates.title || null);
+            values.push(encryptField(updates.title, true) || null); // Deterministic encryption
         }
         if (updates.description !== undefined) {
             fields.push(`description = $${paramCount++}`);
-            values.push(updates.description || null);
+            values.push(encryptField(updates.description) || null); // Opaque encryption
         }
         if (updates.url !== undefined) {
             fields.push(`url = $${paramCount++}`);
@@ -274,11 +298,11 @@ export class ItemModel {
         }
         if (updates.notes !== undefined) {
             fields.push(`notes = $${paramCount++}`);
-            values.push(updates.notes || null);
+            values.push(encryptField(updates.notes) || null); // Opaque encryption
         }
         if (updates.clean !== undefined) {
             fields.push(`clean = $${paramCount++}`);
-            values.push(updates.clean);
+            values.push(encryptField(updates.clean) || null); // Opaque encryption
         }
         if (updates.tags !== undefined) {
             fields.push(`tags = $${paramCount++}`);
@@ -310,7 +334,7 @@ export class ItemModel {
         }
         values.push(id);
         const result = await pool.query(`UPDATE items SET ${fields.join(', ')} WHERE id = $${paramCount} AND deleted_at IS NULL RETURNING *`, values);
-        return result.rows[0];
+        return this.decryptItem(result.rows[0]);
     }
     static async delete(id) {
         const client = await pool.connect();
@@ -349,15 +373,15 @@ export class ItemModel {
        AND raw IS NOT NULL
        AND raw::jsonb->>'resend_email_id' = $1
        LIMIT 1`, [resendEmailId]);
-        return result.rows[0] || null;
+        return this.decryptItem(result.rows[0] || null);
     }
     static async findByOwnerAndType(ownerId, type, limit = 100, offset = 0) {
         const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND type = $2 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $3 OFFSET $4', [ownerId, type, limit, offset]);
-        return result.rows;
+        return result.rows.map(row => this.decryptItem(row));
     }
     static async findPostedItemsByOwner(ownerId, limit = 100, offset = 0) {
         const result = await pool.query('SELECT * FROM items WHERE owner_id = $1 AND posted_to_profile = true AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3', [ownerId, limit, offset]);
-        return result.rows;
+        return result.rows.map(row => this.decryptItem(row));
     }
 }
 //# sourceMappingURL=Item.js.map

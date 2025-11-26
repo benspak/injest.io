@@ -108,19 +108,30 @@ export default function Home() {
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="grid gap-12 lg:grid-cols-2 items-center">
           <div className="text-center lg:text-left">
-            <div className="inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold mb-6">
-              Beta
+            <div className="inline-block px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-semibold mb-6">
+              Beta Release
             </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-              Simple email and file storage
+              Your data, your control, your privacy
             </h1>
-            <p className="text-xl sm:text-2xl text-gray-600 mb-10 leading-relaxed">
-              Store your emails and files in one place. Forward emails to your personal{' '}
-              <span className="font-mono">username@injest.io</span> address or upload files directly. Everything is searchable and organized.
+            <p className="text-xl sm:text-2xl text-gray-600 mb-6 leading-relaxed">
+              Store your emails and files securely with end-to-end encryption. Forward emails to your personal{' '}
+              <span className="font-mono">username@injest.io</span> address or upload files directly. Your data is encrypted, never sold, and always yours.
             </p>
+            <div className="flex flex-wrap gap-3 mb-6 justify-center lg:justify-start">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                <span>🔐</span> Encrypted Storage
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                <span>🛡️</span> No Data Selling
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">
+                <span>🔒</span> You Own Your Data
+              </div>
+            </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
               <Button asChild size="lg" className="text-lg px-8 py-6">
-                <Link href="/login">Get Started</Link>
+                <Link href="/login">Get Started Securely</Link>
               </Button>
             </div>
           </div>
@@ -141,6 +152,86 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Privacy & Security Section - Prominent */}
+      <section className="bg-linear-to-br from-green-50 via-blue-50 to-indigo-50 py-20">
+        <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
+          <div className="max-w-4xl mx-auto text-center mb-12">
+            <div className="inline-block px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-semibold mb-6">
+              Privacy & Security First
+            </div>
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+              Your privacy is not negotiable
+            </h2>
+            <p className="text-xl text-gray-600 mb-12 leading-relaxed">
+              We built Injest with privacy and security at its core. Your data is encrypted, never sold, and you have complete control over your information.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            <Card className="border-green-200 bg-white/80">
+              <CardHeader>
+                <div className="text-4xl mb-4">🔐</div>
+                <CardTitle>End-to-End Encryption</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Your data is encrypted in transit and at rest. We use industry-standard encryption to protect your emails, files, and personal information.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-green-200 bg-white/80">
+              <CardHeader>
+                <div className="text-4xl mb-4">🚫</div>
+                <CardTitle>We Never Sell Your Data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Your personal information is never sold to third parties. We don't use your data for advertising or share it with marketers. Period.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-green-200 bg-white/80">
+              <CardHeader>
+                <div className="text-4xl mb-4">👤</div>
+                <CardTitle>You Own Your Data</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Export your data anytime. Delete your account and all associated data whenever you want. Complete control is in your hands.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6">
+            <Card className="border-blue-200 bg-white/80">
+              <CardHeader>
+                <div className="text-4xl mb-4">🛡️</div>
+                <CardTitle>Continuous Security Monitoring</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  Our codebase is continuously scanned using Snyk and Red Hat Dependency Analysis. Automated security audits run every 30 days to identify and fix vulnerabilities before they become threats.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-blue-200 bg-white/80">
+              <CardHeader>
+                <div className="text-4xl mb-4">🔍</div>
+                <CardTitle>Transparent Privacy Policy</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-gray-600">
+                  We're transparent about how we handle your data. Read our{' '}
+                  <Link href="/privacy" className="text-blue-600 hover:underline font-semibold">
+                    Privacy Policy
+                  </Link>{' '}
+                  to understand exactly what we collect and how we protect it.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
+
       {/* Product Screens Section */}
       <section className="container mx-auto px-4 sm:px-6 pb-10 max-w-7xl">
         <div className="max-w-3xl mx-auto text-center mb-12">
@@ -148,7 +239,7 @@ export default function Home() {
             See how it works
           </h2>
           <p className="text-lg text-gray-600">
-            Store and organize your emails and files in one simple place.
+            Store and organize your emails and files securely in one private, encrypted place.
           </p>
         </div>
         <div className="grid gap-8 lg:grid-cols-2">
@@ -181,39 +272,39 @@ export default function Home() {
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-4xl mx-auto">
           <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-            Simple and organized
+            Powerful features, private by design
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 mb-12 text-center leading-relaxed">
-            Store your emails and files, then find them quickly with search.
+            Store your emails and files securely, then find them quickly with privacy-preserving search. All processing happens securely on encrypted data.
           </p>
           <div className="grid md:grid-cols-3 gap-6">
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>Search everything</CardTitle>
+                <CardTitle>Private search</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Find your emails and files quickly with powerful search.
+                  Find your emails and files quickly with powerful search. Your search queries and content remain private and encrypted.
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>Text extraction</CardTitle>
+                <CardTitle>Secure text extraction</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Text is automatically extracted from images and PDFs, making everything searchable.
+                  Text is automatically extracted from images and PDFs securely, making everything searchable while maintaining your privacy.
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>Stay organized</CardTitle>
+                <CardTitle>Private organization</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Keep your emails and files organized and easy to find.
+                  Keep your emails and files organized and easy to find. Your organizational structure stays private to you.
                 </p>
               </CardContent>
             </Card>
@@ -225,46 +316,49 @@ export default function Home() {
       <section className="bg-white py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
+            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
               How it works
             </h2>
+            <p className="text-lg text-gray-600 mb-12 text-center leading-relaxed">
+              Secure, private, and simple. Your data is protected every step of the way.
+            </p>
             <div className="space-y-8">
               <div className="flex gap-6">
-                <div className="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center text-xl font-bold">
                   1
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Store your emails and files
+                    Store securely with encryption
                   </h3>
                   <p className="text-gray-600">
-                    Forward emails to your personal inbox address or upload files directly.
+                    Forward emails to your personal inbox address or upload files directly. Everything is encrypted immediately upon receipt.
                   </p>
                 </div>
               </div>
               <div className="flex gap-6">
-                <div className="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center text-xl font-bold">
                   2
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Everything is searchable
+                    Private processing and indexing
                   </h3>
                   <p className="text-gray-600">
-                    Text is extracted automatically, so you can search through all your content.
+                    Text is extracted automatically in a secure environment. Your content is processed privately and never used to train public AI models.
                   </p>
                 </div>
               </div>
               <div className="flex gap-6">
-                <div className="shrink-0 w-12 h-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-xl font-bold">
+                <div className="shrink-0 w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center text-xl font-bold">
                   3
                 </div>
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    Find what you need
+                    Search privately and securely
                   </h3>
                   <p className="text-gray-600">
-                    Search and find your emails and files instantly.
+                    Search and find your emails and files instantly. Your search queries and results remain private and encrypted.
                   </p>
                 </div>
               </div>
@@ -276,48 +370,51 @@ export default function Home() {
       {/* Storage Methods Section */}
       <section className="container mx-auto px-4 sm:px-6 py-20 max-w-7xl">
         <div className="max-w-4xl mx-auto">
-          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-12 text-center">
-            Store emails and files
+          <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
+            Secure storage methods
           </h2>
+          <p className="text-lg text-gray-600 mb-12 text-center leading-relaxed">
+            Multiple ways to securely store your content. All methods use encrypted connections and encrypted storage.
+          </p>
           <div className="grid md:grid-cols-2 gap-6">
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>Forwarded Email</CardTitle>
+                <CardTitle>🔒 Secure Email Forwarding</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
                   Forward emails to your personal Injest address (for example,{' '}
-                  <span className="font-mono">username@injest.io</span>). Attachments and conversations are preserved and made searchable.
+                  <span className="font-mono">username@injest.io</span>). Attachments and conversations are encrypted, preserved, and made searchable privately.
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>File Uploads</CardTitle>
+                <CardTitle>🔒 Encrypted File Uploads</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Upload files directly. Text is extracted automatically, making everything searchable.
+                  Upload files directly through encrypted connections. Text is extracted automatically in a secure environment, making everything searchable while maintaining privacy.
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>Slack Integration</CardTitle>
+                <CardTitle>🔒 Private Slack Integration</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Connect your Slack workspace to save messages, files, and conversations directly to your inbox. Everything from Slack becomes searchable in Injest.
+                  Connect your Slack workspace securely to save messages, files, and conversations directly to your encrypted inbox. Everything from Slack becomes searchable privately in Injest.
                 </p>
               </CardContent>
             </Card>
-            <Card>
+            <Card className="border-green-100">
               <CardHeader>
-                <CardTitle>Chrome Extension</CardTitle>
+                <CardTitle>🔒 Secure Chrome Extension</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
-                  Capture links, files, and screenshots straight from your browser with our Chrome extension. Quickly save content without leaving the page you're on.
+                  Capture links, files, and screenshots straight from your browser with our Chrome extension. All content is transmitted securely and stored encrypted.
                 </p>
               </CardContent>
             </Card>
@@ -326,36 +423,73 @@ export default function Home() {
       </section>
 
       {/* Security Section */}
-      <section className="bg-gray-50 py-20">
+      <section className="bg-linear-to-br from-gray-50 via-blue-50 to-indigo-50 py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6 text-center">
-              Security & Compliance
-            </h2>
-            <p className="text-lg text-gray-600 mb-8 text-center leading-relaxed">
-              We take security seriously. Our codebase is continuously scanned using industry-leading tools, and we run automated security audits to keep your data safe.
-            </p>
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
+            <div className="text-center mb-12">
+              <div className="inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold mb-6">
+                Enterprise-Grade Security
+              </div>
+              <h2 className="text-4xl sm:text-5xl font-bold text-gray-900 mb-6">
+                Security you can trust
+              </h2>
+              <p className="text-lg sm:text-xl text-gray-600 mb-8 leading-relaxed">
+                We take security seriously. Your data is protected with multiple layers of security, continuous monitoring, and automated threat detection.
+              </p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              <Card className="border-blue-200 bg-white">
                 <CardHeader>
-                  <CardTitle>Code Scanning</CardTitle>
+                  <div className="text-3xl mb-3">🔍</div>
+                  <CardTitle>Continuous Code Scanning</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    We use <strong>Snyk</strong> and <strong>Red Hat Dependency Analysis</strong> to continuously scan our codebase for vulnerabilities and security issues.
+                    We use <strong>Snyk</strong> and <strong>Red Hat Dependency Analysis</strong> to continuously scan our codebase for vulnerabilities and security issues. Threats are identified and patched before they can affect you.
                   </p>
                 </CardContent>
               </Card>
-              <Card>
+              <Card className="border-blue-200 bg-white">
                 <CardHeader>
+                  <div className="text-3xl mb-3">🤖</div>
                   <CardTitle>Automated Security Audits</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-gray-600">
-                    Our agentic Security audit and patching process runs automatically every 30 days to identify and remediate security vulnerabilities.
+                    Our agentic security audit and patching process runs automatically every 30 days to identify and remediate security vulnerabilities. Your data stays protected around the clock.
                   </p>
                 </CardContent>
               </Card>
+              <Card className="border-blue-200 bg-white">
+                <CardHeader>
+                  <div className="text-3xl mb-3">🔐</div>
+                  <CardTitle>Encryption Everywhere</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    All data is encrypted in transit using TLS and encrypted at rest. We use industry-standard encryption protocols to ensure your information remains secure.
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-blue-200 bg-white">
+                <CardHeader>
+                  <div className="text-3xl mb-3">🚫</div>
+                  <CardTitle>No Third-Party Data Sharing</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600">
+                    We don't sell your data. We don't share it with advertisers. We only use service providers essential to delivering our service, and they're bound by strict data protection agreements.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="text-center mt-8">
+              <p className="text-gray-600 mb-4">
+                Want to know more about how we protect your privacy?
+              </p>
+              <Button asChild variant="outline" size="lg">
+                <Link href="/privacy">Read Our Privacy Policy</Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -477,18 +611,32 @@ export default function Home() {
       </section>
 
       {/* Final CTA Section */}
-      <section className="bg-linear-to-r from-blue-600 to-indigo-600 py-20">
+      <section className="bg-linear-to-r from-green-600 via-blue-600 to-indigo-600 py-20">
         <div className="container mx-auto px-4 sm:px-6 max-w-7xl">
           <div className="max-w-3xl mx-auto text-center text-white">
+            <div className="inline-block px-4 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-sm font-semibold mb-6">
+              🔒 Privacy-First Storage
+            </div>
             <h2 className="text-4xl sm:text-5xl font-bold mb-6">
-              Get started today
+              Start storing securely today
             </h2>
-            <p className="text-xl mb-10 text-blue-100">
-              Start storing your emails and files in one simple, searchable place.
+            <p className="text-xl mb-6 text-blue-100">
+              Join users who trust Injest to keep their data private, secure, and under their control.
             </p>
+            <div className="flex flex-wrap gap-3 justify-center mb-10">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-sm text-white rounded-full text-sm font-medium">
+                <span>🔐</span> Encrypted
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-sm text-white rounded-full text-sm font-medium">
+                <span>🛡️</span> Private
+              </div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-sm text-white rounded-full text-sm font-medium">
+                <span>✅</span> Yours
+              </div>
+            </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button asChild size="lg" variant="secondary" className="text-lg px-8 py-6">
-                <Link href="/login">Get Started</Link>
+                <Link href="/login">Get Started Securely</Link>
               </Button>
             </div>
           </div>

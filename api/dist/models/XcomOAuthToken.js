@@ -1,28 +1,51 @@
 import pool from '../config/database.js';
+import { encrypt, decryptField } from '../utils/encryption.js';
 export class XcomOAuthTokenModel {
+    /**
+     * Decrypt token fields from database result
+     */
+    static decryptToken(token) {
+        if (!token) {
+            return token;
+        }
+        return {
+            ...token,
+            access_token: decryptField(token.access_token) || '',
+            refresh_token: decryptField(token.refresh_token),
+        };
+    }
     static async findByUserId(userId) {
         const result = await pool.query('SELECT * FROM xcom_oauth_tokens WHERE user_id = $1', [userId]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptToken(result.rows[0]);
     }
     static async findById(id) {
         const result = await pool.query('SELECT * FROM xcom_oauth_tokens WHERE id = $1', [id]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptToken(result.rows[0]);
     }
     static async create(input) {
+        // Encrypt tokens before storing
+        const encryptedAccessToken = encrypt(input.accessToken);
+        const encryptedRefreshToken = input.refreshToken ? encrypt(input.refreshToken) : null;
         const result = await pool.query(`INSERT INTO xcom_oauth_tokens (
         user_id, access_token, refresh_token, token_type, expires_at, scope, x_user_id, x_username
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *`, [
             input.userId,
-            input.accessToken,
-            input.refreshToken ?? null,
+            encryptedAccessToken,
+            encryptedRefreshToken,
             input.tokenType ?? 'Bearer',
             input.expiresAt ?? null,
             input.scope ?? null,
             input.xUserId ?? null,
             input.xUsername ?? null,
         ]);
-        return result.rows[0];
+        return this.decryptToken(result.rows[0]);
     }
     static async update(userId, input) {
         const fields = [];
@@ -30,11 +53,11 @@ export class XcomOAuthTokenModel {
         let paramCount = 1;
         if (input.accessToken !== undefined) {
             fields.push(`access_token = $${paramCount++}`);
-            values.push(input.accessToken);
+            values.push(encrypt(input.accessToken));
         }
         if (input.refreshToken !== undefined) {
             fields.push(`refresh_token = $${paramCount++}`);
-            values.push(input.refreshToken);
+            values.push(input.refreshToken ? encrypt(input.refreshToken) : null);
         }
         if (input.tokenType !== undefined) {
             fields.push(`token_type = $${paramCount++}`);
@@ -72,7 +95,7 @@ export class XcomOAuthTokenModel {
         if (result.rows.length === 0) {
             throw new Error('X.com OAuth token not found');
         }
-        return result.rows[0];
+        return this.decryptToken(result.rows[0]);
     }
     static async createOrUpdate(userId, input) {
         const existing = await this.findByUserId(userId);
@@ -103,7 +126,10 @@ export class XcomOAuthTokenModel {
     }
     static async findByXUserId(xUserId) {
         const result = await pool.query('SELECT * FROM xcom_oauth_tokens WHERE x_user_id = $1', [xUserId]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptToken(result.rows[0]);
     }
 }
 //# sourceMappingURL=XcomOAuthToken.js.map

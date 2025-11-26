@@ -53,6 +53,15 @@ export interface UpdateContactInput {
     metadata?: Record<string, unknown> | null;
 }
 export declare class ContactModel {
+    /**
+     * Decrypt encrypted fields from database result
+     * Handles both encrypted and unencrypted data (for migration compatibility)
+     */
+    private static decryptContact;
+    /**
+     * Decrypt array of contacts
+     */
+    private static decryptContacts;
     static upsert(input: UpsertContactInput, client?: Pool | PoolClient): Promise<Contact | null>;
     static upsertMany(inputs: UpsertContactInput[], client?: Pool | PoolClient): Promise<Contact[]>;
     static listByOwner(ownerId: string, options?: ListContactsOptions): Promise<Contact[]>;

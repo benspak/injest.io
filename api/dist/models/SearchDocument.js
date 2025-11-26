@@ -1,6 +1,26 @@
 import pool from '../config/database.js';
+import { encryptField, decryptField } from '../utils/encryption.js';
 export class SearchDocumentModel {
+    /**
+     * Decrypt encrypted fields from database result
+     * Handles both encrypted and unencrypted data (for migration compatibility)
+     */
+    static decryptDocument(doc) {
+        if (!doc) {
+            return doc;
+        }
+        return {
+            ...doc,
+            title: decryptField(doc.title),
+            content: decryptField(doc.content),
+            summary: decryptField(doc.summary),
+        };
+    }
     static async upsert(input) {
+        // Encrypt sensitive content fields before storing
+        const encryptedTitle = encryptField(input.title, true); // Deterministic encryption for searchability
+        const encryptedContent = encryptField(input.content); // Opaque encryption
+        const encryptedSummary = encryptField(input.summary); // Opaque encryption
         const result = await pool.query(`
         INSERT INTO search_documents (
           owner_id,
@@ -27,13 +47,13 @@ export class SearchDocumentModel {
             input.ownerId,
             input.entityType,
             input.entityId,
-            input.title ?? null,
-            input.content ?? null,
-            input.summary ?? null,
+            encryptedTitle,
+            encryptedContent,
+            encryptedSummary,
             input.tags ?? null,
             input.metadata ?? null,
         ]);
-        return result.rows[0];
+        return this.decryptDocument(result.rows[0]);
     }
     static async findByEntity(entityType, entityId) {
         const result = await pool.query(`
@@ -42,7 +62,7 @@ export class SearchDocumentModel {
         WHERE entity_type = $1 AND entity_id = $2
         LIMIT 1
       `, [entityType, entityId]);
-        return result.rows[0] ?? null;
+        return this.decryptDocument(result.rows[0] ?? null);
     }
     static async deleteByEntity(entityType, entityId) {
         await pool.query(`

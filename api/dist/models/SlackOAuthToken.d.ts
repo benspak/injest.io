@@ -27,6 +27,14 @@ export interface UpdateSlackOAuthTokenInput {
     authedUserToken?: string | null;
 }
 export declare class SlackOAuthTokenModel {
+    /**
+     * Decrypt token fields from database result
+     */
+    private static decryptToken;
+    /**
+     * Decrypt array of tokens
+     */
+    private static decryptTokens;
     static findByUserId(userId: string): Promise<SlackOAuthToken | null>;
     static findAllByUserId(userId: string): Promise<SlackOAuthToken[]>;
     static findByUserIdAndWorkspace(userId: string, workspaceId: string): Promise<SlackOAuthToken | null>;

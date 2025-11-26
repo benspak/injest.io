@@ -23,6 +23,11 @@ export interface UpsertSearchDocumentInput {
     metadata?: Record<string, unknown> | null;
 }
 export declare class SearchDocumentModel {
+    /**
+     * Decrypt encrypted fields from database result
+     * Handles both encrypted and unencrypted data (for migration compatibility)
+     */
+    private static decryptDocument;
     static upsert(input: UpsertSearchDocumentInput): Promise<SearchDocument>;
     static findByEntity(entityType: SearchEntityType, entityId: string): Promise<SearchDocument | null>;
     static deleteByEntity(entityType: SearchEntityType, entityId: string): Promise<void>;

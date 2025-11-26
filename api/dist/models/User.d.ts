@@ -41,6 +41,16 @@ export interface User {
     updated_at: Date;
 }
 export declare class UserModel {
+    /**
+     * Decrypt encrypted fields from database result
+     * Handles both encrypted and unencrypted data (for migration compatibility)
+     */
+    private static decryptUserData;
+    /**
+     * Get decrypted two_factor_secret for a user
+     * Use this when you need the actual secret value (e.g., for verification)
+     */
+    static getDecryptedTwoFactorSecret(userId: string): Promise<string | null>;
     static findByEmail(email: string): Promise<User | null>;
     static findById(id: string): Promise<User | null>;
     static create(email: string): Promise<User>;

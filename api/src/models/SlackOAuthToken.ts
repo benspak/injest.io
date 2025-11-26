@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { encrypt, decrypt, encryptField, decryptField } from '../utils/encryption.js';
 
 export interface SlackOAuthToken {
   id: string;
@@ -32,12 +33,36 @@ export interface UpdateSlackOAuthTokenInput {
 }
 
 export class SlackOAuthTokenModel {
+  /**
+   * Decrypt token fields from database result
+   */
+  private static decryptToken(token: any): SlackOAuthToken {
+    if (!token) {
+      return token;
+    }
+    return {
+      ...token,
+      access_token: decryptField(token.access_token) || '',
+      authed_user_token: decryptField(token.authed_user_token),
+    };
+  }
+
+  /**
+   * Decrypt array of tokens
+   */
+  private static decryptTokens(tokens: any[]): SlackOAuthToken[] {
+    return tokens.map(token => this.decryptToken(token));
+  }
+
   static async findByUserId(userId: string): Promise<SlackOAuthToken | null> {
     const result = await pool.query(
       'SELECT * FROM slack_oauth_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
       [userId]
     );
-    return result.rows[0] || null;
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.decryptToken(result.rows[0]);
   }
 
   static async findAllByUserId(userId: string): Promise<SlackOAuthToken[]> {
@@ -45,7 +70,7 @@ export class SlackOAuthTokenModel {
       'SELECT * FROM slack_oauth_tokens WHERE user_id = $1 ORDER BY created_at DESC',
       [userId]
     );
-    return result.rows;
+    return this.decryptTokens(result.rows);
   }
 
   static async findByUserIdAndWorkspace(userId: string, workspaceId: string): Promise<SlackOAuthToken | null> {
@@ -53,7 +78,10 @@ export class SlackOAuthTokenModel {
       'SELECT * FROM slack_oauth_tokens WHERE user_id = $1 AND workspace_id = $2',
       [userId, workspaceId]
     );
-    return result.rows[0] || null;
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.decryptToken(result.rows[0]);
   }
 
   static async findByWorkspaceId(workspaceId: string): Promise<SlackOAuthToken[]> {
@@ -61,7 +89,7 @@ export class SlackOAuthTokenModel {
       'SELECT * FROM slack_oauth_tokens WHERE workspace_id = $1',
       [workspaceId]
     );
-    return result.rows;
+    return this.decryptTokens(result.rows);
   }
 
   static async findById(id: string): Promise<SlackOAuthToken | null> {
@@ -69,10 +97,17 @@ export class SlackOAuthTokenModel {
       'SELECT * FROM slack_oauth_tokens WHERE id = $1',
       [id]
     );
-    return result.rows[0] || null;
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.decryptToken(result.rows[0]);
   }
 
   static async create(input: CreateSlackOAuthTokenInput): Promise<SlackOAuthToken> {
+    // Encrypt tokens before storing
+    const encryptedAccessToken = encrypt(input.accessToken);
+    const encryptedAuthedUserToken = input.authedUserToken ? encrypt(input.authedUserToken) : null;
+
     const result = await pool.query(
       `INSERT INTO slack_oauth_tokens (
         user_id, workspace_id, access_token, bot_user_id, scope, authed_user_id, authed_user_token
@@ -81,14 +116,14 @@ export class SlackOAuthTokenModel {
       [
         input.userId,
         input.workspaceId,
-        input.accessToken,
+        encryptedAccessToken,
         input.botUserId ?? null,
         input.scope ?? null,
         input.authedUserId ?? null,
-        input.authedUserToken ?? null,
+        encryptedAuthedUserToken,
       ]
     );
-    return result.rows[0];
+    return this.decryptToken(result.rows[0]);
   }
 
   static async update(userId: string, workspaceId: string, input: UpdateSlackOAuthTokenInput): Promise<SlackOAuthToken> {
@@ -98,7 +133,7 @@ export class SlackOAuthTokenModel {
 
     if (input.accessToken !== undefined) {
       fields.push(`access_token = $${paramCount++}`);
-      values.push(input.accessToken);
+      values.push(encrypt(input.accessToken));
     }
     if (input.botUserId !== undefined) {
       fields.push(`bot_user_id = $${paramCount++}`);
@@ -114,7 +149,7 @@ export class SlackOAuthTokenModel {
     }
     if (input.authedUserToken !== undefined) {
       fields.push(`authed_user_token = $${paramCount++}`);
-      values.push(input.authedUserToken);
+      values.push(input.authedUserToken ? encrypt(input.authedUserToken) : null);
     }
 
     if (fields.length === 0) {
@@ -140,7 +175,7 @@ export class SlackOAuthTokenModel {
       throw new Error('Slack OAuth token not found');
     }
 
-    return result.rows[0];
+    return this.decryptToken(result.rows[0]);
   }
 
   static async createOrUpdate(userId: string, input: CreateSlackOAuthTokenInput): Promise<SlackOAuthToken> {

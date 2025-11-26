@@ -21,6 +21,7 @@ import slackRoutes from './routes/slack.js';
 import referralRoutes from './routes/referral.js';
 import stripeWebhookRoutes from './routes/stripe-webhook.js';
 import './config/database.js';
+import './config/encryption.js';
 dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5555;

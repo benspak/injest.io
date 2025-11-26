@@ -1,6 +1,7 @@
 import type { Pool, PoolClient } from 'pg';
 import pool from '../config/database.js';
 import { contactEnrichmentService } from '../services/contactEnrichment.js';
+import { encrypt, decrypt, encryptField, decryptField } from '../utils/encryption.js';
 
 export interface Contact {
   id: string;
@@ -182,6 +183,30 @@ const buildContactSearchFilters = (ownerId: string, search?: string | null) => {
 };
 
 export class ContactModel {
+  /**
+   * Decrypt encrypted fields from database result
+   * Handles both encrypted and unencrypted data (for migration compatibility)
+   */
+  private static decryptContact(contact: any): Contact | null {
+    if (!contact) {
+      return null;
+    }
+    return {
+      ...contact,
+      first_name: decryptField(contact.first_name),
+      last_name: decryptField(contact.last_name),
+      email: decryptField(contact.email),
+      phone: decryptField(contact.phone),
+    };
+  }
+
+  /**
+   * Decrypt array of contacts
+   */
+  private static decryptContacts(contacts: any[]): Contact[] {
+    return contacts.map(contact => this.decryptContact(contact)).filter((c): c is Contact => c !== null);
+  }
+
   static async upsert(
     input: UpsertContactInput,
     client: Pool | PoolClient = pool
@@ -221,6 +246,12 @@ export class ContactModel {
     }
 
     const metadata = mergeMetadata(null, input.metadata) ?? {};
+
+    // Encrypt sensitive fields before storing
+    const encryptedFirstName = encryptField(firstName); // Opaque encryption
+    const encryptedLastName = encryptField(lastName); // Opaque encryption
+    const encryptedEmail = encryptField(email?.toLowerCase(), true); // Deterministic encryption for searchability
+    const encryptedPhone = encryptField(phone, true); // Deterministic encryption for searchability
 
     const result = await client.query<Contact>(
       `
@@ -299,13 +330,13 @@ export class ContactModel {
         input.ownerId,
         name,
         normalizedName,
-        firstName,
-        lastName,
+        encryptedFirstName,
+        encryptedLastName,
         normalizedFirstName,
         normalizedLastName,
-        email,
+        encryptedEmail,
         normalizedEmail,
-        phone,
+        encryptedPhone,
         normalizedPhone,
         linkedinUrl,
         xUrl,
@@ -316,7 +347,8 @@ export class ContactModel {
       ]
     );
 
-    const contact = result.rows[0] ?? null;
+    // Decrypt contact data before returning
+    const contact = this.decryptContact(result.rows[0] ?? null);
     if (!contact) {
       return null;
     }
@@ -400,7 +432,7 @@ export class ContactModel {
       queryParams
     );
 
-    return result.rows ?? [];
+    return this.decryptContacts(result.rows ?? []);
   }
 
   static async countByOwner(
@@ -438,7 +470,7 @@ export class ContactModel {
       [ownerId, contactId]
     );
 
-    return result.rows[0] ?? null;
+    return this.decryptContact(result.rows[0] ?? null);
   }
 
   static async findById(contactId: string): Promise<Contact | null> {
@@ -452,7 +484,7 @@ export class ContactModel {
       [contactId]
     );
 
-    return result.rows[0] ?? null;
+    return this.decryptContact(result.rows[0] ?? null);
   }
 
   static async update(
@@ -519,6 +551,12 @@ export class ContactModel {
     const normalizedEmail = normalizeEmail(email);
     const normalizedPhone = normalizePhone(phone);
 
+    // Encrypt sensitive fields before storing
+    const encryptedFirstName = encryptField(firstName); // Opaque encryption
+    const encryptedLastName = encryptField(lastName); // Opaque encryption
+    const encryptedEmail = encryptField(email?.toLowerCase(), true); // Deterministic encryption
+    const encryptedPhone = encryptField(phone, true); // Deterministic encryption
+
     const metadata =
       updates.metadata !== undefined
         ? mergeMetadata(existing.metadata, updates.metadata)
@@ -557,13 +595,13 @@ export class ContactModel {
       [
         name,
         normalizedName,
-        firstName,
-        lastName,
+        encryptedFirstName,
+        encryptedLastName,
         normalizedFirstName,
         normalizedLastName,
-        email,
+        encryptedEmail,
         normalizedEmail,
-        phone,
+        encryptedPhone,
         normalizedPhone,
         linkedinUrl,
         xUrl,
@@ -575,7 +613,7 @@ export class ContactModel {
       ]
     );
 
-    const contact = result.rows[0] ?? null;
+    const contact = this.decryptContact(result.rows[0] ?? null);
     if (!contact) {
       return null;
     }
@@ -726,7 +764,7 @@ export class ContactModel {
       params
     );
 
-    return result.rows ?? [];
+    return this.decryptContacts(result.rows ?? []);
   }
 }
 

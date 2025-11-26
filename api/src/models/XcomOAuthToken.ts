@@ -1,4 +1,5 @@
 import pool from '../config/database.js';
+import { encrypt, decrypt, encryptField, decryptField } from '../utils/encryption.js';
 
 export interface XcomOAuthToken {
   id: string;
@@ -36,12 +37,29 @@ export interface UpdateXcomOAuthTokenInput {
 }
 
 export class XcomOAuthTokenModel {
+  /**
+   * Decrypt token fields from database result
+   */
+  private static decryptToken(token: any): XcomOAuthToken {
+    if (!token) {
+      return token;
+    }
+    return {
+      ...token,
+      access_token: decryptField(token.access_token) || '',
+      refresh_token: decryptField(token.refresh_token),
+    };
+  }
+
   static async findByUserId(userId: string): Promise<XcomOAuthToken | null> {
     const result = await pool.query(
       'SELECT * FROM xcom_oauth_tokens WHERE user_id = $1',
       [userId]
     );
-    return result.rows[0] || null;
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.decryptToken(result.rows[0]);
   }
 
   static async findById(id: string): Promise<XcomOAuthToken | null> {
@@ -49,10 +67,17 @@ export class XcomOAuthTokenModel {
       'SELECT * FROM xcom_oauth_tokens WHERE id = $1',
       [id]
     );
-    return result.rows[0] || null;
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.decryptToken(result.rows[0]);
   }
 
   static async create(input: CreateXcomOAuthTokenInput): Promise<XcomOAuthToken> {
+    // Encrypt tokens before storing
+    const encryptedAccessToken = encrypt(input.accessToken);
+    const encryptedRefreshToken = input.refreshToken ? encrypt(input.refreshToken) : null;
+
     const result = await pool.query(
       `INSERT INTO xcom_oauth_tokens (
         user_id, access_token, refresh_token, token_type, expires_at, scope, x_user_id, x_username
@@ -60,8 +85,8 @@ export class XcomOAuthTokenModel {
       RETURNING *`,
       [
         input.userId,
-        input.accessToken,
-        input.refreshToken ?? null,
+        encryptedAccessToken,
+        encryptedRefreshToken,
         input.tokenType ?? 'Bearer',
         input.expiresAt ?? null,
         input.scope ?? null,
@@ -69,7 +94,7 @@ export class XcomOAuthTokenModel {
         input.xUsername ?? null,
       ]
     );
-    return result.rows[0];
+    return this.decryptToken(result.rows[0]);
   }
 
   static async update(userId: string, input: UpdateXcomOAuthTokenInput): Promise<XcomOAuthToken> {
@@ -79,11 +104,11 @@ export class XcomOAuthTokenModel {
 
     if (input.accessToken !== undefined) {
       fields.push(`access_token = $${paramCount++}`);
-      values.push(input.accessToken);
+      values.push(encrypt(input.accessToken));
     }
     if (input.refreshToken !== undefined) {
       fields.push(`refresh_token = $${paramCount++}`);
-      values.push(input.refreshToken);
+      values.push(input.refreshToken ? encrypt(input.refreshToken) : null);
     }
     if (input.tokenType !== undefined) {
       fields.push(`token_type = $${paramCount++}`);
@@ -129,7 +154,7 @@ export class XcomOAuthTokenModel {
       throw new Error('X.com OAuth token not found');
     }
 
-    return result.rows[0];
+    return this.decryptToken(result.rows[0]);
   }
 
   static async createOrUpdate(userId: string, input: CreateXcomOAuthTokenInput): Promise<XcomOAuthToken> {
@@ -170,6 +195,9 @@ export class XcomOAuthTokenModel {
       'SELECT * FROM xcom_oauth_tokens WHERE x_user_id = $1',
       [xUserId]
     );
-    return result.rows[0] || null;
+    if (!result.rows[0]) {
+      return null;
+    }
+    return this.decryptToken(result.rows[0]);
   }
 }

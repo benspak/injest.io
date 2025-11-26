@@ -31,6 +31,10 @@ export interface UpdateXcomOAuthTokenInput {
     xUsername?: string | null;
 }
 export declare class XcomOAuthTokenModel {
+    /**
+     * Decrypt token fields from database result
+     */
+    private static decryptToken;
     static findByUserId(userId: string): Promise<XcomOAuthToken | null>;
     static findById(id: string): Promise<XcomOAuthToken | null>;
     static create(input: CreateXcomOAuthTokenInput): Promise<XcomOAuthToken>;

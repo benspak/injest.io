@@ -1,17 +1,67 @@
 import pool from '../config/database.js';
+import { encryptField, decryptField } from '../utils/encryption.js';
 export class UserModel {
+    /**
+     * Decrypt encrypted fields from database result
+     * Handles both encrypted and unencrypted data (for migration compatibility)
+     */
+    static decryptUserData(user) {
+        if (!user) {
+            return user;
+        }
+        return {
+            ...user,
+            // Encrypted PII fields (deterministic for email, opaque for others)
+            email: decryptField(user.email) || user.email, // Deterministic (handled automatically by decrypt)
+            recovery_email: decryptField(user.recovery_email) || user.recovery_email, // Deterministic (handled automatically by decrypt)
+            first_name: decryptField(user.first_name) || user.first_name, // Opaque
+            last_name: decryptField(user.last_name) || user.last_name, // Opaque
+            date_of_birth: user.date_of_birth, // Date, no encryption needed
+            zip_code: decryptField(user.zip_code) || user.zip_code, // Opaque
+            city: decryptField(user.city) || user.city, // Opaque
+            // Encrypted secrets
+            two_factor_secret: decryptField(user.two_factor_secret) || user.two_factor_secret, // Opaque
+        };
+    }
+    /**
+     * Get decrypted two_factor_secret for a user
+     * Use this when you need the actual secret value (e.g., for verification)
+     */
+    static async getDecryptedTwoFactorSecret(userId) {
+        const user = await this.findById(userId);
+        if (!user) {
+            return null;
+        }
+        return decryptField(user.two_factor_secret);
+    }
     static async findByEmail(email) {
-        // Case-insensitive email lookup
-        const result = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
-        return result.rows[0] || null;
+        // Encrypt email for search (deterministic encryption allows exact match)
+        const encryptedEmail = encryptField(email.toLowerCase(), true);
+        if (!encryptedEmail) {
+            return null;
+        }
+        // Search using encrypted email
+        const result = await pool.query('SELECT * FROM users WHERE email = $1', [encryptedEmail]);
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptUserData(result.rows[0]);
     }
     static async findById(id) {
         const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptUserData(result.rows[0]);
     }
     static async create(email) {
-        const result = await pool.query('INSERT INTO users (email, verified) VALUES ($1, $2) RETURNING *', [email, false]);
-        return result.rows[0];
+        // Encrypt email before storing
+        const encryptedEmail = encryptField(email.toLowerCase(), true);
+        if (!encryptedEmail) {
+            throw new Error('Email is required');
+        }
+        const result = await pool.query('INSERT INTO users (email, verified) VALUES ($1, $2) RETURNING *', [encryptedEmail, false]);
+        return this.decryptUserData(result.rows[0]);
     }
     static async createWithPassword(email, passwordHash, recoveryEmail, profileData) {
         const result = await pool.query(`INSERT INTO users (
@@ -21,31 +71,31 @@ export class UserModel {
         project_title, project_description, zip_code,
         x_profile_url, youtube_url, github_url, linkedin_url
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING *`, [
-            email,
+            encryptField(email.toLowerCase(), true), // Deterministic encryption
             true, // Auto-verify users created with password
             passwordHash,
-            recoveryEmail,
+            encryptField(recoveryEmail?.toLowerCase(), true), // Deterministic encryption
             profileData.public_username,
             profileData.public_username, // inbound_email_handle = public_username
-            profileData.first_name,
-            profileData.last_name,
+            encryptField(profileData.first_name), // Opaque encryption
+            encryptField(profileData.last_name), // Opaque encryption
             profileData.date_of_birth || null,
             profileData.headline || null,
             profileData.bio || null,
             profileData.company || null,
             profileData.project_title || null,
             profileData.project_description || null,
-            profileData.zip_code || null,
+            encryptField(profileData.zip_code), // Opaque encryption
             profileData.x_profile_url || null,
             profileData.youtube_url || null,
             profileData.github_url || null,
             profileData.linkedin_url || null,
         ]);
-        return result.rows[0];
+        return this.decryptUserData(result.rows[0]);
     }
     static async verifyEmail(id) {
         const result = await pool.query('UPDATE users SET verified = TRUE WHERE id = $1 RETURNING *', [id]);
-        return result.rows[0];
+        return this.decryptUserData(result.rows[0]);
     }
     static async update(id, updates) {
         const fields = [];
@@ -53,7 +103,7 @@ export class UserModel {
         let paramCount = 1;
         if (updates.email !== undefined) {
             fields.push(`email = $${paramCount++}`);
-            values.push(updates.email);
+            values.push(encryptField(updates.email.toLowerCase(), true)); // Deterministic encryption
         }
         if (updates.verified !== undefined) {
             fields.push(`verified = $${paramCount++}`);
@@ -97,7 +147,7 @@ export class UserModel {
         }
         if (updates.two_factor_secret !== undefined) {
             fields.push(`two_factor_secret = $${paramCount++}`);
-            values.push(updates.two_factor_secret);
+            values.push(encryptField(updates.two_factor_secret));
         }
         if (updates.two_factor_confirmed_at !== undefined) {
             fields.push(`two_factor_confirmed_at = $${paramCount++}`);
@@ -113,11 +163,11 @@ export class UserModel {
         }
         if (updates.first_name !== undefined) {
             fields.push(`first_name = $${paramCount++}`);
-            values.push(updates.first_name);
+            values.push(encryptField(updates.first_name)); // Opaque encryption
         }
         if (updates.last_name !== undefined) {
             fields.push(`last_name = $${paramCount++}`);
-            values.push(updates.last_name);
+            values.push(encryptField(updates.last_name)); // Opaque encryption
         }
         if (updates.headline !== undefined) {
             fields.push(`headline = $${paramCount++}`);
@@ -141,11 +191,11 @@ export class UserModel {
         }
         if (updates.zip_code !== undefined) {
             fields.push(`zip_code = $${paramCount++}`);
-            values.push(updates.zip_code);
+            values.push(encryptField(updates.zip_code)); // Opaque encryption
         }
         if (updates.city !== undefined) {
             fields.push(`city = $${paramCount++}`);
-            values.push(updates.city);
+            values.push(encryptField(updates.city)); // Opaque encryption
         }
         if (updates.avatar_url !== undefined) {
             fields.push(`avatar_url = $${paramCount++}`);
@@ -181,7 +231,7 @@ export class UserModel {
         }
         if (updates.recovery_email !== undefined) {
             fields.push(`recovery_email = $${paramCount++}`);
-            values.push(updates.recovery_email);
+            values.push(encryptField(updates.recovery_email?.toLowerCase(), true)); // Deterministic encryption
         }
         if (updates.date_of_birth !== undefined) {
             fields.push(`date_of_birth = $${paramCount++}`);
@@ -200,7 +250,7 @@ export class UserModel {
         }
         values.push(id);
         const result = await pool.query(`UPDATE users SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`, values);
-        return result.rows[0];
+        return this.decryptUserData(result.rows[0]);
     }
     static async setApiKey(userId, apiKeyHash) {
         return await this.update(userId, {
@@ -221,7 +271,10 @@ export class UserModel {
     }
     static async findByApiKeyHash(apiKeyHash) {
         const result = await pool.query('SELECT * FROM users WHERE api_key_hash = $1 AND api_key_hash IS NOT NULL', [apiKeyHash]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptUserData(result.rows[0]);
     }
     static async saveTwoFactorSecret(userId, secret) {
         return await this.update(userId, {
@@ -255,16 +308,25 @@ export class UserModel {
     static async findByPublicUsername(username) {
         // Case-insensitive username lookup
         const result = await pool.query('SELECT * FROM users WHERE LOWER(public_username) = LOWER($1) AND public_username IS NOT NULL', [username]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptUserData(result.rows[0]);
     }
     static async findByInboundHandle(handle) {
         const result = await pool.query('SELECT * FROM users WHERE LOWER(inbound_email_handle) = LOWER($1) AND inbound_email_handle IS NOT NULL', [handle]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptUserData(result.rows[0]);
     }
     static async findByReferralCode(code) {
         // Case-insensitive referral code lookup
         const result = await pool.query('SELECT * FROM users WHERE LOWER(referral_code) = LOWER($1) AND referral_code IS NOT NULL', [code]);
-        return result.rows[0] || null;
+        if (!result.rows[0]) {
+            return null;
+        }
+        return this.decryptUserData(result.rows[0]);
     }
     static async findByUsernameOrEmail(usernameOrEmail) {
         // Try username first (case-insensitive)
@@ -272,7 +334,7 @@ export class UserModel {
         if (byUsername) {
             return byUsername;
         }
-        // Try email (case-insensitive)
+        // Try email (case-insensitive) - findByEmail now handles encryption
         const byEmail = await this.findByEmail(usernameOrEmail);
         if (byEmail) {
             return byEmail;
