@@ -3,10 +3,12 @@
 import { Fragment, useCallback, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown, MessageSquare, Gift, Archive, Ban, UserX } from 'lucide-react';
+import { FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown, MessageSquare, Gift, Archive, Ban, UserX, Sparkles } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { AvatarMenu } from '@/components/avatar-menu';
+import { Button } from '@/components/ui/button';
 import type { User } from '@/lib/api';
+import type { SubscriptionTier } from '@/lib/subscriptionPlans';
 
 type AppSidebarProps = {
   currentUser: User | null;
@@ -70,6 +72,23 @@ const INBOX_SUB_ITEMS = [
     icon: MessageSquare,
   },
 ];
+
+/**
+ * Determine if a user is on the free tier
+ */
+function isFreeUser(user: User | null): boolean {
+  if (!user) {
+    return false;
+  }
+
+  // Check subscription_tier first
+  if (user.subscription_tier) {
+    return user.subscription_tier === 'free';
+  }
+
+  // Fallback to is_premium flag
+  return !user.is_premium;
+}
 
 export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout }: AppSidebarProps) {
   const pathname = usePathname();
@@ -237,6 +256,32 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
         </div>
 
         <div className="mt-6 space-y-1">{navigation}</div>
+
+        {/* Upgrade to Pro section for free users */}
+        {isAuthenticated && isFreeUser(currentUser) && (
+          <div className="mt-6">
+            <div className="rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 p-4">
+              <div className="flex items-start gap-3">
+                <div className="rounded-full bg-blue-100 p-2">
+                  <Sparkles className="h-4 w-4 text-blue-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">
+                    Upgrade to Pro
+                  </h3>
+                  <p className="text-xs text-gray-600 mb-3">
+                    Get unlimited items, priority support, and more.
+                  </p>
+                  <Link href="/settings?upgrade=pro" onClick={() => onMobileToggle(false)}>
+                    <Button className="w-full text-xs" size="sm" variant="default">
+                      Upgrade Now
+                    </Button>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isAuthenticated ? (
           <div className="mt-6 space-y-4 overflow-y-auto pb-6">

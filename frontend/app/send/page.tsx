@@ -330,12 +330,68 @@ export default function SendPage() {
       </header>
 
       <main className="container mx-auto px-3 sm:px-4 md:px-6 py-6 sm:py-8 max-w-5xl space-y-6">
-        {/* AI Plan Generation (Optional Enrichment) */}
+        {/* Compose Email - Recipients Section */}
         <Card>
+          <CardHeader>
+            <CardTitle>Compose Email</CardTitle>
+            <CardDescription>
+              Write and send an email.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Recipients */}
+            <section className="space-y-4">
+              <EmailRecipientInput
+                value={toEmails}
+                onChange={setToEmails}
+                label="To"
+                placeholder="Enter recipient email addresses..."
+                disabled={sending}
+              />
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <EmailRecipientInput
+                    value={ccEmails}
+                    onChange={setCcEmails}
+                    label="CC"
+                    placeholder="Optional..."
+                    disabled={sending}
+                  />
+                </div>
+                <div className="flex-1">
+                  <EmailRecipientInput
+                    value={bccEmails}
+                    onChange={setBccEmails}
+                    label="BCC"
+                    placeholder="Optional..."
+                    disabled={sending}
+                  />
+                </div>
+              </div>
+            </section>
+          </CardContent>
+        </Card>
+
+        {/* Compose Email - Attachments Section */}
+        <Card>
+          <CardContent>
+            <section className="space-y-3">
+              <FileUploadAttachment
+                value={manualAttachments}
+                onChange={setManualAttachments}
+                label="Attachments"
+                disabled={sending}
+              />
+            </section>
+          </CardContent>
+        </Card>
+
+        {/* AI Suggestions Section */}
+        <Card className="hidden">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>AI Suggestions (Optional)</CardTitle>
+                <CardTitle>AI Suggestions</CardTitle>
                 <CardDescription>
                   Generate AI-powered suggestions for contacts, attachments, and content.
                 </CardDescription>
@@ -502,57 +558,9 @@ export default function SendPage() {
           </CardContent>
         </Card>
 
-        {/* Main Email Composer */}
+        {/* Compose Email - Subject Section */}
         <Card>
-          <CardHeader>
-            <CardTitle>Compose Email</CardTitle>
-            <CardDescription>
-              Write and send an email. Use AI suggestions above to enrich your message.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Recipients */}
-            <section className="space-y-4">
-              <EmailRecipientInput
-                value={toEmails}
-                onChange={setToEmails}
-                label="To"
-                placeholder="Enter recipient email addresses..."
-                disabled={sending}
-              />
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <EmailRecipientInput
-                    value={ccEmails}
-                    onChange={setCcEmails}
-                    label="CC"
-                    placeholder="Optional..."
-                    disabled={sending}
-                  />
-                </div>
-                <div className="flex-1">
-                  <EmailRecipientInput
-                    value={bccEmails}
-                    onChange={setBccEmails}
-                    label="BCC"
-                    placeholder="Optional..."
-                    disabled={sending}
-                  />
-                </div>
-              </div>
-            </section>
-
-            {/* Attachments */}
-            <section className="space-y-3">
-              <FileUploadAttachment
-                value={manualAttachments}
-                onChange={setManualAttachments}
-                label="Attachments"
-                disabled={sending}
-              />
-            </section>
-
-            {/* Subject */}
+          <CardContent>
             <section className="space-y-2">
               <Label htmlFor="email-subject">Subject</Label>
               <Input
@@ -563,10 +571,17 @@ export default function SendPage() {
                 disabled={sending}
               />
             </section>
+          </CardContent>
+        </Card>
 
-            {/* Body */}
+        {/* Compose Email - Body Section */}
+        <Card>
+          <CardContent>
             <section className="space-y-2">
-              <Label htmlFor="email-body">Email Body</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="email-body">Email Body</Label>
+                <span className="text-xs text-gray-500">(Markdown WYSIWYG editor)</span>
+              </div>
               <MarkdownEditor
                 id="email-body"
                 rows={12}
@@ -595,9 +610,13 @@ export default function SendPage() {
                 </div>
               )}
             </section>
+          </CardContent>
+        </Card>
 
-            {/* Send Button */}
-            <section className="flex flex-wrap items-center gap-3 pt-4 border-t">
+        {/* Compose Email - Send Button Section */}
+        <Card>
+          <CardContent>
+            <section className="flex flex-wrap items-center gap-3">
               <Button onClick={handleSend} disabled={sending}>
                 {sending ? 'Sending...' : 'Send Email'}
               </Button>

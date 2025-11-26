@@ -50,38 +50,49 @@ const allowedOrigins = process.env.FRONTEND_URL
 const productionOrigins = process.env.FRONTEND_URL
     ? [process.env.FRONTEND_URL]
     : [];
-app.use(cors({
-    origin: (origin, callback) => {
-        // In production, be more restrictive about requests with no origin
-        if (!origin) {
-            // Only allow no-origin requests in development (for mobile apps, curl, etc.)
-            if (process.env.NODE_ENV !== 'production') {
-                return callback(null, true);
+// Webhook endpoints that don't send Origin headers (server-to-server requests)
+const webhookPaths = ['/api/email/inbound', '/api/stripe-webhook'];
+app.use((req, res, next) => {
+    // Check if this is a webhook endpoint
+    const isWebhookRequest = webhookPaths.some(path => req.path.startsWith(path));
+    // Apply CORS with webhook-aware origin handling
+    cors({
+        origin: (origin, callback) => {
+            // In production, be more restrictive about requests with no origin
+            if (!origin) {
+                // Allow webhook endpoints without Origin header
+                if (isWebhookRequest) {
+                    return callback(null, true);
+                }
+                // Only allow no-origin requests in development (for mobile apps, curl, etc.)
+                if (process.env.NODE_ENV !== 'production') {
+                    return callback(null, true);
+                }
+                // In production, reject requests with no origin for better security
+                return callback(new Error('CORS: Origin header required'));
             }
-            // In production, reject requests with no origin for better security
-            return callback(new Error('CORS: Origin header required'));
-        }
-        // Check against allowed origins
-        const originsToCheck = process.env.NODE_ENV === 'production'
-            ? productionOrigins
-            : allowedOrigins;
-        if (originsToCheck.includes(origin)) {
-            callback(null, true);
-        }
-        else {
-            // In development only, allow localhost on any port for convenience
-            if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:')) {
+            // Check against allowed origins
+            const originsToCheck = process.env.NODE_ENV === 'production'
+                ? productionOrigins
+                : allowedOrigins;
+            if (originsToCheck.includes(origin)) {
                 callback(null, true);
             }
             else {
-                callback(new Error('Not allowed by CORS'));
+                // In development only, allow localhost on any port for convenience
+                if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:')) {
+                    callback(null, true);
+                }
+                else {
+                    callback(new Error('Not allowed by CORS'));
+                }
             }
-        }
-    },
-    credentials: true,
-    // Additional security headers
-    optionsSuccessStatus: 200,
-}));
+        },
+        credentials: true,
+        // Additional security headers
+        optionsSuccessStatus: 200,
+    })(req, res, next);
+});
 // Create parser middleware instances with size limits to prevent DoS attacks
 const jsonParser = express.json({ limit: '10mb' }); // 10MB limit for JSON payloads
 const urlencodedParser = express.urlencoded({ extended: true, limit: '10mb' }); // 10MB limit for form data
