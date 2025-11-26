@@ -59,17 +59,44 @@ const productionOrigins = process.env.FRONTEND_URL
 // Webhook endpoints that don't send Origin headers (server-to-server requests)
 const webhookPaths = ['/api/email/inbound', '/api/stripe-webhook'];
 
+// File endpoints that may not send Origin headers (e.g., when loaded in <img> tags)
+const isFileRequest = (path: string): boolean => {
+  // Match pattern: /api/items/:id/files/:filename
+  return /^\/api\/items\/[^/]+\/files\/.+$/.test(path);
+};
+
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   // Check if this is a webhook endpoint
   const isWebhookRequest = webhookPaths.some(path => req.path.startsWith(path));
+  // Check if this is a file request
+  const isFileEndpoint = isFileRequest(req.path);
+
+  // Helper to check if request has authentication token
+  const hasAuthToken = (req: express.Request): boolean => {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return true;
+    }
+    // Check for token in query string (used for file endpoints)
+    if (req.query.token && typeof req.query.token === 'string') {
+      return true;
+    }
+    return false;
+  };
 
   // Apply CORS with webhook-aware origin handling
   cors({
     origin: (origin, callback) => {
       // In production, be more restrictive about requests with no origin
       if (!origin) {
-        // Allow webhook endpoints without Origin header
+        // Allow webhook endpoints without Origin header (server-to-server)
         if (isWebhookRequest) {
+          return callback(null, true);
+        }
+        // Allow file endpoints without Origin header ONLY if they have an auth token
+        // This maintains security: unauthenticated requests still need Origin,
+        // and authenticated requests are protected by JWT verification in the route handler
+        if (isFileEndpoint && hasAuthToken(req)) {
           return callback(null, true);
         }
         // Only allow no-origin requests in development (for mobile apps, curl, etc.)
