@@ -20,8 +20,8 @@ export default function Home() {
       name: "Free",
       priceDisplay: "$0",
       priceNote: "",
-      limit: "Up to 1,000 items",
-      description: "Get started with up to 1,000 indexed items and pro-grade capture features.",
+      limit: "Up to 25GB of space, free",
+      description: "Get started with up to 25GB of space and pro-grade capture features.",
       features: [
         "Text extraction from images",
         "Smart search",
@@ -653,6 +653,10 @@ export default function Home() {
             <span className="hidden sm:inline">•</span>
             <Link href="/terms" className="hover:text-blue-600 transition-colors">
               Terms of Service
+            </Link>
+            <span className="hidden sm:inline">•</span>
+            <Link href="/bug-bounty" className="hover:text-blue-600 transition-colors">
+              Bug Bounty
             </Link>
           </div>
         </div>
