@@ -52,40 +52,92 @@ const productionOrigins = process.env.FRONTEND_URL
     : [];
 // Webhook endpoints that don't send Origin headers (server-to-server requests)
 const webhookPaths = ['/api/email/inbound', '/api/stripe-webhook'];
+// File endpoints that may not send Origin headers (e.g., when loaded in <img> tags)
+const isFileRequest = (path) => {
+    // Match pattern: /api/items/:id/files/:filename
+    if (/^\/api\/items\/[^/]+\/files\/.+$/.test(path)) {
+        return true;
+    }
+    // Match pattern: /api/email/attachments/:itemId/:attachmentId
+    if (/^\/api\/email\/attachments\/[^/]+\/[^/]+$/.test(path)) {
+        return true;
+    }
+    return false;
+};
 app.use((req, res, next) => {
     // Check if this is a webhook endpoint
     const isWebhookRequest = webhookPaths.some(path => req.path.startsWith(path));
+    // Check if this is a file request
+    const isFileEndpoint = isFileRequest(req.path);
+    // Helper to check if request has authentication token
+    const hasAuthToken = (req) => {
+        try {
+            const authHeader = req.headers.authorization;
+            if (authHeader && typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
+                return true;
+            }
+            // Check for token in query string (used for file endpoints)
+            // Note: Express automatically parses query strings, so req.query should be available
+            if (req.query && req.query.token && typeof req.query.token === 'string' && req.query.token.length > 0) {
+                return true;
+            }
+        }
+        catch (error) {
+            // If there's any error checking for token, assume no token (fail secure)
+            console.error('Error checking for auth token in CORS middleware:', error);
+            return false;
+        }
+        return false;
+    };
     // Apply CORS with webhook-aware origin handling
     cors({
         origin: (origin, callback) => {
-            // In production, be more restrictive about requests with no origin
-            if (!origin) {
-                // Allow webhook endpoints without Origin header
-                if (isWebhookRequest) {
-                    return callback(null, true);
+            try {
+                // In production, be more restrictive about requests with no origin
+                if (!origin) {
+                    // Allow webhook endpoints without Origin header (server-to-server)
+                    if (isWebhookRequest) {
+                        return callback(null, true);
+                    }
+                    // Allow file endpoints without Origin header ONLY if they have an auth token
+                    // This maintains security: unauthenticated requests still need Origin,
+                    // and authenticated requests are protected by JWT verification in the route handler
+                    if (isFileEndpoint && hasAuthToken(req)) {
+                        return callback(null, true);
+                    }
+                    // Only allow no-origin requests in development (for mobile apps, curl, etc.)
+                    if (process.env.NODE_ENV !== 'production') {
+                        return callback(null, true);
+                    }
+                    // In production, reject requests with no origin for better security
+                    return callback(new Error('CORS: Origin header required'));
                 }
-                // Only allow no-origin requests in development (for mobile apps, curl, etc.)
-                if (process.env.NODE_ENV !== 'production') {
-                    return callback(null, true);
-                }
-                // In production, reject requests with no origin for better security
-                return callback(new Error('CORS: Origin header required'));
-            }
-            // Check against allowed origins
-            const originsToCheck = process.env.NODE_ENV === 'production'
-                ? productionOrigins
-                : allowedOrigins;
-            if (originsToCheck.includes(origin)) {
-                callback(null, true);
-            }
-            else {
-                // In development only, allow localhost on any port for convenience
-                if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:')) {
+                // Check against allowed origins
+                const originsToCheck = process.env.NODE_ENV === 'production'
+                    ? productionOrigins
+                    : allowedOrigins;
+                if (originsToCheck.includes(origin)) {
                     callback(null, true);
                 }
                 else {
-                    callback(new Error('Not allowed by CORS'));
+                    // For file endpoints with a token, allow any origin (token provides security)
+                    // This handles cases where images are loaded from different origins
+                    if (isFileEndpoint && hasAuthToken(req)) {
+                        return callback(null, true);
+                    }
+                    // In development only, allow localhost on any port for convenience
+                    if (process.env.NODE_ENV !== 'production' && origin.startsWith('http://localhost:')) {
+                        callback(null, true);
+                    }
+                    else {
+                        callback(new Error('Not allowed by CORS'));
+                    }
                 }
+            }
+            catch (error) {
+                // If there's an error in the origin callback, log it and reject the request
+                console.error('Error in CORS origin callback:', error);
+                callback(new Error('CORS: Error processing origin'));
             }
         },
         credentials: true,
@@ -215,6 +267,15 @@ app.use((err, req, res, next) => {
         return res.status(400).json({
             error: 'Invalid request body',
             details: process.env.NODE_ENV === 'development' ? err.message : undefined
+        });
+    }
+    // Handle CORS errors - return proper CORS response instead of 500
+    if (err?.message && (err.message.includes('CORS') || err.message.includes('Not allowed by CORS'))) {
+        // CORS errors should return 403 or appropriate status
+        // Don't log as unhandled error since this is expected behavior
+        return res.status(403).json({
+            error: 'CORS policy violation',
+            message: err.message
         });
     }
     // Handle other errors
