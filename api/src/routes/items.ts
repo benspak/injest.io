@@ -169,14 +169,44 @@ router.get('/:id/files/:filename', async (req: AuthRequest, res: express.Respons
     }
 
     if (!token) {
+      // For image requests, return a 1x1 transparent PNG instead of JSON to avoid broken image icons
+      const isImageRequest = req.query.inline === 'true' || req.query.inline === '1';
+      if (isImageRequest) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-cache');
+        // Return a 1x1 transparent PNG
+        const transparentPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+        return res.status(401).send(transparentPng);
+      }
       return res.status(401).json({ error: 'No token provided' });
     }
 
     // Verify token and get user
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    let decoded: { userId: string; email: string };
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { userId: string; email: string };
+    } catch (jwtError) {
+      // For image requests, return a 1x1 transparent PNG instead of JSON
+      const isImageRequest = req.query.inline === 'true' || req.query.inline === '1';
+      if (isImageRequest) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-cache');
+        const transparentPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+        return res.status(401).send(transparentPng);
+      }
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
     const user = await UserModel.findById(decoded.userId);
 
     if (!user || !user.verified) {
+      const isImageRequest = req.query.inline === 'true' || req.query.inline === '1';
+      if (isImageRequest) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'no-cache');
+        const transparentPng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+        return res.status(401).send(transparentPng);
+      }
       return res.status(401).json({ error: 'User not found or not verified' });
     }
 

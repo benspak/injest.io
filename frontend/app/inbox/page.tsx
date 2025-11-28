@@ -530,13 +530,34 @@ export default function InboxPage() {
     };
 
     eventSource.addEventListener('indexed', handleIndexed);
-    eventSource.onerror = (error) => {
-      console.error('Item stream error:', error);
-      eventSource.close();
-      itemStreamRef.current = null;
-      setTimeout(() => {
-        setItemStreamRetry((retry) => retry + 1);
-      }, 3000);
+
+    eventSource.addEventListener('open', () => {
+      console.log('Item stream connected');
+    });
+
+    eventSource.onerror = (event) => {
+      const readyState = eventSource.readyState;
+      const stateMessage =
+        readyState === EventSource.CONNECTING ? 'CONNECTING' :
+        readyState === EventSource.OPEN ? 'OPEN' :
+        readyState === EventSource.CLOSED ? 'CLOSED' : 'UNKNOWN';
+
+      console.error('Item stream error:', {
+        readyState: stateMessage,
+        url: streamUrl,
+        type: event.type,
+        target: event.target,
+      });
+
+      // Only retry if the connection was closed unexpectedly
+      // Don't retry if it's already closed (might be intentional)
+      if (readyState === EventSource.CLOSED) {
+        eventSource.close();
+        itemStreamRef.current = null;
+        setTimeout(() => {
+          setItemStreamRetry((retry) => retry + 1);
+        }, 3000);
+      }
     };
 
     return () => {

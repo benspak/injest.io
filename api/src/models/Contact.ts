@@ -184,19 +184,49 @@ const buildContactSearchFilters = (ownerId: string, search?: string | null) => {
 
 export class ContactModel {
   /**
+   * Check if a field is deterministically encrypted (cannot be decrypted)
+   * Deterministic encryption format: iv_seed:tag:ciphertext where iv_seed is <= 12 base64 chars
+   */
+  private static isDeterministicallyEncrypted(value: string | null | undefined): boolean {
+    if (!value || !value.includes(':')) {
+      return false;
+    }
+    const parts = value.split(':');
+    if (parts.length !== 3) {
+      return false;
+    }
+    // Deterministic encryption has IV seed <= 12 base64 characters
+    // Non-deterministic has IV = 16 bytes = 24 base64 characters
+    const firstPart = parts[0];
+    return firstPart.length <= 12 && /^[A-Za-z0-9+/=]+$/.test(firstPart);
+  }
+
+  /**
    * Decrypt encrypted fields from database result
    * Handles both encrypted and unencrypted data (for migration compatibility)
+   * Note: Email and phone are deterministically encrypted and cannot be decrypted
    */
-  private static decryptContact(contact: any): Contact | null {
+  static decryptContact(contact: any): Contact | null {
     if (!contact) {
       return null;
     }
+
+    // Email and phone are deterministically encrypted (for searchability)
+    // They cannot be decrypted, so we return null for display
+    // The normalized_email and normalized_phone fields are available for search
+    const email = this.isDeterministicallyEncrypted(contact.email)
+      ? null
+      : decryptField(contact.email);
+    const phone = this.isDeterministicallyEncrypted(contact.phone)
+      ? null
+      : decryptField(contact.phone);
+
     return {
       ...contact,
       first_name: decryptField(contact.first_name),
       last_name: decryptField(contact.last_name),
-      email: decryptField(contact.email),
-      phone: decryptField(contact.phone),
+      email,
+      phone,
     };
   }
 
@@ -253,99 +283,216 @@ export class ContactModel {
     const encryptedEmail = encryptField(email?.toLowerCase(), true); // Deterministic encryption for searchability
     const encryptedPhone = encryptField(phone, true); // Deterministic encryption for searchability
 
-    const result = await client.query<Contact>(
-      `
-        INSERT INTO contacts (
-          owner_id,
+    let result: { rows: Contact[] };
+    // Generate a unique savepoint name (PostgreSQL identifiers are case-insensitive and can contain alphanumeric + underscore)
+    const savepointId = `contact_upsert_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    try {
+      // Create a savepoint so we can rollback just this operation if it fails
+      await client.query(`SAVEPOINT ${savepointId}`);
+
+      // Try with the 5-column unique constraint (migration 030+)
+      result = await client.query<Contact>(
+        `
+          INSERT INTO contacts (
+            owner_id,
+            name,
+            normalized_name,
+            first_name,
+            last_name,
+            normalized_first_name,
+            normalized_last_name,
+            email,
+            normalized_email,
+            phone,
+            normalized_phone,
+            linkedin_url,
+            x_url,
+            github_url,
+            source_item_id,
+            matched_user_id,
+            metadata
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+          ON CONFLICT (owner_id, normalized_email, normalized_phone, normalized_first_name, normalized_last_name)
+          DO UPDATE SET
+            name = CASE
+              WHEN EXCLUDED.name IS NOT NULL THEN EXCLUDED.name
+              ELSE contacts.name
+            END,
+            normalized_name = CASE
+              WHEN EXCLUDED.normalized_name <> '' THEN EXCLUDED.normalized_name
+              ELSE contacts.normalized_name
+            END,
+            first_name = CASE
+              WHEN EXCLUDED.first_name IS NOT NULL THEN EXCLUDED.first_name
+              ELSE contacts.first_name
+            END,
+            last_name = CASE
+              WHEN EXCLUDED.last_name IS NOT NULL THEN EXCLUDED.last_name
+              ELSE contacts.last_name
+            END,
+            normalized_first_name = CASE
+              WHEN EXCLUDED.normalized_first_name <> '' THEN EXCLUDED.normalized_first_name
+              ELSE contacts.normalized_first_name
+            END,
+            normalized_last_name = CASE
+              WHEN EXCLUDED.normalized_last_name <> '' THEN EXCLUDED.normalized_last_name
+              ELSE contacts.normalized_last_name
+            END,
+            email = CASE
+              WHEN EXCLUDED.email IS NOT NULL THEN EXCLUDED.email
+              ELSE contacts.email
+            END,
+            normalized_email = CASE
+              WHEN EXCLUDED.normalized_email <> '' THEN EXCLUDED.normalized_email
+              ELSE contacts.normalized_email
+            END,
+            phone = CASE
+              WHEN EXCLUDED.phone IS NOT NULL THEN EXCLUDED.phone
+              ELSE contacts.phone
+            END,
+            normalized_phone = CASE
+              WHEN EXCLUDED.normalized_phone <> '' THEN EXCLUDED.normalized_phone
+              ELSE contacts.normalized_phone
+            END,
+            linkedin_url = COALESCE(EXCLUDED.linkedin_url, contacts.linkedin_url),
+            x_url = COALESCE(EXCLUDED.x_url, contacts.x_url),
+            github_url = COALESCE(EXCLUDED.github_url, contacts.github_url),
+            source_item_id = COALESCE(contacts.source_item_id, EXCLUDED.source_item_id),
+            matched_user_id = COALESCE(EXCLUDED.matched_user_id, contacts.matched_user_id),
+            metadata = jsonb_strip_nulls(COALESCE(contacts.metadata, '{}'::jsonb) || COALESCE(EXCLUDED.metadata, '{}'::jsonb)),
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+        `,
+        [
+          input.ownerId,
           name,
-          normalized_name,
-          first_name,
-          last_name,
-          normalized_first_name,
-          normalized_last_name,
-          email,
-          normalized_email,
-          phone,
-          normalized_phone,
-          linkedin_url,
-          x_url,
-          github_url,
-          source_item_id,
-          matched_user_id,
-          metadata
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-        ON CONFLICT (owner_id, normalized_email, normalized_phone, normalized_first_name, normalized_last_name)
-        DO UPDATE SET
-          name = CASE
-            WHEN EXCLUDED.name IS NOT NULL THEN EXCLUDED.name
-            ELSE contacts.name
-          END,
-          normalized_name = CASE
-            WHEN EXCLUDED.normalized_name <> '' THEN EXCLUDED.normalized_name
-            ELSE contacts.normalized_name
-          END,
-          first_name = CASE
-            WHEN EXCLUDED.first_name IS NOT NULL THEN EXCLUDED.first_name
-            ELSE contacts.first_name
-          END,
-          last_name = CASE
-            WHEN EXCLUDED.last_name IS NOT NULL THEN EXCLUDED.last_name
-            ELSE contacts.last_name
-          END,
-          normalized_first_name = CASE
-            WHEN EXCLUDED.normalized_first_name <> '' THEN EXCLUDED.normalized_first_name
-            ELSE contacts.normalized_first_name
-          END,
-          normalized_last_name = CASE
-            WHEN EXCLUDED.normalized_last_name <> '' THEN EXCLUDED.normalized_last_name
-            ELSE contacts.normalized_last_name
-          END,
-          email = CASE
-            WHEN EXCLUDED.email IS NOT NULL THEN EXCLUDED.email
-            ELSE contacts.email
-          END,
-          normalized_email = CASE
-            WHEN EXCLUDED.normalized_email <> '' THEN EXCLUDED.normalized_email
-            ELSE contacts.normalized_email
-          END,
-          phone = CASE
-            WHEN EXCLUDED.phone IS NOT NULL THEN EXCLUDED.phone
-            ELSE contacts.phone
-          END,
-          normalized_phone = CASE
-            WHEN EXCLUDED.normalized_phone <> '' THEN EXCLUDED.normalized_phone
-            ELSE contacts.normalized_phone
-          END,
-          linkedin_url = COALESCE(EXCLUDED.linkedin_url, contacts.linkedin_url),
-          x_url = COALESCE(EXCLUDED.x_url, contacts.x_url),
-          github_url = COALESCE(EXCLUDED.github_url, contacts.github_url),
-          source_item_id = COALESCE(contacts.source_item_id, EXCLUDED.source_item_id),
-          matched_user_id = COALESCE(EXCLUDED.matched_user_id, contacts.matched_user_id),
-          metadata = jsonb_strip_nulls(COALESCE(contacts.metadata, '{}'::jsonb) || COALESCE(EXCLUDED.metadata, '{}'::jsonb)),
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING *
-      `,
-      [
-        input.ownerId,
-        name,
-        normalizedName,
-        encryptedFirstName,
-        encryptedLastName,
-        normalizedFirstName,
-        normalizedLastName,
-        encryptedEmail,
-        normalizedEmail,
-        encryptedPhone,
-        normalizedPhone,
-        linkedinUrl,
-        xUrl,
-        githubUrl,
-        input.sourceItemId ?? null,
-        input.matchedUserId ?? null,
-        metadata,
-      ]
-    );
+          normalizedName,
+          encryptedFirstName,
+          encryptedLastName,
+          normalizedFirstName,
+          normalizedLastName,
+          encryptedEmail,
+          normalizedEmail,
+          encryptedPhone,
+          normalizedPhone,
+          linkedinUrl,
+          xUrl,
+          githubUrl,
+          input.sourceItemId ?? null,
+          input.matchedUserId ?? null,
+          metadata,
+        ]
+      );
+
+      // Release the savepoint on success
+      await client.query(`RELEASE SAVEPOINT ${savepointId}`);
+    } catch (error: any) {
+      // Rollback to savepoint to restore transaction state
+      await client.query(`ROLLBACK TO SAVEPOINT ${savepointId}`);
+
+      // If the 5-column constraint doesn't exist, try with the 3-column constraint
+      // This handles cases where migration 030 hasn't run yet
+      if (error?.code === '23505' && error?.constraint === 'idx_contacts_owner_email_phone') {
+        // Find existing contact by the 3-column unique constraint
+        const existingResult = await client.query<Contact>(
+          `
+            SELECT * FROM contacts
+            WHERE owner_id = $1
+              AND normalized_email = $2
+              AND normalized_phone = $3
+            LIMIT 1
+          `,
+          [input.ownerId, normalizedEmail, normalizedPhone]
+        );
+
+        if (existingResult.rows.length > 0) {
+          // Update existing contact
+          const existingContactId = existingResult.rows[0].id;
+          const updateResult = await client.query<Contact>(
+            `
+              UPDATE contacts SET
+                name = CASE
+                  WHEN $2::TEXT IS NOT NULL THEN $2::TEXT
+                  ELSE contacts.name
+                END,
+                normalized_name = CASE
+                  WHEN $3::TEXT <> '' THEN $3::TEXT
+                  ELSE contacts.normalized_name
+                END,
+                first_name = CASE
+                  WHEN $4::TEXT IS NOT NULL THEN $4::TEXT
+                  ELSE contacts.first_name
+                END,
+                last_name = CASE
+                  WHEN $5::TEXT IS NOT NULL THEN $5::TEXT
+                  ELSE contacts.last_name
+                END,
+                normalized_first_name = CASE
+                  WHEN $6::TEXT <> '' THEN $6::TEXT
+                  ELSE contacts.normalized_first_name
+                END,
+                normalized_last_name = CASE
+                  WHEN $7::TEXT <> '' THEN $7::TEXT
+                  ELSE contacts.normalized_last_name
+                END,
+                email = CASE
+                  WHEN $8::TEXT IS NOT NULL THEN $8::TEXT
+                  ELSE contacts.email
+                END,
+                normalized_email = CASE
+                  WHEN $9::TEXT <> '' THEN $9::TEXT
+                  ELSE contacts.normalized_email
+                END,
+                phone = CASE
+                  WHEN $10::TEXT IS NOT NULL THEN $10::TEXT
+                  ELSE contacts.phone
+                END,
+                normalized_phone = CASE
+                  WHEN $11::TEXT <> '' THEN $11::TEXT
+                  ELSE contacts.normalized_phone
+                END,
+                linkedin_url = COALESCE(contacts.linkedin_url, $12::TEXT),
+                x_url = COALESCE(contacts.x_url, $13::TEXT),
+                github_url = COALESCE(contacts.github_url, $14::TEXT),
+                source_item_id = COALESCE(contacts.source_item_id, $15::UUID),
+                matched_user_id = COALESCE($16::UUID, contacts.matched_user_id),
+                metadata = jsonb_strip_nulls(COALESCE(contacts.metadata, '{}'::jsonb) || COALESCE($17::JSONB, '{}'::jsonb)),
+                updated_at = CURRENT_TIMESTAMP
+              WHERE id = $1::UUID
+              RETURNING *
+            `,
+            [
+              existingContactId,
+              name,
+              normalizedName,
+              encryptedFirstName,
+              encryptedLastName,
+              normalizedFirstName,
+              normalizedLastName,
+              encryptedEmail,
+              normalizedEmail,
+              encryptedPhone,
+              normalizedPhone,
+              linkedinUrl,
+              xUrl,
+              githubUrl,
+              input.sourceItemId ?? null,
+              input.matchedUserId ?? null,
+              metadata,
+            ]
+          );
+          result = updateResult;
+        } else {
+          // Should not happen, but re-throw if it does
+          throw error;
+        }
+      } else {
+        // Re-throw if it's not the expected constraint violation
+        throw error;
+      }
+    }
 
     // Decrypt contact data before returning
     const contact = this.decryptContact(result.rows[0] ?? null);

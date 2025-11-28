@@ -52,7 +52,7 @@ export class ItemModel {
    * Decrypt encrypted fields from database result
    * Handles both encrypted and unencrypted data (for migration compatibility)
    */
-  private static decryptItem(item: any): Item {
+  static decryptItem(item: any): Item {
     if (!item) {
       return item;
     }
@@ -78,7 +78,7 @@ export class ItemModel {
 
     // Encrypt sensitive content fields before storing
     const encryptedRaw = rawContent ? encryptField(rawContent) : null; // Opaque encryption
-    const encryptedTitle = encryptField(input.title, true); // Deterministic encryption for searchability
+    const encryptedTitle = encryptField(input.title); // Non-deterministic encryption (can be decrypted for display)
     const encryptedDescription = encryptField(input.description); // Opaque encryption
     const encryptedNotes = encryptField(input.notes); // Opaque encryption
     const encryptedClean = encryptField(input.clean); // Opaque encryption
@@ -394,7 +394,7 @@ export class ItemModel {
 
     if (updates.title !== undefined) {
       fields.push(`title = $${paramCount++}`);
-      values.push(encryptField(updates.title, true) || null); // Deterministic encryption
+      values.push(encryptField(updates.title) || null); // Non-deterministic encryption (can be decrypted for display)
     }
     if (updates.description !== undefined) {
       fields.push(`description = $${paramCount++}`);

@@ -1070,8 +1070,13 @@ class ApiClient {
 
     // Fallback: locally stored file in our own storage
     try {
+      if (!attachment.filename) {
+        console.warn('[API] Attachment missing filename:', attachment);
+        return null;
+      }
       return this.getFileUrl(itemId, attachment.filename, inline);
     } catch (error) {
+      console.warn('[API] Failed to get file URL:', error, attachment);
       return null;
     }
   }

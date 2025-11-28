@@ -47,7 +47,7 @@ export class SearchDocumentModel {
 
   static async upsert(input: UpsertSearchDocumentInput): Promise<SearchDocument> {
     // Encrypt sensitive content fields before storing
-    const encryptedTitle = encryptField(input.title, true); // Deterministic encryption for searchability
+    const encryptedTitle = encryptField(input.title); // Non-deterministic encryption (can be decrypted for display)
     const encryptedContent = encryptField(input.content); // Opaque encryption
     const encryptedSummary = encryptField(input.summary); // Opaque encryption
 
