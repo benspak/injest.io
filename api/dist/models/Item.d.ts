@@ -46,7 +46,7 @@ export declare class ItemModel {
      * Decrypt encrypted fields from database result
      * Handles both encrypted and unencrypted data (for migration compatibility)
      */
-    private static decryptItem;
+    static decryptItem(item: any): Item;
     static create(input: CreateItemInput, client?: PoolClient): Promise<Item>;
     static findById(id: string): Promise<Item | null>;
     static findByIdIncludingDeleted(id: string): Promise<Item | null>;

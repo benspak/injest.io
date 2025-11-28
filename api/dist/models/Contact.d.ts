@@ -54,10 +54,16 @@ export interface UpdateContactInput {
 }
 export declare class ContactModel {
     /**
+     * Check if a field is deterministically encrypted (cannot be decrypted)
+     * Deterministic encryption format: iv_seed:tag:ciphertext where iv_seed is <= 12 base64 chars
+     */
+    private static isDeterministicallyEncrypted;
+    /**
      * Decrypt encrypted fields from database result
      * Handles both encrypted and unencrypted data (for migration compatibility)
+     * Note: Email and phone are deterministically encrypted and cannot be decrypted
      */
-    private static decryptContact;
+    static decryptContact(contact: any): Contact | null;
     /**
      * Decrypt array of contacts
      */

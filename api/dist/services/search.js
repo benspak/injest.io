@@ -1,6 +1,9 @@
 import { embeddingService } from './embeddings.js';
 import pool from '../config/database.js';
 import { itemAccessEmailNormalizer } from '../models/ItemAccess.js';
+import { ItemModel } from '../models/Item.js';
+import { ContactModel } from '../models/Contact.js';
+import { decryptField } from '../utils/encryption.js';
 const SEARCH_CACHE_TTL_MS = 60_000; // 60 seconds
 const SEARCH_CACHE_MAX_ENTRIES = 200;
 const sanitizeArray = (values, toLower = true) => {
@@ -234,16 +237,26 @@ export class SearchService {
             if (!entityId) {
                 return null;
             }
+            // Decrypt item if present
+            let decryptedItem = result.item;
+            if (decryptedItem) {
+                decryptedItem = ItemModel.decryptItem(decryptedItem);
+            }
+            // Decrypt contact if present
+            let decryptedContact = result.contact;
+            if (decryptedContact) {
+                decryptedContact = ContactModel.decryptContact(decryptedContact) ?? undefined;
+            }
             return {
                 entityType: result.entityType,
                 entityId,
-                item: result.item ?? undefined,
-                contact: result.contact ?? undefined,
+                item: decryptedItem ?? undefined,
+                contact: decryptedContact ?? undefined,
                 user: result.user ?? undefined,
                 document: result.document
                     ? {
-                        title: result.document.title,
-                        summary: result.document.summary,
+                        title: decryptField(result.document.title),
+                        summary: decryptField(result.document.summary),
                         tags: result.document.tags,
                         metadata: result.document.metadata ?? {},
                     }
@@ -476,22 +489,28 @@ export class SearchService {
                 if (!entityId) {
                     return null;
                 }
+                // Decrypt item if present
+                let decryptedItem = undefined;
+                if (row.item_json && typeof row.item_json === 'object') {
+                    decryptedItem = ItemModel.decryptItem(row.item_json);
+                }
+                // Decrypt contact if present
+                let decryptedContact = undefined;
+                if (row.contact_json && typeof row.contact_json === 'object') {
+                    decryptedContact = ContactModel.decryptContact(row.contact_json) ?? undefined;
+                }
                 const similarity = parseFloat(row.text_similarity) || 0.6;
                 return {
                     entityType: row.entity_type,
                     entityId,
-                    item: row.item_json && typeof row.item_json === 'object'
-                        ? row.item_json
-                        : undefined,
-                    contact: row.contact_json && typeof row.contact_json === 'object'
-                        ? row.contact_json
-                        : undefined,
+                    item: decryptedItem,
+                    contact: decryptedContact,
                     user: row.user_json && typeof row.user_json === 'object'
                         ? row.user_json
                         : undefined,
                     document: {
-                        title: row.title ?? null,
-                        summary: row.summary ?? null,
+                        title: decryptField(row.title),
+                        summary: decryptField(row.summary),
                         tags: row.tags ?? null,
                         metadata: row.metadata && typeof row.metadata === 'object'
                             ? row.metadata

@@ -337,7 +337,7 @@ export class SearchService {
       // Decrypt contact if present
       let decryptedContact = result.contact;
       if (decryptedContact) {
-        decryptedContact = ContactModel.decryptContact(decryptedContact);
+        decryptedContact = ContactModel.decryptContact(decryptedContact) ?? undefined;
       }
 
       return {
@@ -615,7 +615,7 @@ export class SearchService {
           // Decrypt contact if present
           let decryptedContact = undefined;
           if (row.contact_json && typeof row.contact_json === 'object') {
-            decryptedContact = ContactModel.decryptContact(row.contact_json);
+            decryptedContact = ContactModel.decryptContact(row.contact_json) ?? undefined;
           }
 
           const similarity = parseFloat(row.text_similarity) || 0.6;
