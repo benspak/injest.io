@@ -3,7 +3,7 @@
 import { Fragment, useCallback, useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { FolderKanban, Inbox, LayoutDashboard, Menu, Send, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown, MessageSquare, Gift, Archive, Ban, UserX, Sparkles } from 'lucide-react';
+import { FolderKanban, Inbox, LayoutDashboard, Menu, UploadCloud, Users, X, Folder, ChevronRight, ChevronDown, MessageSquare, Gift, Sparkles } from 'lucide-react';
 import { CaptureForm } from '@/components/capture-form';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { Button } from '@/components/ui/button';
@@ -47,26 +47,6 @@ const NAV_ITEMS = [
 
 const INBOX_SUB_ITEMS = [
   {
-    href: '/send',
-    label: 'Send',
-    icon: Send,
-  },
-  {
-    href: '/inbox/sent',
-    label: 'Outbox',
-    icon: Archive,
-  },
-  {
-    href: '/inbox/spam',
-    label: 'Spam',
-    icon: Ban,
-  },
-  {
-    href: '/inbox/unsubscribe',
-    label: 'Unsubscribe',
-    icon: UserX,
-  },
-  {
     href: '/slack',
     label: 'Slack',
     icon: MessageSquare,
@@ -97,7 +77,7 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
   const isAuthenticated = Boolean(currentUser);
 
   // Determine if inbox section should be expanded by default
-  const isInboxRoute = pathname.startsWith('/inbox') || pathname === '/send' || pathname === '/slack';
+  const isInboxRoute = pathname.startsWith('/inbox') || pathname === '/slack';
   const [isInboxExpanded, setIsInboxExpanded] = useState(isInboxRoute);
 
   // Update expanded state when pathname changes to inbox routes
@@ -145,7 +125,7 @@ export function AppSidebar({ currentUser, isMobileOpen, onMobileToggle, onLogout
         );
 
         // Insert Inbox section after Collections
-        const isInboxActive = pathname.startsWith('/inbox') || pathname === '/send' || pathname === '/slack';
+        const isInboxActive = pathname.startsWith('/inbox') || pathname === '/slack';
         const ChevronIcon = isInboxExpanded ? ChevronDown : ChevronRight;
 
         items.push(

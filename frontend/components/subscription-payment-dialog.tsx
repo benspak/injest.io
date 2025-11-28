@@ -221,8 +221,12 @@ export function SubscriptionPaymentDialog({
     }
 
     const nextTier = (() => {
-      if (currentTier === 'pro' || currentTier === 'pro_annual') {
+      if (currentTier === 'pro_annual') {
         return currentTier;
+      }
+      // If user is on monthly pro, default to annual
+      if (currentTier === 'pro') {
+        return 'pro_annual';
       }
       return DEFAULT_PAID_TIER;
     })();
@@ -296,7 +300,7 @@ export function SubscriptionPaymentDialog({
           </div>
 
           <div className="grid gap-3">
-            {PAID_PLAN_ORDER.map((tier) => {
+            {PAID_PLAN_ORDER.filter((tier) => tier !== 'pro').map((tier) => {
               const plan = SUBSCRIPTION_PLANS[tier];
               const selected = selectedTier === tier;
               return (

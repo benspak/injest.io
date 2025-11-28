@@ -14,55 +14,45 @@ export default function Home() {
   const discount = useMemo(() => getAnnualPlanDiscount(), []);
   const annualPrice = "$72"; // Always 80% off: $30 * 12 * 0.2 = $72
 
+  const businessPrice = "$1,200"; // 80% off: $500 * 12 * 0.2 = $1,200/year
+
   const pricingPlans = useMemo(() => [
-    {
-      tier: 'free' as const,
-      name: "Free",
-      priceDisplay: "$0",
-      priceNote: "",
-      limit: "Up to 25GB of space, free",
-      description: "Get started with up to 25GB of space and pro-grade capture features.",
-      features: [
-        "Text extraction from images",
-        "Smart search",
-        "Advanced search filters",
-        "Email forwarding & automation",
-        "Collections & organization",
-        "API keys",
-        "Public profiles & sharing",
-        "Slack integration",
-        "Chrome extension",
-      ],
-    },
-    {
-      tier: 'pro' as const,
-      name: "Pro",
-      priceDisplay: "$30",
-      priceNote: "/mo",
-      limit: "Unlimited items",
-      description: "Unlimited indexed items with priority ingestion and support.",
-      features: [
-        "Everything in Free",
-        "Unlimited storage & automation",
-        "Priority tagging",
-        "Priority support",
-      ],
-    },
     {
       tier: 'pro_annual' as const,
       name: "Pro Annual",
       priceDisplay: annualPrice,
       priceNote: `/year (${discount}% off)`,
-      limit: "Unlimited items",
+      limit: "25GB storage",
       description: `Cyber Week Sale: ${discount}% off annual billing with dedicated onboarding.`,
       features: [
-        "Everything in Pro",
+        "Text extraction from images",
+        "Smart search",
+        "Email forwarding & automation",
+        "Collections & organization",
+        "API keys",
+        "Slack integration",
+        "Chrome extension",
         "Dedicated onboarding support",
-        `${discount}% discount (Cyber Week Sale)`,
       ],
       badge: "Cyber Week Sale",
     },
-  ], [discount, annualPrice]);
+    {
+      tier: 'business' as const,
+      name: "Business Annual",
+      priceDisplay: businessPrice,
+      priceNote: `/year (${discount}% off)`,
+      limit: "Unlimited storage",
+      description: `Cyber Week Sale: ${discount}% off annual billing. Unlimited data storage for enterprise teams.`,
+      features: [
+        "Everything in Pro Annual",
+        "Unlimited data storage",
+        "Priority support",
+        "Custom integrations",
+        "Dedicated account manager",
+      ],
+      badge: "Cyber Week Sale",
+    },
+  ], [discount, annualPrice, businessPrice]);
 
   const interfaceScreens = [
     {
@@ -79,11 +69,6 @@ export default function Home() {
       src: "/imports-screenshot.png",
       title: "Upload files",
       description: "Upload files directly or import from other sources.",
-    },
-    {
-      src: "/send-screenshot.png",
-      title: "Send emails",
-      description: "Send emails with attachments from your stored files.",
     },
     {
       src: "/email-summary-screenshot.png",
@@ -112,11 +97,10 @@ export default function Home() {
               Beta Release
             </div>
             <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold text-gray-900 mb-6 leading-tight">
-              Your data, your control, your privacy
+              Unified search for your data
             </h1>
             <p className="text-xl sm:text-2xl text-gray-600 mb-6 leading-relaxed">
-              Store your emails and files securely with end-to-end encryption. Forward emails to your personal{' '}
-              <span className="font-mono">username@injest.io</span> address or upload files directly. Your data is encrypted, never sold, and always yours.
+              Files, Emails, Bookmarks, Slack messages and more in one searchable workspace.
             </p>
             <div className="flex flex-wrap gap-3 mb-6 justify-center lg:justify-start">
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-50 text-green-700 rounded-full text-sm font-medium">
@@ -523,6 +507,32 @@ export default function Home() {
               Pricing
             </h2>
             <HomepagePricingPlans plans={pricingPlans} />
+            {/* Money-Back Guarantee Section */}
+            <div className="mt-12 max-w-3xl mx-auto">
+              <Card className="border-green-200 bg-linear-to-br from-green-50 to-blue-50">
+                <CardContent className="p-8">
+                  <div className="flex items-start gap-4">
+                    <div className="text-4xl">💰</div>
+                    <div className="flex-1">
+                      <h3 className="text-2xl font-bold text-gray-900 mb-3">
+                        30-Day Money-Back Guarantee
+                      </h3>
+                      <p className="text-lg text-gray-700 leading-relaxed">
+                        We're confident you'll love Injest. If you're not completely satisfied with your purchase, we'll refund your payment in full within 30 days of purchase.
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                          <span>✓</span> Full refund within 30 days
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                          <span>✓</span> Risk-free trial
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </section>

@@ -24,7 +24,7 @@ export class AffiliateService {
 
   /**
    * Process commission for a successful payment
-   * Note: Commissions are NOT processed for annual plan (pro_annual)
+   * Note: Commissions are NOT processed for annual plans (pro_annual, business)
    */
   static async processCommission(
     paymentIntentId: string,
@@ -32,8 +32,8 @@ export class AffiliateService {
     amountCents: number,
     subscriptionTier?: string
   ): Promise<void> {
-    // Skip commission processing for annual plan
-    if (subscriptionTier === 'pro_annual') {
+    // Skip commission processing for annual plans
+    if (subscriptionTier === 'pro_annual' || subscriptionTier === 'business') {
       return;
     }
 

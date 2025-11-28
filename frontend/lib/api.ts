@@ -301,103 +301,6 @@ export interface SearchResponse {
   results: SearchResult[];
 }
 
-export interface SendPlanAnalysis {
-  summary: string;
-  intent: string;
-  targetCompany?: string;
-  targetDomain?: string;
-  targetPersona?: string;
-  tone?: string;
-  searchQuery: string;
-  keyFacts: string[];
-}
-
-export interface SendPlanContact {
-  id: string;
-  name: string | null;
-  email: string | null;
-  phone: string | null;
-  company: string | null;
-  sourceItemId: string | null;
-  metadata: Record<string, unknown> | null;
-  createdAt: string | null;
-  updatedAt: string | null;
-}
-
-export interface SendPlanItem {
-  id: string;
-  type?: string;
-  title?: string | null;
-  description?: string | null;
-  url?: string | null;
-  tags?: string[] | null;
-  source?: string | null;
-  similarity: number;
-  scores?: SearchResultScores;
-  attachments: ItemAttachment[];
-  createdAt: string | null;
-  updatedAt: string | null;
-}
-
-export interface SendPlanAttachmentSuggestion {
-  itemId: string;
-  attachmentFilename?: string | null;
-  reason?: string | null;
-}
-
-export interface SendPlanRecommendation {
-  subject: string;
-  body: string;
-  recommendedContactId?: string | null;
-  recommendedContactEmail?: string | null;
-  contactReason?: string | null;
-  attachments: SendPlanAttachmentSuggestion[];
-  notes?: string | null;
-  confidence?: number | null;
-  suggestedSearchQuery?: string | null;
-}
-
-export interface SendPlanResponse {
-  analysis: SendPlanAnalysis;
-  prompt: string;
-  searchQuery: string;
-  contacts: SendPlanContact[];
-  items: SendPlanItem[];
-  recommendation: SendPlanRecommendation;
-  generatedAt: string;
-}
-
-export interface SendExecuteAttachment {
-  itemId: string;
-  attachmentFilename?: string | null;
-}
-
-export interface ExecuteSendRequest {
-  platforms: Array<'email' | 'xcom'>;
-  subject?: string;
-  body?: string;
-  xcomPost?: string;
-  contactId?: string | null;
-  toEmail?: string | string[] | null;
-  cc?: string[];
-  bcc?: string[];
-  replyTo?: string | null;
-  attachments?: SendExecuteAttachment[];
-  prompt?: string;
-  recommendation?: SendPlanRecommendation;
-  analysis?: SendPlanAnalysis;
-}
-
-export interface ExecuteSendResponse {
-  success: boolean;
-  sentAt: string;
-  results?: {
-    email?: { success: boolean; error?: string; itemId?: string };
-    xcom?: { success: boolean; error?: string; tweetId?: string };
-  };
-  itemId?: string; // Deprecated: use results.email.itemId
-  contact: SendPlanContact | null;
-}
 
 export interface SearchFilters {
   entities?: Array<'item' | 'contact'>;
@@ -1206,33 +1109,6 @@ class ApiClient {
     });
   }
 
-  async markItemAsSpam(itemId: string): Promise<Item> {
-    return this.request<Item>(`/api/items/${itemId}/mark-spam`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-  }
-
-  async unmarkItemAsSpam(itemId: string): Promise<Item> {
-    return this.request<Item>(`/api/items/${itemId}/unmark-spam`, {
-      method: 'POST',
-      body: JSON.stringify({}),
-    });
-  }
-
-  async planSend(prompt: string): Promise<SendPlanResponse> {
-    return this.request<SendPlanResponse>('/api/send/plan', {
-      method: 'POST',
-      body: JSON.stringify({ prompt }),
-    });
-  }
-
-  async executeSend(payload: ExecuteSendRequest): Promise<ExecuteSendResponse> {
-    return this.request<ExecuteSendResponse>('/api/send/execute', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  }
 
   // X.com OAuth
 

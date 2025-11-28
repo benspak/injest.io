@@ -20,11 +20,11 @@ export class AffiliateService {
     }
     /**
      * Process commission for a successful payment
-     * Note: Commissions are NOT processed for annual plan (pro_annual)
+     * Note: Commissions are NOT processed for annual plans (pro_annual, business)
      */
     static async processCommission(paymentIntentId, userId, amountCents, subscriptionTier) {
-        // Skip commission processing for annual plan
-        if (subscriptionTier === 'pro_annual') {
+        // Skip commission processing for annual plans
+        if (subscriptionTier === 'pro_annual' || subscriptionTier === 'business') {
             return;
         }
         // Find referral relationship for this user

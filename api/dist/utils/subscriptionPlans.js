@@ -1,5 +1,7 @@
 import { getAnnualPlanPriceCents } from './saleConfig.js';
 const PRO_MONTHLY_PRICE_CENTS = 3000;
+// Business plan: $500/month normally, 80% off annual = $500 * 12 * 0.2 = $1200/year
+const BUSINESS_ANNUAL_PRICE_CENTS = 120000; // $1200/year (80% off from $6000/year)
 // Base plans (annual price is calculated dynamically)
 const BASE_PLANS = {
     free: {
@@ -23,8 +25,15 @@ const BASE_PLANS = {
         minIndexedItems: 0,
         maxIndexedItems: null,
     },
+    business: {
+        id: 'business',
+        name: 'Business Annual',
+        billingInterval: 'year',
+        minIndexedItems: 0,
+        maxIndexedItems: null,
+    },
 };
-export const PAID_TIERS = ['pro', 'pro_annual'];
+export const PAID_TIERS = ['pro', 'pro_annual', 'business'];
 export function getPlan(tier) {
     const basePlan = BASE_PLANS[tier];
     if (!basePlan) {
@@ -37,6 +46,9 @@ export function getPlan(tier) {
     }
     else if (tier === 'pro') {
         priceCents = PRO_MONTHLY_PRICE_CENTS;
+    }
+    else if (tier === 'business') {
+        priceCents = BUSINESS_ANNUAL_PRICE_CENTS;
     }
     else {
         // pro_annual - calculate based on current sale status
@@ -52,6 +64,7 @@ export const SUBSCRIPTION_PLANS = {
     get free() { return getPlan('free'); },
     get pro() { return getPlan('pro'); },
     get pro_annual() { return getPlan('pro_annual'); },
+    get business() { return getPlan('business'); },
 };
 export function getMaxIndexedItems(tier) {
     const plan = SUBSCRIPTION_PLANS[tier];
@@ -61,7 +74,7 @@ export function isPaidTier(tier) {
     return PAID_TIERS.includes(tier);
 }
 export function coerceSubscriptionTier(value) {
-    if (value === 'pro' || value === 'pro_annual') {
+    if (value === 'pro' || value === 'pro_annual' || value === 'business') {
         return value;
     }
     if (value === 'plus') {

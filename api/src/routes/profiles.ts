@@ -152,7 +152,8 @@ const avatarStorage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req: express.Request, file: Express.Multer.File, cb: (error: Error | null, filename: string) => void) => {
-    // Generate unique filename: {userId}-{timestamp}.{ext}
+    // Generate unique filename: {shortHash}.{ext}
+    // Using a shorter hash instead of full UUIDs to keep filename reasonable
     const ext = path.extname(file.originalname).toLowerCase();
     const allowedExts = ['.jpg', '.jpeg', '.png', '.webp'];
 
@@ -161,10 +162,10 @@ const avatarStorage = multer.diskStorage({
       return;
     }
 
-    const userId = (req as AuthRequest).user?.id || 'unknown';
-    const timestamp = Date.now();
-    const uniqueId = crypto.randomUUID();
-    const filename = `${userId}-${timestamp}-${uniqueId}${ext}`;
+    // Generate a shorter unique identifier (16 bytes = 22 chars in base64url)
+    const randomBytes = crypto.randomBytes(16);
+    const shortId = randomBytes.toString('base64url');
+    const filename = `${shortId}${ext}`;
     cb(null, filename);
   },
 });

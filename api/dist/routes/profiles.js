@@ -118,17 +118,18 @@ const avatarStorage = multer.diskStorage({
         cb(null, uploadDir);
     },
     filename: (req, file, cb) => {
-        // Generate unique filename: {userId}-{timestamp}.{ext}
+        // Generate unique filename: {shortHash}.{ext}
+        // Using a shorter hash instead of full UUIDs to keep filename reasonable
         const ext = path.extname(file.originalname).toLowerCase();
         const allowedExts = ['.jpg', '.jpeg', '.png', '.webp'];
         if (!allowedExts.includes(ext)) {
             cb(new Error('Invalid file type. Only JPG, PNG, and WebP are allowed.'), '');
             return;
         }
-        const userId = req.user?.id || 'unknown';
-        const timestamp = Date.now();
-        const uniqueId = crypto.randomUUID();
-        const filename = `${userId}-${timestamp}-${uniqueId}${ext}`;
+        // Generate a shorter unique identifier (16 bytes = 22 chars in base64url)
+        const randomBytes = crypto.randomBytes(16);
+        const shortId = randomBytes.toString('base64url');
+        const filename = `${shortId}${ext}`;
         cb(null, filename);
     },
 });

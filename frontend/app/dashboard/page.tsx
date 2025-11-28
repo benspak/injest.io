@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Inbox, Send, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info, Flame, MessageSquare, ExternalLink } from 'lucide-react';
+import { Inbox, Users, ArrowRight, CheckCircle2, AlertCircle, Upload, Bookmark, Mail, Info, Flame, MessageSquare, ExternalLink } from 'lucide-react';
 import { AnnouncementBanner } from '@/components/announcement-banner';
 import { AvatarMenu } from '@/components/avatar-menu';
 import { FeedbackDialog } from '@/components/feedback-dialog';
@@ -131,19 +131,6 @@ export default function DashboardPage() {
 
       <main className="container mx-auto px-4 sm:px-6 py-8 max-w-7xl">
         <div className="space-y-6">
-          {/* Video Section */}
-          <div className="w-full">
-            <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-              <iframe
-                className="absolute top-0 left-0 w-full h-full rounded-lg"
-                src="https://www.youtube.com/embed/YY84dGofrnk"
-                title="YouTube video player"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                allowFullScreen
-              />
-            </div>
-          </div>
-
           {/* Get Started Section */}
           <Card className="bg-linear-to-r from-blue-50 to-indigo-50 border-blue-200">
             <CardHeader>
@@ -293,35 +280,6 @@ export default function DashboardPage() {
                     <Link href="/inbox">
                       <Button className="w-full" variant="outline">
                         Go to Inbox
-                        <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Send Card */}
-              <Card className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-green-50 rounded-lg">
-                        <Send className="h-5 w-5 text-green-600" />
-                      </div>
-                      <CardTitle className="text-lg">Send</CardTitle>
-                    </div>
-                  </div>
-                  <CardDescription>Generate and send outreach</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-3xl font-bold text-gray-900">—</p>
-                      <p className="text-sm text-gray-500">Active sends</p>
-                    </div>
-                    <Link href="/send">
-                      <Button className="w-full" variant="outline">
-                        Go to Send
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </Link>

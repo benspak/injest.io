@@ -1,6 +1,6 @@
 import { getAnnualPlanPriceCents } from './saleConfig.js';
 
-export type SubscriptionTier = 'free' | 'pro' | 'pro_annual';
+export type SubscriptionTier = 'free' | 'pro' | 'pro_annual' | 'business';
 
 export interface SubscriptionPlan {
   id: SubscriptionTier;
@@ -12,6 +12,8 @@ export interface SubscriptionPlan {
 }
 
 const PRO_MONTHLY_PRICE_CENTS = 3000;
+// Business plan: $500/month normally, 80% off annual = $500 * 12 * 0.2 = $1200/year
+const BUSINESS_ANNUAL_PRICE_CENTS = 120000; // $1200/year (80% off from $6000/year)
 
 // Base plans (annual price is calculated dynamically)
 const BASE_PLANS: Record<SubscriptionTier, Omit<SubscriptionPlan, 'priceCents'>> = {
@@ -36,9 +38,16 @@ const BASE_PLANS: Record<SubscriptionTier, Omit<SubscriptionPlan, 'priceCents'>>
     minIndexedItems: 0,
     maxIndexedItems: null,
   },
+  business: {
+    id: 'business',
+    name: 'Business Annual',
+    billingInterval: 'year',
+    minIndexedItems: 0,
+    maxIndexedItems: null,
+  },
 };
 
-export const PAID_TIERS: SubscriptionTier[] = ['pro', 'pro_annual'];
+export const PAID_TIERS: SubscriptionTier[] = ['pro', 'pro_annual', 'business'];
 
 export function getPlan(tier: SubscriptionTier): SubscriptionPlan {
   const basePlan = BASE_PLANS[tier];
@@ -53,6 +62,8 @@ export function getPlan(tier: SubscriptionTier): SubscriptionPlan {
     priceCents = 0;
   } else if (tier === 'pro') {
     priceCents = PRO_MONTHLY_PRICE_CENTS;
+  } else if (tier === 'business') {
+    priceCents = BUSINESS_ANNUAL_PRICE_CENTS;
   } else {
     // pro_annual - calculate based on current sale status
     priceCents = getAnnualPlanPriceCents(PRO_MONTHLY_PRICE_CENTS);
@@ -69,6 +80,7 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlan> = {
   get free() { return getPlan('free'); },
   get pro() { return getPlan('pro'); },
   get pro_annual() { return getPlan('pro_annual'); },
+  get business() { return getPlan('business'); },
 };
 
 export function getMaxIndexedItems(tier: SubscriptionTier): number {
@@ -81,7 +93,7 @@ export function isPaidTier(tier: SubscriptionTier): boolean {
 }
 
 export function coerceSubscriptionTier(value: unknown): SubscriptionTier {
-  if (value === 'pro' || value === 'pro_annual') {
+  if (value === 'pro' || value === 'pro_annual' || value === 'business') {
     return value;
   }
   if (value === 'plus') {

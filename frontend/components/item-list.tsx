@@ -59,7 +59,6 @@ export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection
   const [bulkMode, setBulkMode] = useState(false);
   const [addToCollectionDialogOpen, setAddToCollectionDialogOpen] = useState(false);
   const [itemCollections, setItemCollections] = useState<Record<string, string[]>>({});
-  const [spamUpdatingItemId, setSpamUpdatingItemId] = useState<string | null>(null);
 
   // Helper to get display title/description (supports both new unified and old structure)
   const getItemDisplay = (item: Item) => {
@@ -428,39 +427,6 @@ export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection
     }
   };
 
-  const handleToggleSpam = async (item: Item) => {
-    if (!item || item.isResendEmail || item.type !== 'email') {
-      return;
-    }
-
-    setSpamUpdatingItemId(item.id);
-    try {
-      const tags = Array.isArray(item.tags) ? item.tags : [];
-      const isSpam = tags.includes('spam');
-      const updated = isSpam
-        ? await apiClient.unmarkItemAsSpam(item.id)
-        : await apiClient.markItemAsSpam(item.id);
-
-      // Update selected item/details state if they match
-      setItemDetails((current: any) => {
-        if (!current || current.id !== updated.id) {
-          return current;
-        }
-        return { ...current, tags: updated.tags };
-      });
-      setSelectedItem((current) => {
-        if (!current || current.id !== updated.id) {
-          return current;
-        }
-        return { ...current, tags: updated.tags };
-      });
-    } catch (error) {
-      console.error('Error toggling spam status:', error);
-      toast.error('Failed to update spam status.');
-    } finally {
-      setSpamUpdatingItemId(null);
-    }
-  };
 
   const handleImageAttachmentClick = (
     event: MouseEvent<HTMLImageElement>,
@@ -1594,19 +1560,6 @@ export function ItemList({ items, onDelete, collectionId, onRemoveFromCollection
                       onClick={() => setEditingItem(true)}
                     >
                       Edit
-                    </Button>
-                  )}
-                  {!itemDetails.isResendEmail && itemDetails.type === 'email' && (
-                    <Button
-                      variant="outline"
-                      onClick={() => handleToggleSpam(itemDetails)}
-                      disabled={spamUpdatingItemId === itemDetails.id}
-                    >
-                      {spamUpdatingItemId === itemDetails.id
-                        ? 'Updating...'
-                        : Array.isArray(itemDetails.tags) && itemDetails.tags.includes('spam')
-                          ? 'Unmark spam'
-                          : 'Mark as spam'}
                     </Button>
                   )}
                   {onDelete && !itemDetails.isResendEmail && (

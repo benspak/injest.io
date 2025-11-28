@@ -108,11 +108,11 @@ export class StripeService {
     }
 
     // Check if user was referred and apply 10% discount
-    // Note: Referral discounts are NOT applied to annual plan (pro_annual)
+    // Note: Referral discounts are NOT applied to annual plans (pro_annual, business)
     const referral = await ReferralModel.findByReferredUserId(userId);
     const originalAmount = plan.priceCents;
-    const amount = referral && tier !== 'pro_annual'
-      ? Math.round(originalAmount * 0.9) // 10% discount for referred users (not for annual plan)
+    const amount = referral && tier !== 'pro_annual' && tier !== 'business'
+      ? Math.round(originalAmount * 0.9) // 10% discount for referred users (not for annual plans)
       : originalAmount;
 
     const customerId = await this.getOrCreateCustomer(userId, email);

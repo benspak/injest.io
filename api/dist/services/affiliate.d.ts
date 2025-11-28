@@ -5,7 +5,7 @@ export declare class AffiliateService {
     static calculateCommission(amountCents: number): number;
     /**
      * Process commission for a successful payment
-     * Note: Commissions are NOT processed for annual plan (pro_annual)
+     * Note: Commissions are NOT processed for annual plans (pro_annual, business)
      */
     static processCommission(paymentIntentId: string, userId: string, amountCents: number, subscriptionTier?: string): Promise<void>;
     /**
